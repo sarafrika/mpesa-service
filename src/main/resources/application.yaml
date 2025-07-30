@@ -1,3 +1,78 @@
 spring:
   application:
     name: 'Mpesa'
+
+# M-Pesa Daraja API Callback Configuration
+mpesa:
+  callback:
+    # Safaricom's known IP addresses for callback requests
+    # These are the ONLY IPs that should be allowed to send callbacks
+    allowed-ips:
+      - "196.201.214.200"
+      - "196.201.214.206"
+      - "196.201.213.114"
+      - "196.201.214.207"
+      - "196.201.214.208"
+      - "196.201.213.44"
+      - "196.201.212.127"
+      - "196.201.212.138"
+      - "196.201.212.129"
+      - "196.201.212.136"
+      - "196.201.212.74"
+      - "196.201.212.69"
+
+    # IP whitelisting configuration
+    ip-whitelist:
+      enabled: ${CALLBACK_IP_WHITELIST_ENABLED:true}  # Set to false for development
+
+    # Base URL for all callback endpoints (update with your actual domain)
+    base-url: ${CALLBACK_BASE_URL:https://yourdomain.com/api/v1/callbacks}
+
+    # STK Push callback configuration
+    stk:
+      url: ${mpesa.callback.base-url}/stk/callback
+
+    # C2B callback configuration
+    c2b:
+      validation-url: ${mpesa.callback.base-url}/c2b/validation
+      confirmation-url: ${mpesa.callback.base-url}/c2b/confirmation
+
+    # B2C callback configuration
+    b2c:
+      result-url: ${mpesa.callback.base-url}/b2c/result
+      timeout-url: ${mpesa.callback.base-url}/b2c/timeout
+
+    # B2B callback configuration
+    b2b:
+      result-url: ${mpesa.callback.base-url}/b2b/result
+      timeout-url: ${mpesa.callback.base-url}/b2b/timeout
+
+    # Transaction Status callback configuration
+    transaction-status:
+      result-url: ${mpesa.callback.base-url}/transaction-status/result
+
+    # Account Balance callback configuration
+    account-balance:
+      result-url: ${mpesa.callback.base-url}/account-balance/result
+
+    # Transaction Reversal callback configuration
+    reversal:
+      result-url: ${mpesa.callback.base-url}/reversal/result
+      timeout-url: ${mpesa.callback.base-url}/reversal/timeout
+
+    # Testing configuration (NEVER enable in production)
+    testing:
+      enabled: ${CALLBACK_TESTING_ENABLED:false}
+
+# Request logging configuration
+logging:
+  level:
+    com.sarafrika.apps.mpesaservice.controllers: INFO
+
+# SSL configuration (callbacks must be HTTPS in production)
+server:
+  ssl:
+    enabled: ${SSL_ENABLED:false}
+    key-store: ${SSL_KEYSTORE_PATH:}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD:}
+    key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
