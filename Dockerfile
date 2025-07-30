@@ -4,7 +4,7 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 # Set working directory for build stage
 WORKDIR /app
 
-# Copy Gradle wrapper and dependency files first (for better caching)
+# Copy Maven/Gradle wrapper and dependency files first (for better caching)
 COPY gradlew* build.gradle settings.gradle ./
 COPY gradle gradle
 
@@ -35,7 +35,7 @@ RUN mkdir -p /app/data /app/logs /app/temp && \
 WORKDIR /app
 
 # Copy the built JAR from builder stage
-COPY --from=builder --chown=appuser:appgroup /app/target/*.jar app.jar
+COPY --from=builder --chown=appuser:appgroup /app/build/libs/*.jar app.jar
 
 # Switch to non-root user
 USER appuser
