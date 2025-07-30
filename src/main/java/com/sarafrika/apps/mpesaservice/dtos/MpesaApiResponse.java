@@ -1,6 +1,5 @@
 package com.sarafrika.apps.mpesaservice.dtos;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
@@ -63,12 +62,25 @@ public record MpesaApiResponse<T>(
      * Create error response from exception
      */
     public static <T> MpesaApiResponse<T> error(String errorCode, String errorMessage, int httpStatus) {
-        MpesaErrorResponse error = new MpesaErrorResponse(
+        MpesaErrorResponse errorResponse = new MpesaErrorResponse(
                 errorCode,
                 errorMessage,
                 null,
                 LocalDateTime.now()
         );
-        return error(error, httpStatus);
+        return error(errorResponse, httpStatus);
+    }
+
+    /**
+     * Create error response from exception with processing time
+     */
+    public static <T> MpesaApiResponse<T> error(String errorCode, String errorMessage, int httpStatus, long processingTimeMs) {
+        MpesaErrorResponse errorResponse = new MpesaErrorResponse(
+                errorCode,
+                errorMessage,
+                null,
+                LocalDateTime.now()
+        );
+        return error(errorResponse, httpStatus, processingTimeMs);
     }
 }
