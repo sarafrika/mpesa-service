@@ -4,8 +4,8 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 # Set working directory for build stage
 WORKDIR /app
 
-# Copy Maven/Gradle wrapper and dependency files first (for better caching)
-COPY gradlew* build.gradle ./
+# Copy Gradle wrapper and dependency files first (for better caching)
+COPY gradlew* build.gradle settings.gradle ./
 COPY gradle gradle
 
 # Download dependencies (this layer will be cached if dependencies don't change)
@@ -14,8 +14,8 @@ RUN ./gradlew dependencies --no-daemon
 # Copy source code
 COPY src ./src
 
-# Build the application
-RUN ./gradlew build -x test --no-daemon
+# Build the application with Lombok annotation processing
+RUN ./gradlew clean build -x test --no-daemon --info
 
 # Runtime stage with JRE
 FROM eclipse-temurin:21-jre-alpine
