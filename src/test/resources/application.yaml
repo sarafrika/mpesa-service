@@ -1,0 +1,23 @@
+# Test configuration: self-contained in-memory datasource so the Spring context
+# can start without a real PostgreSQL instance. Flyway (whose migrations are
+# PostgreSQL-specific) is disabled in favour of Hibernate schema generation.
+spring:
+  datasource:
+    url: jdbc:h2:mem:mpesa-test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+  flyway:
+    enabled: false
+
+mpesa:
+  callback:
+    ip-whitelist:
+      enabled: false

@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.controllers;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -9,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -26,8 +26,7 @@ import java.util.List;
 @Slf4j
 public class STKCallbackController {
 
-    // TODO: Inject transaction processing service
-    // private final TransactionProcessingService transactionProcessingService;
+    private final MpesaIncomingPaymentService incomingPaymentService;
 
     /**
      * Handle STK Push callback from M-Pesa
@@ -81,50 +80,25 @@ public class STKCallbackController {
     }
 
     /**
-     * Handle successful STK Push payment
+     * Handle successful STK Push payment.
+     * Reconciles the previously persisted PENDING record to SUCCESS and stores the receipt.
      */
     private void handleSuccessfulPayment(STKCallback callback) {
         log.info("Processing successful STK Push payment for CheckoutRequestID: {}",
                 callback.checkoutRequestId());
 
-        // Extract payment details from callback metadata
-        CallbackMetadata metadata = callback.callbackMetadata();
-        if (metadata != null && metadata.items() != null) {
-
-            BigDecimal amount = null;
-            String mpesaReceiptNumber = null;
-            String phoneNumber = null;
-            Long transactionDate = null;
-
-            // Extract values from callback metadata items
-            for (CallbackMetadataItem item : metadata.items()) {
-                switch (item.name()) {
-                    case "Amount" -> amount = item.value() != null ? new BigDecimal(item.value().toString()) : null;
-                    case "MpesaReceiptNumber" -> mpesaReceiptNumber = item.value() != null ? item.value().toString() : null;
-                    case "PhoneNumber" -> phoneNumber = item.value() != null ? item.value().toString() : null;
-                    case "TransactionDate" -> transactionDate = item.value() != null ? Long.valueOf(item.value().toString()) : null;
-                }
-            }
-
-            log.info("Payment Details - Amount: {}, Receipt: {}, Phone: {}, Date: {}",
-                    amount, mpesaReceiptNumber, phoneNumber, transactionDate);
-
-            // TODO: Update transaction in database
-            // TODO: Notify customer of successful payment
-            // TODO: Trigger any business logic (order fulfillment, etc.)
-        }
+        incomingPaymentService.processStkPushCallback(callback.checkoutRequestId(), callback);
     }
 
     /**
-     * Handle failed or cancelled STK Push payment
+     * Handle failed or cancelled STK Push payment.
+     * Reconciles the previously persisted PENDING record to FAILED/CANCELLED.
      */
     private void handleFailedPayment(STKCallback callback) {
         log.warn("Processing failed STK Push payment for CheckoutRequestID: {} - Reason: {}",
                 callback.checkoutRequestId(), callback.resultDesc());
 
-        // TODO: Update transaction status to failed
-        // TODO: Notify customer of failed payment
-        // TODO: Handle retry logic if applicable
+        incomingPaymentService.processStkPushCallback(callback.checkoutRequestId(), callback);
     }
 
     // ==================== CALLBACK DATA STRUCTURES ====================

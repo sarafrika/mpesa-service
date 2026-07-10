@@ -58,6 +58,11 @@ public interface MpesaIncomingPaymentService {
     List<MpesaIncomingPayment> findByPhoneNumber(String phoneNumber);
 
     /**
+     * Find payments by account reference
+     */
+    List<MpesaIncomingPayment> findByAccountReference(String accountReference);
+
+    /**
      * Find payments by status
      */
     List<MpesaIncomingPayment> findByStatus(IncomingPaymentStatus status);

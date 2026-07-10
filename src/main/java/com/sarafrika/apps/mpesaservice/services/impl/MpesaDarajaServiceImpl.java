@@ -2,10 +2,14 @@ package com.sarafrika.apps.mpesaservice.services.impl;
 
 import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
 import com.sarafrika.apps.mpesaservice.dtos.*;
+import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
+import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
+import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
+import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.QRTransactionType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -27,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
     private final MpesaShortCodeRepository shortCodeRepository;
+    private final MpesaIncomingPaymentService incomingPaymentService;
     private final MpesaDarajaHttpClient sandboxHttpClient;
     private final MpesaDarajaHttpClient productionHttpClient;
 
@@ -41,10 +46,12 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
      */
     public MpesaDarajaServiceImpl(
             MpesaShortCodeRepository shortCodeRepository,
+            MpesaIncomingPaymentService incomingPaymentService,
             @Qualifier("sandboxHttpClient") MpesaDarajaHttpClient sandboxHttpClient,
             @Qualifier("productionHttpClient") MpesaDarajaHttpClient productionHttpClient) {
 
         this.shortCodeRepository = shortCodeRepository;
+        this.incomingPaymentService = incomingPaymentService;
         this.sandboxHttpClient = sandboxHttpClient;
         this.productionHttpClient = productionHttpClient;
     }
@@ -92,6 +99,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             // Make API call using HTTP Interface
             MpesaDarajaHttpClient httpClient = getHttpClient(shortcode.getEnvironment());
             StkPushResponse response = httpClient.initiateSTKPush("Bearer " + accessToken, payload);
+
+            // Persist a PENDING record so the callback can later reconcile it and
+            // consuming systems can poll payment status by checkout request id.
+            persistPendingStkPush(shortcodeUuid, phoneNumber, amount, accountReference, transactionDesc, response);
 
             long processingTime = System.currentTimeMillis() - startTime;
             log.info("STK Push initiated successfully for shortcode: {}, processing time: {}ms",
@@ -390,6 +401,40 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     }
 
     // ==================== UTILITY METHODS ====================
+
+    /**
+     * Persist a PENDING incoming payment for an initiated STK Push so the asynchronous
+     * callback can reconcile it and consumers can poll its status. The record is keyed on
+     * the checkout request id; the transaction id is seeded with the checkout request id
+     * (a unique, non-null placeholder) and later replaced with the real M-Pesa receipt when
+     * the successful callback arrives.
+     */
+    private void persistPendingStkPush(UUID shortcodeUuid, String phoneNumber, BigDecimal amount,
+                                       String accountReference, String transactionDesc, StkPushResponse response) {
+        if (response == null || response.checkoutRequestId() == null) {
+            log.warn("Skipping STK Push persistence for shortcode {}: missing checkout request id", shortcodeUuid);
+            return;
+        }
+        try {
+            MpesaIncomingPayment payment = new MpesaIncomingPayment();
+            payment.setShortcodeUuid(shortcodeUuid);
+            payment.setPaymentType(IncomingPaymentType.STK_PUSH);
+            payment.setPhoneNumber(phoneNumber);
+            payment.setAmount(amount);
+            payment.setAccountReference(accountReference);
+            payment.setTransactionDesc(transactionDesc);
+            payment.setCheckoutRequestId(response.checkoutRequestId());
+            payment.setMerchantRequestId(response.merchantRequestId());
+            payment.setTransactionId(response.checkoutRequestId());
+            payment.setStatus(IncomingPaymentStatus.PENDING);
+            incomingPaymentService.create(payment);
+            log.debug("Persisted PENDING STK Push payment for checkoutRequestId: {}", response.checkoutRequestId());
+        } catch (Exception e) {
+            // Never fail the STK Push response because of a persistence issue; log for reconciliation.
+            log.error("Failed to persist PENDING STK Push payment for shortcode {}: {}",
+                    shortcodeUuid, e.getMessage(), e);
+        }
+    }
 
     private MpesaShortCode getShortcodeOrThrow(UUID shortcodeUuid) {
         return shortCodeRepository.findByUuid(shortcodeUuid)
