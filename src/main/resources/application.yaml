@@ -2,6 +2,36 @@ spring:
   application:
     name: 'Mpesa'
 
+  # Datasource configuration (env-driven). The service owns its independent Postgres DB.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+
+  # JPA / Hibernate: schema is owned by Flyway, so Hibernate only validates it.
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    show-sql: false
+
+  # Flyway runs on boot; migrations live under db/migrations (non-default location).
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    locations: classpath:db/migrations
+
+  # OAuth2 resource server: validate Keycloak-issued JWTs. Left empty for local/test
+  # (no security auto-config triggered) and supplied via env in production.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:}
+
 # M-Pesa Daraja API Callback Configuration
 mpesa:
   callback:

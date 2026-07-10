@@ -5,12 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -42,16 +44,31 @@ public class CallbackSecurityConfig {
     @Value("${mpesa.callback.ip-whitelist.enabled:true}")
     private boolean ipWhitelistEnabled;
 
+    /**
+     * Keycloak issuer used to validate inbound JWTs. When blank (local/test) the resource
+     * server is not wired so the application context still starts without a live Keycloak.
+     */
+    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}")
+    private String issuerUri;
+
     @Bean
     public SecurityFilterChain callbackSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
+                        // Safaricom callbacks authenticate via IP whitelist, not JWT.
                         .requestMatchers("/api/v1/callbacks/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // /api/v1/mpesa/** and everything else require a valid Keycloak JWT.
                         .anyRequest().authenticated()
                 );
+
+        // Only enable JWT validation when an issuer is configured. Keeps local/test contexts
+        // (and the @WebMvcTest suites) working without a running Keycloak.
+        if (StringUtils.hasText(issuerUri)) {
+            http.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+        }
 
         if (ipWhitelistEnabled) {
             http.addFilterBefore(new CallbackIPWhitelistFilter(allowedIps), UsernamePasswordAuthenticationFilter.class);
