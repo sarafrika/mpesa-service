@@ -41,7 +41,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /** A payout is saved before Safaricom is called, paid once per reference, and settled once by its result. */
-@DataJpaTest
+// Real Flyway migrations and Hibernate validate, as in every deployed environment (test config uses H2).
+@DataJpaTest(properties = {
+        "spring.flyway.enabled=true",
+        "spring.flyway.locations=classpath:db/migrations",
+        "spring.jpa.hibernate.ddl-auto=validate",
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"})
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(MpesaPayoutService.class)

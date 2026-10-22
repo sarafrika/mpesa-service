@@ -85,7 +85,7 @@ public class MpesaOutgoingPayment extends BaseEntity {
 
     /** Safaricom's callback exactly as received, as JSON text. */
     @ColumnTransformer(write = "?::jsonb")
-    @Column(name = "raw_callback_data")
+    @Column(name = "raw_callback_data", columnDefinition = "jsonb")
     private String rawCallbackData;
 
     @Column(name = "processed_at")
