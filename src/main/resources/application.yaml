@@ -34,6 +34,13 @@ spring:
 
 # M-Pesa Daraja API Callback Configuration
 mpesa:
+  # Safaricom's public certificates (PEM text or a file path) used to encrypt a shortcode's B2C
+  # initiator password into its SecurityCredential. Not needed for a shortcode whose
+  # security_credential was generated on the Daraja portal.
+  certificates:
+    sandbox: ${MPESA_SANDBOX_CERTIFICATE:}
+    production: ${MPESA_PRODUCTION_CERTIFICATE:}
+
   callback:
     # Safaricom's known IP addresses for callback requests
     # These are the ONLY IPs that should be allowed to send callbacks

@@ -79,6 +79,13 @@ public interface MpesaDarajaHttpClient {
             @RequestBody Map<String, Object> payload
     );
 
+    /** B2C v3: the caller supplies OriginatorConversationID, so a payout is traceable even if this reply is lost. */
+    @PostExchange("/mpesa/b2c/v3/paymentrequest")
+    B2CPaymentResponse sendB2CPaymentV3(
+            @RequestHeader("Authorization") String bearerToken,
+            @RequestBody Map<String, Object> payload
+    );
+
     // ==================== B2B ====================
 
     /**

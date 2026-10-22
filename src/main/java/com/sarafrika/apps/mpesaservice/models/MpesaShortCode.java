@@ -67,4 +67,23 @@ public class MpesaShortCode extends BaseEntity {
 
     @Column(name = "transaction_desc")
     private String transactionDesc = "Payment";
+
+    /** B2C initiator (API operator) set up on the Daraja portal for this shortcode. */
+    @Column(name = "initiator_name")
+    private String initiatorName;
+
+    /** Initiator password; encrypted with Safaricom's certificate into the security credential. */
+    @Column(name = "initiator_password")
+    private String initiatorPassword;
+
+    /** A security credential generated on the Daraja portal; used as is when set. */
+    @Column(name = "security_credential")
+    private String securityCredential;
+
+    /** Where Safaricom posts B2C results and timeouts; defaults to this service's callback base URL. */
+    @Column(name = "b2c_result_url")
+    private String b2cResultUrl;
+
+    @Column(name = "b2c_timeout_url")
+    private String b2cTimeoutUrl;
 }

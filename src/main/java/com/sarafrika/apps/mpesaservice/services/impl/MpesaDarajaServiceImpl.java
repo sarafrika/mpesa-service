@@ -1,5 +1,9 @@
 package com.sarafrika.apps.mpesaservice.services.impl;
 
+import org.springframework.beans.factory.annotation.Value;
+
+import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
+
 import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
 import com.sarafrika.apps.mpesaservice.dtos.*;
 import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
@@ -34,6 +38,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     private final MpesaIncomingPaymentService incomingPaymentService;
     private final MpesaDarajaHttpClient sandboxHttpClient;
     private final MpesaDarajaHttpClient productionHttpClient;
+    private final SecurityCredentialService securityCredentialService;
+    private final String callbackBaseUrl;
 
     // Cache for access tokens to avoid frequent authentication calls
     private final Map<String, CachedToken> tokenCache = new ConcurrentHashMap<>();
@@ -48,8 +54,12 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             MpesaShortCodeRepository shortCodeRepository,
             MpesaIncomingPaymentService incomingPaymentService,
             @Qualifier("sandboxHttpClient") MpesaDarajaHttpClient sandboxHttpClient,
-            @Qualifier("productionHttpClient") MpesaDarajaHttpClient productionHttpClient) {
+            @Qualifier("productionHttpClient") MpesaDarajaHttpClient productionHttpClient,
+            SecurityCredentialService securityCredentialService,
+            @Value("${mpesa.callback.base-url:}") String callbackBaseUrl) {
 
+        this.securityCredentialService = securityCredentialService;
+        this.callbackBaseUrl = callbackBaseUrl;
         this.shortCodeRepository = shortCodeRepository;
         this.incomingPaymentService = incomingPaymentService;
         this.sandboxHttpClient = sandboxHttpClient;
@@ -238,6 +248,44 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         } catch (Exception e) {
             return handleException(e, startTime, "B2C payment");
         }
+    }
+
+    @Override
+    public MpesaApiResponse<B2CPaymentResponse> sendB2CPayout(MpesaShortCode shortcode, String originatorConversationId,
+                                                              String phoneNumber, BigDecimal amount, String remarks,
+                                                              String occasion) {
+        long startTime = System.currentTimeMillis();
+        try {
+            String accessToken = getAccessToken(shortcode);
+            if (accessToken == null) {
+                return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+            }
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("OriginatorConversationID", originatorConversationId);
+            payload.put("InitiatorName", shortcode.getInitiatorName());
+            payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
+            payload.put("CommandID", "BusinessPayment");
+            payload.put("Amount", amount.setScale(0, java.math.RoundingMode.UNNECESSARY).toPlainString());
+            payload.put("PartyA", shortcode.getShortcode());
+            payload.put("PartyB", phoneNumber);
+            payload.put("Remarks", remarks != null && !remarks.isBlank() ? remarks : "Payout");
+            payload.put("QueueTimeOutURL", b2cUrl(shortcode.getB2cTimeoutUrl(), "/b2c/timeout"));
+            payload.put("ResultURL", b2cUrl(shortcode.getB2cResultUrl(), "/b2c/result"));
+            payload.put("Occasion", occasion != null && !occasion.isBlank() ? occasion : "Payout");
+
+            B2CPaymentResponse response = getHttpClient(shortcode.getEnvironment())
+                    .sendB2CPaymentV3("Bearer " + accessToken, payload);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
+        } catch (Exception e) {
+            return handleException(e, startTime, "B2C payout");
+        }
+    }
+
+    private String b2cUrl(String configured, String path) {
+        if (configured != null && !configured.isBlank()) {
+            return configured;
+        }
+        return callbackBaseUrl.replaceAll("/+$", "") + path;
     }
 
     // ==================== 4. B2B IMPLEMENTATION ====================
@@ -591,8 +639,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     private Map<String, Object> buildB2CPaymentPayload(MpesaShortCode shortcode, String phoneNumber,
                                                        BigDecimal amount, String remarks, String occasion) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("InitiatorName", "testapi");
-        payload.put("SecurityCredential", generateSecurityCredential(shortcode));
+        payload.put("InitiatorName", shortcode.getInitiatorName());
+        payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "BusinessPayment");
         payload.put("Amount", amount);
         payload.put("PartyA", shortcode.getShortcode());
@@ -607,8 +655,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     private Map<String, Object> buildB2BTransferPayload(MpesaShortCode shortcode, String receiverShortcode,
                                                         BigDecimal amount, String remarks, String accountReference) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("Initiator", "testapi");
-        payload.put("SecurityCredential", generateSecurityCredential(shortcode));
+        payload.put("Initiator", shortcode.getInitiatorName());
+        payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "BusinessToBusinessTransfer");
         payload.put("SenderIdentifierType", "4");
         payload.put("RecieverIdentifierType", "4");
@@ -625,8 +673,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     private Map<String, Object> buildTransactionStatusPayload(MpesaShortCode shortcode,
                                                               String transactionId, String remarks) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("Initiator", "testapi");
-        payload.put("SecurityCredential", generateSecurityCredential(shortcode));
+        payload.put("Initiator", shortcode.getInitiatorName());
+        payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "TransactionStatusQuery");
         payload.put("TransactionID", transactionId);
         payload.put("PartyA", shortcode.getShortcode());
@@ -640,8 +688,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
     private Map<String, Object> buildAccountBalancePayload(MpesaShortCode shortcode, String remarks) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("Initiator", "testapi");
-        payload.put("SecurityCredential", generateSecurityCredential(shortcode));
+        payload.put("Initiator", shortcode.getInitiatorName());
+        payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "AccountBalance");
         payload.put("PartyA", shortcode.getShortcode());
         payload.put("IdentifierType", "4");
@@ -654,8 +702,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     private Map<String, Object> buildTransactionReversalPayload(MpesaShortCode shortcode, String transactionId,
                                                                 BigDecimal amount, String remarks) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("Initiator", "testapi");
-        payload.put("SecurityCredential", generateSecurityCredential(shortcode));
+        payload.put("Initiator", shortcode.getInitiatorName());
+        payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "TransactionReversal");
         payload.put("TransactionID", transactionId);
         payload.put("Amount", amount);
@@ -681,19 +729,4 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    private String generateSecurityCredential(MpesaShortCode shortcode) {
-        // This is a simplified version. In production, you would need to encrypt
-        // the initiator password with Safaricom's public certificate
-        // For sandbox, you can use the test security credential provided by Safaricom
-
-        if (shortcode.getEnvironment() == Environment.SANDBOX) {
-            // Sandbox test security credential
-            return "Safaricom999!*!";
-        } else {
-            // In production, implement proper certificate-based encryption
-            // This would involve encrypting the initiator password with Safaricom's public key
-            throw new UnsupportedOperationException("Production security credential generation not implemented. " +
-                    "Please implement certificate-based encryption for production environment.");
-        }
-    }
 }

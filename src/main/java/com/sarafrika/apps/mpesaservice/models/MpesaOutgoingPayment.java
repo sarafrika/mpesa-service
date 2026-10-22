@@ -8,12 +8,12 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -83,10 +83,26 @@ public class MpesaOutgoingPayment extends BaseEntity {
     @Column(name = "status")
     private OutgoingPaymentStatus status = OutgoingPaymentStatus.PENDING;
 
-    @JdbcTypeCode(SqlTypes.JSON)
+    /** Safaricom's callback exactly as received, as JSON text. */
+    @ColumnTransformer(write = "?::jsonb")
     @Column(name = "raw_callback_data")
-    private Map<String, Object> rawCallbackData;
+    private String rawCallbackData;
 
     @Column(name = "processed_at")
     private LocalDateTime processedAt;
+
+    /** The Keycloak client that asked for this payout. */
+    @Column(name = "client_id")
+    private String clientId;
+
+    /** The caller's own id for this payout; unique per client, so a retry never pays twice. */
+    @Column(name = "client_reference")
+    private String clientReference;
+
+    @Column(name = "charges_paid")
+    private BigDecimal chargesPaid;
+
+    /** Set when Safaricom reported a queue timeout; the outcome is then still unknown. */
+    @Column(name = "timed_out_at")
+    private LocalDateTime timedOutAt;
 }

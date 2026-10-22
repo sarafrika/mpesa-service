@@ -1,5 +1,10 @@
 package com.sarafrika.apps.mpesaservice.controllers;
 
+
+import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.sarafrika.apps.mpesaservice.dtos.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,9 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class B2CB2BCallbackController {
 
-    // TODO: Inject services for processing callbacks
-    // private final TransactionProcessingService transactionProcessingService;
-    // private final NotificationService notificationService;
+    private final MpesaPayoutService payoutService;
+    private final ObjectMapper objectMapper;
 
     // ==================== B2C CALLBACKS ====================
 
@@ -48,13 +52,7 @@ public class B2CB2BCallbackController {
 
         try {
             B2CResult result = paymentResult.result();
-
-            if (result.isSuccessful()) {
-                handleSuccessfulB2CPayment(result);
-            } else {
-                handleFailedB2CPayment(result);
-            }
-
+            payoutService.applyResult(result, objectMapper.writeValueAsString(paymentResult));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
 
         } catch (Exception e) {
@@ -76,11 +74,8 @@ public class B2CB2BCallbackController {
                 timeoutCallback.resultDesc());
 
         try {
-            // Handle timeout - mark transaction as failed
-            // TODO: Update transaction status to timeout
-            // TODO: Notify relevant parties
-            // TODO: Implement retry logic if applicable
-
+            // A queue timeout leaves the outcome unknown: the payout stays pending and is flagged.
+            payoutService.applyTimeout(timeoutCallback);
             log.info("Processed B2C timeout for ConversationID: {}", timeoutCallback.conversationId());
             return ResponseEntity.ok(CallbackAcknowledgment.success());
 
@@ -275,32 +270,7 @@ public class B2CB2BCallbackController {
 
     // ==================== CALLBACK PROCESSING METHODS ====================
 
-    private void handleSuccessfulB2CPayment(B2CResult result) {
-        log.info("Processing successful B2C payment - TransactionID: {}", result.transactionId());
 
-        // Extract payment details
-        B2CResultParameters params = result.resultParameters();
-        if (params != null) {
-            String transactionReceipt = params.getTransactionReceipt();
-            String transactionAmount = params.getTransactionAmount();
-            String receiverName = params.getReceiverPartyPublicName();
-
-            log.info("B2C Payment Details - Receipt: {}, Amount: {}, Receiver: {}",
-                    transactionReceipt, transactionAmount, receiverName);
-
-            // TODO: Update transaction status to completed
-            // TODO: Send confirmation to recipient
-            // TODO: Update accounting records
-        }
-    }
-
-    private void handleFailedB2CPayment(B2CResult result) {
-        log.warn("Processing failed B2C payment - ResultDesc: {}", result.resultDesc());
-
-        // TODO: Update transaction status to failed
-        // TODO: Notify sender of failure
-        // TODO: Implement retry logic if applicable
-    }
 
     private void handleSuccessfulB2BTransfer(B2BResult result) {
         log.info("Processing successful B2B transfer - TransactionID: {}", result.transactionId());

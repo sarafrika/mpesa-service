@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services;
 
+import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
+
 import com.sarafrika.apps.mpesaservice.dtos.*;
 import com.sarafrika.apps.mpesaservice.utils.enums.QRTransactionType;
 
@@ -86,6 +88,14 @@ public interface MpesaDarajaService {
      */
     MpesaApiResponse<B2CPaymentResponse> sendB2CPayment(UUID shortcodeUuid, String phoneNumber, BigDecimal amount,
                                                         String remarks, String occasion);
+
+    /**
+     * B2C v3 payout from a shortcode; {@code originatorConversationId} is the caller's id for the
+     * request and comes back on Safaricom's result callback.
+     */
+    MpesaApiResponse<B2CPaymentResponse> sendB2CPayout(MpesaShortCode shortcode, String originatorConversationId,
+                                                       String phoneNumber, BigDecimal amount, String remarks,
+                                                       String occasion);
 
     // ==================== 4. BUSINESS TO BUSINESS (B2B) ====================
 
