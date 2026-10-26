@@ -69,6 +69,7 @@ public class ShortcodeAdminController {
     @GetMapping
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "listShortcodes", summary = "List shortcodes with their health, A to Z by default")
+    @ApiResponse(responseCode = "200", description = "A page of shortcodes")
     public PageResponse<ShortcodeSummaryDto> listShortcodes(
             @Parameter(description = "Zero-based page number",
                     schema = @Schema(type = "integer", format = "int32", minimum = "0", defaultValue = "0"))
@@ -96,6 +97,7 @@ public class ShortcodeAdminController {
     @GetMapping("/totals")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getShortcodeTotals", summary = "Counts and float across every shortcode")
+    @ApiResponse(responseCode = "200", description = "Totals across every shortcode")
     public ShortcodeTotalsDto getShortcodeTotals() {
         return shortcodes.totals();
     }
@@ -104,6 +106,7 @@ public class ShortcodeAdminController {
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getShortcodeCallbackUrls",
             summary = "The callback URLs this service registers with Safaricom")
+    @ApiResponse(responseCode = "200", description = "The configured callback URLs")
     public ShortcodeCallbackUrlsDto getShortcodeCallbackUrls() {
         return shortcodes.callbackUrls();
     }
@@ -111,6 +114,7 @@ public class ShortcodeAdminController {
     @GetMapping("/{uuid}")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getShortcode", summary = "A shortcode's profile, masked credentials and health")
+    @ApiResponse(responseCode = "200", description = "The shortcode")
     @ApiResponse(responseCode = "404", description = "No such shortcode",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ShortcodeDetailDto getShortcode(@PathVariable UUID uuid) {
@@ -132,6 +136,7 @@ public class ShortcodeAdminController {
     @PatchMapping("/{uuid}")
     @PreAuthorize("hasRole('mpesa-operator')")
     @Operation(operationId = "updateShortcode", summary = "Change a shortcode's profile, limits or defaults")
+    @ApiResponse(responseCode = "200", description = "The updated shortcode")
     @ApiResponse(responseCode = "404", description = "No such shortcode",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ShortcodeDetailDto updateShortcode(@PathVariable UUID uuid,
@@ -143,6 +148,7 @@ public class ShortcodeAdminController {
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "rotateShortcodeCredentials", summary = "Rotate a shortcode's Daraja credentials",
             description = "Empty fields keep the stored value. The token check must pass again afterwards.")
+    @ApiResponse(responseCode = "200", description = "The shortcode with its new masked credentials")
     @ApiResponse(responseCode = "404", description = "No such shortcode",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ShortcodeDetailDto rotateShortcodeCredentials(@PathVariable UUID uuid,
@@ -155,6 +161,7 @@ public class ShortcodeAdminController {
     @Operation(operationId = "testShortcodeConnection",
             summary = "Ask Daraja for an OAuth token with this shortcode's credentials",
             description = "Always 200 with ok=false and the reason when Daraja refuses or cannot be reached.")
+    @ApiResponse(responseCode = "200", description = "The outcome of the token check")
     @ApiResponse(responseCode = "404", description = "No such shortcode",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ConnectionTestResultDto testShortcodeConnection(@PathVariable UUID uuid) {
@@ -164,6 +171,7 @@ public class ShortcodeAdminController {
     @PostMapping("/{uuid}/activate")
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "activateShortcode", summary = "Let the shortcode take STK pushes and payouts")
+    @ApiResponse(responseCode = "200", description = "The active shortcode")
     @ApiResponse(responseCode = "409", description = "Already active, or a draft whose token check has not passed",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ShortcodeDetailDto activateShortcode(@PathVariable UUID uuid) {
@@ -173,6 +181,7 @@ public class ShortcodeAdminController {
     @PostMapping("/{uuid}/suspend")
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "suspendShortcode", summary = "Refuse STK pushes and payouts on the shortcode")
+    @ApiResponse(responseCode = "200", description = "The suspended shortcode")
     @ApiResponse(responseCode = "409", description = "The shortcode is not active",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ShortcodeDetailDto suspendShortcode(@PathVariable UUID uuid,
@@ -183,6 +192,7 @@ public class ShortcodeAdminController {
     @GetMapping("/{uuid}/c2b-registrations")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "listShortcodeC2bRegistrations", summary = "C2B URL registration attempts, newest first")
+    @ApiResponse(responseCode = "200", description = "A page of registration attempts")
     public PageResponse<C2bRegistrationDto> listShortcodeC2bRegistrations(
             @PathVariable UUID uuid,
             @Parameter(description = "Zero-based page number",
@@ -219,6 +229,7 @@ public class ShortcodeAdminController {
     @PostMapping("/{uuid}/simulate-c2b")
     @PreAuthorize("hasRole('mpesa-operator')")
     @Operation(operationId = "simulateShortcodeC2b", summary = "Simulate a C2B payment (sandbox shortcodes only)")
+    @ApiResponse(responseCode = "200", description = "Safaricom accepted the simulation")
     @ApiResponse(responseCode = "409", description = "Not a sandbox shortcode",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "502", description = "Safaricom refused the simulation",

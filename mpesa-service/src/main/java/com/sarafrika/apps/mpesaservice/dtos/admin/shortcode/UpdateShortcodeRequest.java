@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @Schema(name = "UpdateShortcodeRequest")
 public record UpdateShortcodeRequest(
         @Size(max = 255, message = "must be at most 255 characters")
-        @Pattern(regexp = "(?s).*\\S.*", message = "must not be blank")
+        @Pattern(regexp = "[\\s\\S]*\\S[\\s\\S]*", message = "must not be blank")
         @JsonProperty("business_name") String businessName,
         @DecimalMin(value = "1", message = "must be at least 1")
         @Digits(integer = 8, fraction = 2, message = "must have at most 8 digits and 2 decimals")

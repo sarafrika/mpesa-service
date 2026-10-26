@@ -738,6 +738,29 @@
         },
         "type" : "object"
       },
+      "ConnectionTestResult" : {
+        "properties" : {
+          "checked_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "error" : {
+            "description" : "Why it failed; null when ok",
+            "example" : "Daraja refused these credentials (401)",
+            "type" : "string"
+          },
+          "latency_ms" : {
+            "example" : 312,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "ok" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "checked_at", "latency_ms", "ok" ],
+        "type" : "object"
+      },
       "CreateShortcodeRequest" : {
         "properties" : {
           "account_reference" : {
@@ -1090,6 +1113,70 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PageResponseC2bRegistration" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/C2bRegistration"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseShortcodeSummary" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeSummary"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
       "PayoutFloatDto" : {
         "description" : "A shortcode's float as Safaricom last reported it on a payout result",
         "properties" : {
@@ -1214,6 +1301,27 @@
             "$ref" : "#/components/schemas/STKCallbackBody"
           }
         },
+        "type" : "object"
+      },
+      "ShortcodeCallbackUrls" : {
+        "properties" : {
+          "b2c_result_url" : {
+            "type" : "string"
+          },
+          "b2c_timeout_url" : {
+            "type" : "string"
+          },
+          "c2b_confirmation_url" : {
+            "type" : "string"
+          },
+          "c2b_validation_url" : {
+            "type" : "string"
+          },
+          "stk_callback_url" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "b2c_result_url", "b2c_timeout_url", "c2b_confirmation_url", "c2b_validation_url", "stk_callback_url" ],
         "type" : "object"
       },
       "ShortcodeCredentials" : {
@@ -1408,6 +1516,114 @@
         "enum" : [ "DRAFT", "ACTIVE", "SUSPENDED" ],
         "type" : "string"
       },
+      "ShortcodeSummary" : {
+        "properties" : {
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "credentials_due" : {
+            "description" : "Credentials are older than the rotation policy (mpesa.credentials.rotation-days)",
+            "type" : "boolean"
+          },
+          "credentials_rotated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "environment" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          },
+          "health" : {
+            "$ref" : "#/components/schemas/ShortcodeHealth"
+          },
+          "is_active" : {
+            "type" : "boolean"
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "type" : "string"
+          },
+          "shortcode_type" : {
+            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ShortcodeStatus"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "business_name", "credentials_due", "environment", "health", "is_active", "shortcode", "shortcode_type", "status", "uuid" ],
+        "type" : "object"
+      },
+      "ShortcodeTotals" : {
+        "properties" : {
+          "active" : {
+            "example" : 4,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "c2b_applicable" : {
+            "description" : "Active shortcodes that take C2B payments",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "c2b_registered" : {
+            "description" : "Of those, how many are registered",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "credentials_due" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "draft" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "float_known" : {
+            "description" : "Shortcodes with a known float",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "production" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "rotation_days" : {
+            "example" : 90,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "sandbox" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "suspended" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total" : {
+            "example" : 5,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_float" : {
+            "description" : "Sum of the newest known utility balance of every shortcode",
+            "example" : 2412680.0,
+            "type" : "number"
+          }
+        },
+        "required" : [ "active", "c2b_applicable", "c2b_registered", "credentials_due", "draft", "float_known", "production", "rotation_days", "sandbox", "suspended", "total", "total_float" ],
+        "type" : "object"
+      },
       "SimulateC2bRequest" : {
         "properties" : {
           "amount" : {
@@ -1430,6 +1646,21 @@
           }
         },
         "required" : [ "amount", "phone_number" ],
+        "type" : "object"
+      },
+      "SimulateC2bResult" : {
+        "properties" : {
+          "conversation_id" : {
+            "type" : "string"
+          },
+          "originator_conversation_id" : {
+            "type" : "string"
+          },
+          "response_description" : {
+            "example" : "Accept the service request successfully.",
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "StkPushRequest" : {
@@ -1804,7 +2035,7 @@
           "business_name" : {
             "maxLength" : 255,
             "minLength" : 0,
-            "pattern" : "(?s).*\\S.*",
+            "pattern" : "[\\s\\S]*\\S[\\s\\S]*",
             "type" : "string"
           },
           "callback_url" : {
@@ -2020,6 +2251,16 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseShortcodeSummary"
+                }
+              }
+            },
+            "description" : "A page of shortcodes"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2107,6 +2348,16 @@
       "get" : {
         "operationId" : "getShortcodeCallbackUrls",
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeCallbackUrls"
+                }
+              }
+            },
+            "description" : "The configured callback URLs"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2136,6 +2387,16 @@
       "get" : {
         "operationId" : "getShortcodeTotals",
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeTotals"
+                }
+              }
+            },
+            "description" : "Totals across every shortcode"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2174,6 +2435,16 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The shortcode"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2230,6 +2501,16 @@
           "required" : true
         },
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The updated shortcode"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2278,6 +2559,16 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The active shortcode"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2361,6 +2652,16 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseC2bRegistration"
+                }
+              }
+            },
+            "description" : "A page of registration attempts"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2497,6 +2798,16 @@
           "required" : true
         },
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The shortcode with its new masked credentials"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2555,6 +2866,16 @@
           "required" : true
         },
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimulateC2bResult"
+                }
+              }
+            },
+            "description" : "Safaricom accepted the simulation"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2632,6 +2953,16 @@
           }
         },
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The suspended shortcode"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -2681,6 +3012,16 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConnectionTestResult"
+                }
+              }
+            },
+            "description" : "The outcome of the token check"
+          },
           "400" : {
             "content" : {
               "*/*" : {
