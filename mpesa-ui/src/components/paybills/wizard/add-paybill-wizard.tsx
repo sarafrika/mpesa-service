@@ -5,7 +5,7 @@ import { Check, Lock } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Controller, type Path, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -199,6 +199,7 @@ function Wizard() {
   const grant = useUpsertProductGrant({ mutation: { meta: { errorToast: false } } });
   const products = useListProducts({ size: 100 }, { query: { enabled: isAdmin } });
   const productOptions = okData(products.data)?.items ?? [];
+  const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const shownStep = useRef(step);
 
@@ -349,6 +350,7 @@ function Wizard() {
 
         <Card className="min-w-0 flex-[999_1_520px] gap-6 px-5 py-6 md:px-7">
           <form
+            id={formId}
             ref={formRef}
             noValidate
             onSubmit={(event) => {
@@ -591,7 +593,6 @@ function Wizard() {
                     {...form.register("transaction_desc")}
                   />
                 </div>
-                {!b2c && <ValidationRulesSlot shortcode={created} />}
               </div>
             )}
 
@@ -604,38 +605,41 @@ function Wizard() {
             )}
 
             <FormRootError message={errors.root?.server?.message} />
-
-            <div className="flex flex-wrap justify-between gap-3 border-t pt-5">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={step === 0 || busy}
-                onClick={() => setStep((current) => Math.max(0, current - 1))}
-              >
-                Back
-              </Button>
-              <div className="flex flex-wrap gap-3">
-                {created && (
-                  <Button type="button" variant="outline" asChild>
-                    <Link href={`/paybills/${created.uuid}`}>Save as draft</Link>
-                  </Button>
-                )}
-                {step < 3 ? (
-                  <Button type="submit" disabled={busy}>
-                    {busy && <Spinner />}
-                    {step === 1 && !created ? "Save and continue" : "Continue"}
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    onClick={() => created && router.push(`/paybills/${created.uuid}`)}
-                  >
-                    Open paybill
-                  </Button>
-                )}
-              </div>
-            </div>
           </form>
+
+          {/* The rules editor is its own form, so it sits outside the wizard's form. */}
+          {step === 2 && created && !b2c && <ValidationRulesSlot shortcode={created} />}
+
+          <div className="flex flex-wrap justify-between gap-3 border-t pt-5">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={step === 0 || busy}
+              onClick={() => setStep((current) => Math.max(0, current - 1))}
+            >
+              Back
+            </Button>
+            <div className="flex flex-wrap gap-3">
+              {created && (
+                <Button type="button" variant="outline" asChild>
+                  <Link href={`/paybills/${created.uuid}`}>Save as draft</Link>
+                </Button>
+              )}
+              {step < 3 ? (
+                <Button type="submit" form={formId} disabled={busy}>
+                  {busy && <Spinner />}
+                  {step === 1 && !created ? "Save and continue" : "Continue"}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={() => created && router.push(`/paybills/${created.uuid}`)}
+                >
+                  Open paybill
+                </Button>
+              )}
+            </div>
+          </div>
         </Card>
       </div>
     </>
