@@ -103,7 +103,6 @@ export function UpdateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
               label="Consumer key"
               type="password"
               autoComplete="off"
-              className="font-mono"
               description={`Now ${shortcode.credentials.consumer_key_masked}`}
               error={errors.consumer_key}
               {...form.register("consumer_key")}
