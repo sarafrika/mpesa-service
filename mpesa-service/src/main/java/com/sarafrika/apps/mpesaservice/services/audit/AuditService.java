@@ -17,8 +17,7 @@ import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -61,9 +60,8 @@ public class AuditService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AuditEventDto> list(AuditQuery query, int page, int size) {
-        PageRequest request = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        return repository.findAll(matching(query), request).map(event -> AuditEventDto.from(event, objectMapper));
+    public Page<AuditEventDto> list(AuditQuery query, Pageable pageable) {
+        return repository.findAll(matching(query), pageable).map(event -> AuditEventDto.from(event, objectMapper));
     }
 
     /** Optional exact-match filters; blank values are ignored. */

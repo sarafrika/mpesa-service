@@ -1,9 +1,8 @@
 package com.sarafrika.apps.mpesaservice.controllers.admin;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -19,11 +18,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,11 +50,11 @@ class AuditAdminControllerTest {
                 objectMapper.readTree("{\"business_name\":\"New\",\"passkey\":\"[REDACTED]\"}"), "10.0.0.1",
                 Instant.parse("2026-10-27T08:00:00Z"));
         AuditService.AuditQuery query = new AuditService.AuditQuery("jane.doe", null, "SHORTCODE", null);
-        when(auditService.list(eq(query), eq(1), eq(10)))
+        when(auditService.list(eq(query), any()))
                 .thenReturn(new PageImpl<>(List.of(event), PageRequest.of(1, 10), 11));
 
         mockMvc.perform(get("/api/v1/admin/audit").param("page", "1").param("size", "10")
-                        .param("actor", "jane.doe").param("entity_type", "SHORTCODE"))
+                        .param("sort", "action,asc").param("actor", "jane.doe").param("entity_type", "SHORTCODE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].actor").value("jane.doe"))
                 .andExpect(jsonPath("$.items[0].actor_name").value("Jane Doe"))
@@ -63,28 +65,53 @@ class AuditAdminControllerTest {
                 .andExpect(jsonPath("$.size").value(10))
                 .andExpect(jsonPath("$.total_items").value(11))
                 .andExpect(jsonPath("$.total_pages").value(2));
+        assertThat(requested()).isEqualTo(PageRequest.of(1, 10,
+                Sort.by(Sort.Order.asc("action"), Sort.Order.desc("id"))));
     }
 
     @Test
     @WithMockUser(roles = "mpesa-admin")
-    void pagesDefaultTo25() throws Exception {
-        when(auditService.list(eq(new AuditService.AuditQuery(null, null, null, null)), eq(0), eq(25)))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 25), 0));
+    void pagesDefaultTo25NewestFirst() throws Exception {
+        when(auditService.list(any(), any())).thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 25), 0));
 
         mockMvc.perform(get("/api/v1/admin/audit"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty())
                 .andExpect(jsonPath("$.size").value(25));
-        verify(auditService).list(eq(new AuditService.AuditQuery(null, null, null, null)), eq(0), eq(25));
+        assertThat(requested()).isEqualTo(PageRequest.of(0, 25,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
     }
 
     @Test
     @WithMockUser(roles = "mpesa-admin")
-    void aPageLargerThan100IsRefused() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/audit").param("size", "101"))
+    void aPageLargerThan100IsClampedAndAPagePastTheEndIsEmpty() throws Exception {
+        when(auditService.list(any(), any())).thenReturn(new PageImpl<>(List.of(), PageRequest.of(9, 100), 120));
+
+        mockMvc.perform(get("/api/v1/admin/audit").param("page", "9").param("size", "500"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.size").value(100))
+                .andExpect(jsonPath("$.total_items").value(120))
+                .andExpect(jsonPath("$.total_pages").value(2));
+        assertThat(requested().getPageSize()).isEqualTo(100);
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-admin")
+    void badPagingAndUnknownSortsAreRefused() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/audit").param("page", "-1"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.field_errors[0].field").value("size"));
+                .andExpect(jsonPath("$.field_errors[0].field").value("page"));
+        mockMvc.perform(get("/api/v1/admin/audit").param("sort", "entity_id,desc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field_errors[0].field").value("sort"));
         verifyNoInteractions(auditService);
+    }
+
+    private Pageable requested() {
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(auditService).list(any(), pageable.capture());
+        return pageable.getValue();
     }
 
     @Test
@@ -105,6 +132,6 @@ class AuditAdminControllerTest {
     @Test
     void anonymousCallersAreTurnedAway() throws Exception {
         mockMvc.perform(get("/api/v1/admin/audit")).andExpect(status().is4xxClientError());
-        verify(auditService, never()).list(any(), anyInt(), anyInt());
+        verifyNoInteractions(auditService);
     }
 }

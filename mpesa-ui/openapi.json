@@ -537,6 +537,7 @@
         "parameters" : [ {
           "name" : "page",
           "in" : "query",
+          "description" : "Zero-based page number",
           "required" : false,
           "schema" : {
             "type" : "integer",
@@ -547,6 +548,7 @@
         }, {
           "name" : "size",
           "in" : "query",
+          "description" : "Page size; values above 100 are clamped to 100",
           "required" : false,
           "schema" : {
             "type" : "integer",
@@ -554,6 +556,18 @@
             "default" : 25,
             "maximum" : 100,
             "minimum" : 1
+          }
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "field,asc|desc; repeatable. Fields: created_at, action, actor. Default created_at,desc",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "example" : "created_at,desc"
+            }
           }
         }, {
           "name" : "actor",
@@ -596,7 +610,7 @@
             }
           },
           "400" : {
-            "description" : "Invalid paging or filters",
+            "description" : "Negative page, size below 1 or an unknown sort field",
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1243,6 +1257,9 @@
           "reversalType" : {
             "type" : "string"
           },
+          "creditPartyCharges" : {
+            "type" : "string"
+          },
           "chargesPaidAccountAvailableFunds" : {
             "type" : "string"
           },
@@ -1250,9 +1267,6 @@
             "type" : "string"
           },
           "originatorAccountCurrentBalance" : {
-            "type" : "string"
-          },
-          "creditPartyCharges" : {
             "type" : "string"
           }
         }
@@ -1779,13 +1793,13 @@
           "chargesPaidAccountAvailableFunds" : {
             "type" : "string"
           },
-          "floatAccountAvailableFunds" : {
-            "type" : "string"
-          },
           "bookedFunds" : {
             "type" : "string"
           },
           "unclearedBalance" : {
+            "type" : "string"
+          },
+          "floatAccountAvailableFunds" : {
             "type" : "string"
           }
         }

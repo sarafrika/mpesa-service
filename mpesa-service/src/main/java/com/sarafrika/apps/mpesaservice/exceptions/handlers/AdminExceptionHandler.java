@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.exceptions.handlers;
 
 import com.sarafrika.apps.mpesaservice.dtos.admin.ApiError;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
+import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import jakarta.validation.ConstraintViolationException;
@@ -77,6 +78,12 @@ public class AdminExceptionHandler {
     public ResponseEntity<ApiError> missingParameter(MissingServletRequestParameterException ex) {
         return respond(ApiError.of(HttpStatus.BAD_REQUEST, INVALID,
                 List.of(new ApiError.FieldError(ex.getParameterName(), "is required"))));
+    }
+
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<ApiError> invalidRequest(InvalidRequestException ex) {
+        return respond(ApiError.of(HttpStatus.BAD_REQUEST, INVALID,
+                List.of(new ApiError.FieldError(ex.getField(), ex.getMessage()))));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

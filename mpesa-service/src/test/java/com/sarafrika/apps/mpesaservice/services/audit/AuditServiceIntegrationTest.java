@@ -9,6 +9,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.AuditEventDto;
 import com.sarafrika.apps.mpesaservice.models.AuditEvent;
 import com.sarafrika.apps.mpesaservice.repositories.AuditEventRepository;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
+import com.sarafrika.apps.mpesaservice.utils.PageRequests;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -90,7 +93,8 @@ class AuditServiceIntegrationTest {
                 Map.of("business_name", "New", "credentials", Map.of("initiatorPassword", "pw", "api_token", "t"),
                         "items", List.of(Map.of("passkey", "pk"))));
 
-        AuditEventDto stored = auditService.list(new AuditService.AuditQuery(null, null, null, "sc-1"), 0, 25)
+        AuditEventDto stored = auditService.list(
+                new AuditService.AuditQuery(null, null, null, "sc-1"), newestFirst(0, 25))
                 .getContent().getFirst();
         assertThat(stored.uuid()).isEqualTo(saved.getUuid());
         assertThat(stored.actor()).isEqualTo("jane.doe");
@@ -113,7 +117,7 @@ class AuditServiceIntegrationTest {
         auditService.record("PROBE", "FALLBACK", "system", Map.of("a", 1), null);
 
         List<AuditEventDto> events = auditService.list(
-                new AuditService.AuditQuery(null, "PROBE", "FALLBACK", null), 0, 25).getContent();
+                new AuditService.AuditQuery(null, "PROBE", "FALLBACK", null), newestFirst(0, 25)).getContent();
         assertThat(events).extracting(AuditEventDto::actor).containsExactly("system", "service-account-elimika");
         assertThat(events.getFirst().ip()).isNull();
         assertThat(events.getFirst().after()).isNull();
@@ -126,8 +130,10 @@ class AuditServiceIntegrationTest {
         }
         auditService.record("OTHER", "PAGING", "p-x", null, null);
 
-        Page<AuditEventDto> first = auditService.list(new AuditService.AuditQuery("system", "PAGED", "PAGING", null), 0, 2);
-        Page<AuditEventDto> second = auditService.list(new AuditService.AuditQuery(null, "PAGED", null, null), 1, 2);
+        Page<AuditEventDto> first = auditService.list(new AuditService.AuditQuery("system", "PAGED", "PAGING", null),
+                newestFirst(0, 2));
+        Page<AuditEventDto> second = auditService.list(new AuditService.AuditQuery(null, "PAGED", null, null),
+                newestFirst(1, 2));
 
         assertThat(first.getTotalElements()).isEqualTo(3);
         assertThat(first.getContent()).extracting(AuditEventDto::entityId).containsExactly("p-2", "p-1");
@@ -144,6 +150,10 @@ class AuditServiceIntegrationTest {
         assertThatThrownBy(() -> jdbc.update("DELETE FROM audit_events WHERE id = ?", saved.getId()))
                 .hasMessageContaining("append-only");
         assertThat(repository.findById(saved.getId())).isPresent();
+    }
+
+    private static PageRequest newestFirst(int page, int size) {
+        return PageRequests.of(page, size, null, Map.of(), Sort.by(Sort.Order.desc("createdAt")));
     }
 
     private static void signIn(Map<String, Object> claims) {
