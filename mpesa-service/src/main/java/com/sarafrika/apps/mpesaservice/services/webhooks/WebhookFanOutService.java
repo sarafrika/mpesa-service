@@ -45,7 +45,8 @@ public class WebhookFanOutService {
         String reference = WebhookEvents.reference(event.data());
         List<WebhookDelivery> queued = subscriptions.findByClientIdInAndActiveTrue(clients).stream()
                 .filter(subscription -> subscription.wants(event.type()))
-                .map(subscription -> pending(subscription, eventId, event.type(), reference, body))
+                .map(subscription -> pending(subscription, eventId, event.type(), reference, body,
+                        event.paymentUuid()))
                 .toList();
         return deliveries.saveAll(queued);
     }
@@ -58,7 +59,7 @@ public class WebhookFanOutService {
         data.put("message", "Test event from the Sarafrika M-Pesa console");
         data.put("client_id", subscription.getClientId());
         String body = body(eventId, WebhookEvents.TEST, null, null, data);
-        return deliveries.save(pending(subscription, eventId, WebhookEvents.TEST, "test", body));
+        return deliveries.save(pending(subscription, eventId, WebhookEvents.TEST, "test", body, null));
     }
 
     /** Client ids entitled to the event on its shortcode. */
@@ -97,12 +98,13 @@ public class WebhookFanOutService {
     }
 
     private static WebhookDelivery pending(WebhookSubscription subscription, UUID eventId, String type,
-                                           String reference, String body) {
+                                           String reference, String body, UUID paymentUuid) {
         WebhookDelivery delivery = new WebhookDelivery();
         delivery.setSubscriptionUuid(subscription.getUuid());
         delivery.setClientId(subscription.getClientId());
         delivery.setEventId(eventId);
         delivery.setEventType(type);
+        delivery.setPaymentUuid(paymentUuid);
         delivery.setReference(reference);
         delivery.setPayload(body);
         delivery.setStatus(WebhookDeliveryStatus.PENDING);

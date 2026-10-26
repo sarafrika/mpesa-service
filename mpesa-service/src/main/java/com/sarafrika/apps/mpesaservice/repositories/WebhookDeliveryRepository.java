@@ -17,6 +17,8 @@ public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery
 
     Optional<WebhookDelivery> findByUuid(UUID uuid);
 
+    List<WebhookDelivery> findByPaymentUuidOrderByCreatedAtAscIdAsc(UUID paymentUuid);
+
     /** Due rows, locked so another instance polling at the same time skips them. Postgres only. */
     @Query(value = """
             SELECT * FROM webhook_deliveries

@@ -49,6 +49,10 @@ public class WebhookDelivery {
     @Column(name = "event_type", nullable = false)
     private String eventType;
 
+    /** The payment the event is about, for the transaction timeline; null for test pings. */
+    @Column(name = "payment_uuid")
+    private UUID paymentUuid;
+
     /** M-Pesa receipt, checkout request id or payout reference, for people scanning the list. */
     @Column(name = "reference")
     private String reference;

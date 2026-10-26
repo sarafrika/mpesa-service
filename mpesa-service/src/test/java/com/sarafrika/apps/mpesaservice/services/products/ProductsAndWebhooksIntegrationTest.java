@@ -25,6 +25,7 @@ import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookAdminService;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookDispatcher;
 import com.sarafrika.apps.mpesaservice.services.webhooks.PaymentEventWebhookListener;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookFanOutService;
+import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookTimelineContributor;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookSigner;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookTransport;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
@@ -73,7 +74,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ProductAdminService.class, ApiUsageRecorder.class, WebhookAdminService.class, WebhookFanOutService.class,
         WebhookDispatcher.class, AuditService.class, SecretCipher.class, MpesaIncomingPaymentServiceImpl.class,
-        PaymentEventWebhookListener.class, ProductsAndWebhooksIntegrationTest.Beans.class})
+        PaymentEventWebhookListener.class, WebhookTimelineContributor.class,
+        ProductsAndWebhooksIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ProductsAndWebhooksIntegrationTest {
 
@@ -97,6 +99,8 @@ class ProductsAndWebhooksIntegrationTest {
     private JdbcTemplate jdbc;
     @Autowired
     private MpesaIncomingPaymentServiceImpl incomingPayments;
+    @Autowired
+    private WebhookTimelineContributor timeline;
     @Autowired
     private TransactionTemplate transactions;
 
@@ -236,13 +240,17 @@ class ProductsAndWebhooksIntegrationTest {
         pending.setTransactionId(checkout);
         pending.setStatus(IncomingPaymentStatus.PENDING);
         pending.setClientId(clientId);
-        incomingPayments.create(pending);
+        UUID payment = incomingPayments.create(pending).getUuid();
 
         incomingPayments.processStkPushCallback(checkout, Map.of("ResultCode", 0, "ResultDesc", "Processed"));
 
         String sql = "SELECT COUNT(*) FROM webhook_deliveries WHERE client_id = ? AND event_type = 'stk.completed'";
         assertThat(jdbc.queryForObject(sql, Long.class, clientId)).isEqualTo(1);
         assertThat(jdbc.queryForObject(sql, Long.class, other)).isZero();
+        assertThat(timeline.eventsFor(payment)).singleElement().satisfies(step -> {
+            assertThat(step.kind()).isEqualTo("webhook");
+            assertThat(step.title()).isEqualTo("Webhook stk.completed to " + clientId + ": queued");
+        });
     }
 
     private ConnectProductResponse connect() {
