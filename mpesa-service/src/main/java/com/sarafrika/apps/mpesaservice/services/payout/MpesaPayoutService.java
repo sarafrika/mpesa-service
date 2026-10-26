@@ -57,8 +57,10 @@ public class MpesaPayoutService {
             return existing.get();
         }
         MpesaShortCode shortcode = shortCodeRepository.findByUuid(request.shortcodeUuid())
-                .filter(code -> !Boolean.FALSE.equals(code.getIsActive()))
-                .orElseThrow(() -> new IllegalArgumentException("Shortcode not found or inactive: " + request.shortcodeUuid()));
+                .orElseThrow(() -> new IllegalArgumentException("Shortcode not found: " + request.shortcodeUuid()));
+        if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
+            throw new IllegalStateException("Shortcode " + shortcode.getShortcode() + " is suspended; payouts are refused");
+        }
         validate(shortcode, request);
 
         MpesaOutgoingPayment payment;

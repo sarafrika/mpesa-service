@@ -1,5 +1,5 @@
 package com.sarafrika.apps.mpesaservice.utils.enums;
 
 public enum ShortcodeType {
-    PAYBILL, TILL
+    PAYBILL, TILL, B2C
 }

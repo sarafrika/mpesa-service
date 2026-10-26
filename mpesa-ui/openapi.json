@@ -624,6 +624,52 @@
         },
         "type" : "object"
       },
+      "C2bRegistration" : {
+        "properties" : {
+          "confirmation_url" : {
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "registered_by" : {
+            "example" : "jane.doe",
+            "type" : "string"
+          },
+          "response_type" : {
+            "$ref" : "#/components/schemas/C2bResponseType"
+          },
+          "result_code" : {
+            "example" : 0,
+            "type" : "string"
+          },
+          "result_desc" : {
+            "example" : "Success",
+            "type" : "string"
+          },
+          "successful" : {
+            "type" : "boolean"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "validation_url" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "confirmation_url", "created_at", "registered_by", "response_type", "successful", "uuid", "validation_url" ],
+        "type" : "object"
+      },
+      "C2bRegistrationState" : {
+        "enum" : [ "REGISTERED", "FAILED", "NOT_REGISTERED", "NOT_APPLICABLE" ],
+        "type" : "string"
+      },
+      "C2bResponseType" : {
+        "enum" : [ "Completed", "Cancelled" ],
+        "type" : "string"
+      },
       "CallbackAcknowledgment" : {
         "properties" : {
           "ResultCode" : {
@@ -653,6 +699,118 @@
           },
           "Value" : { }
         },
+        "type" : "object"
+      },
+      "ConnectionTestResult" : {
+        "properties" : {
+          "checked_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "error" : {
+            "description" : "Why it failed; null when ok",
+            "example" : "Daraja refused these credentials (401)",
+            "type" : "string"
+          },
+          "latency_ms" : {
+            "example" : 312,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "ok" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "checked_at", "latency_ms", "ok" ],
+        "type" : "object"
+      },
+      "CreateShortcodeRequest" : {
+        "properties" : {
+          "account_reference" : {
+            "description" : "Default STK account reference",
+            "example" : "ELIMIKA",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "consumer_key" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "consumer_secret" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "environment" : {
+            "description" : "PRODUCTION needs mpesa-admin",
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          },
+          "initiator_name" : {
+            "description" : "B2C initiator; required for B2C shortcodes",
+            "example" : "elimika-api",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "initiator_password" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "max_amount" : {
+            "example" : 250000.0,
+            "minimum" : 1,
+            "type" : "number"
+          },
+          "min_amount" : {
+            "example" : 1.0,
+            "minimum" : 1,
+            "type" : "number"
+          },
+          "passkey" : {
+            "description" : "Lipa na M-Pesa passkey; needed for STK push",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "security_credential" : {
+            "description" : "A security credential generated on the Daraja portal, used instead of the password",
+            "maxLength" : 4000,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "minLength" : 1,
+            "pattern" : "^[0-9]{5,10}$",
+            "type" : "string"
+          },
+          "shortcode_type" : {
+            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "type" : "string"
+          },
+          "transaction_desc" : {
+            "example" : "Elimika fees",
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "business_name", "consumer_key", "consumer_secret", "environment", "shortcode", "shortcode_type" ],
         "type" : "object"
       },
       "FloatSummaryDto" : {
@@ -1051,6 +1209,70 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PageResponseC2bRegistration" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/C2bRegistration"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseShortcodeSummary" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeSummary"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
       "PageResponseTransactionDto" : {
         "properties" : {
           "items" : {
@@ -1247,6 +1469,56 @@
         "required" : [ "cancelled_count", "collected_amount", "collected_by_type", "collected_count", "failed_count", "payouts_amount", "payouts_count", "pending_count", "settled_count", "successful_count" ],
         "type" : "object"
       },
+      "RegisterC2bUrlsRequest" : {
+        "properties" : {
+          "response_type" : {
+            "$ref" : "#/components/schemas/C2bResponseType",
+            "description" : "Cancelled rejects payments when validation is unreachable; Completed accepts them"
+          }
+        },
+        "required" : [ "response_type" ],
+        "type" : "object"
+      },
+      "RotateShortcodeCredentialsRequest" : {
+        "properties" : {
+          "consumer_key" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "consumer_secret" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "initiator_name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "initiator_password" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "passkey" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "security_credential" : {
+            "maxLength" : 4000,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          }
+        },
+        "type" : "object"
+      },
       "STKCallback" : {
         "properties" : {
           "CallbackMetadata" : {
@@ -1302,6 +1574,164 @@
         },
         "type" : "object"
       },
+      "ShortcodeCallbackUrls" : {
+        "properties" : {
+          "b2c_result_url" : {
+            "type" : "string"
+          },
+          "b2c_timeout_url" : {
+            "type" : "string"
+          },
+          "c2b_confirmation_url" : {
+            "type" : "string"
+          },
+          "c2b_validation_url" : {
+            "type" : "string"
+          },
+          "stk_callback_url" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "b2c_result_url", "b2c_timeout_url", "c2b_confirmation_url", "c2b_validation_url", "stk_callback_url" ],
+        "type" : "object"
+      },
+      "ShortcodeCredentials" : {
+        "properties" : {
+          "age_days" : {
+            "description" : "Days since the last rotation",
+            "example" : 104,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "consumer_key_masked" : {
+            "example" : "••••Qx7d",
+            "type" : "string"
+          },
+          "consumer_secret_masked" : {
+            "example" : "••••9KfA",
+            "type" : "string"
+          },
+          "initiator_name" : {
+            "description" : "The B2C initiator (API operator) name; not a secret",
+            "example" : "elimika-api",
+            "type" : "string"
+          },
+          "initiator_password_set" : {
+            "type" : "boolean"
+          },
+          "passkey_masked" : {
+            "description" : "Null when no passkey is stored (STK push is off)",
+            "example" : "••••b21c",
+            "type" : "string"
+          },
+          "rotated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "rotation_days" : {
+            "example" : 90,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "rotation_due" : {
+            "type" : "boolean"
+          },
+          "security_credential_set" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "consumer_key_masked", "consumer_secret_masked", "initiator_password_set", "rotation_days", "rotation_due", "security_credential_set" ],
+        "type" : "object"
+      },
+      "ShortcodeDetail" : {
+        "properties" : {
+          "account_reference" : {
+            "type" : "string"
+          },
+          "activated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "b2c_result_url" : {
+            "type" : "string"
+          },
+          "b2c_timeout_url" : {
+            "type" : "string"
+          },
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "callback_url" : {
+            "description" : "Where Safaricom posts STK push results",
+            "type" : "string"
+          },
+          "confirmation_url" : {
+            "description" : "Last C2B confirmation URL registered with Safaricom",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_by" : {
+            "type" : "string"
+          },
+          "credentials" : {
+            "$ref" : "#/components/schemas/ShortcodeCredentials"
+          },
+          "environment" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          },
+          "health" : {
+            "$ref" : "#/components/schemas/ShortcodeHealth"
+          },
+          "is_active" : {
+            "type" : "boolean"
+          },
+          "max_amount" : {
+            "type" : "number"
+          },
+          "min_amount" : {
+            "type" : "number"
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "type" : "string"
+          },
+          "shortcode_type" : {
+            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ShortcodeStatus"
+          },
+          "suspended_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "transaction_desc" : {
+            "type" : "string"
+          },
+          "updated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "updated_by" : {
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "validation_url" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "business_name", "credentials", "environment", "health", "is_active", "shortcode", "shortcode_type", "status", "uuid" ],
+        "type" : "object"
+      },
       "ShortcodeFloatDto" : {
         "properties" : {
           "amount" : {
@@ -1326,6 +1756,208 @@
           }
         },
         "required" : [ "amount", "business_name", "shortcode", "shortcode_uuid" ],
+        "type" : "object"
+      },
+      "ShortcodeHealth" : {
+        "properties" : {
+          "c2b_registered_at" : {
+            "description" : "When the newest C2B registration attempt was made",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "c2b_state" : {
+            "$ref" : "#/components/schemas/C2bRegistrationState"
+          },
+          "collected_today" : {
+            "description" : "Successful incoming payments since midnight, server time",
+            "example" : 902140.0,
+            "type" : "number"
+          },
+          "float_reported_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "float_utility" : {
+            "description" : "Utility account balance from the newest payout result; null when unknown",
+            "type" : "number"
+          },
+          "float_working" : {
+            "type" : "number"
+          },
+          "last_payment_at" : {
+            "description" : "Newest incoming payment (STK or C2B) on this shortcode",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "token_checked_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "token_error" : {
+            "type" : "string"
+          },
+          "token_latency_ms" : {
+            "example" : 312,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "token_ok" : {
+            "description" : "Outcome of the last Daraja token check; null when never run",
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "c2b_state", "collected_today" ],
+        "type" : "object"
+      },
+      "ShortcodeStatus" : {
+        "enum" : [ "DRAFT", "ACTIVE", "SUSPENDED" ],
+        "type" : "string"
+      },
+      "ShortcodeSummary" : {
+        "properties" : {
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "credentials_due" : {
+            "description" : "Credentials are older than the rotation policy (mpesa.credentials.rotation-days)",
+            "type" : "boolean"
+          },
+          "credentials_rotated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "environment" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          },
+          "health" : {
+            "$ref" : "#/components/schemas/ShortcodeHealth"
+          },
+          "is_active" : {
+            "type" : "boolean"
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "type" : "string"
+          },
+          "shortcode_type" : {
+            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "type" : "string"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ShortcodeStatus"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "business_name", "credentials_due", "environment", "health", "is_active", "shortcode", "shortcode_type", "status", "uuid" ],
+        "type" : "object"
+      },
+      "ShortcodeTotals" : {
+        "properties" : {
+          "active" : {
+            "example" : 4,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "c2b_applicable" : {
+            "description" : "Active shortcodes that take C2B payments",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "c2b_registered" : {
+            "description" : "Of those, how many are registered",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "credentials_due" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "draft" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "float_known" : {
+            "description" : "Shortcodes with a known float",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "production" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "rotation_days" : {
+            "example" : 90,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "sandbox" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "suspended" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total" : {
+            "example" : 5,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_float" : {
+            "description" : "Sum of the newest known utility balance of every shortcode",
+            "example" : 2412680.0,
+            "type" : "number"
+          }
+        },
+        "required" : [ "active", "c2b_applicable", "c2b_registered", "credentials_due", "draft", "float_known", "production", "rotation_days", "sandbox", "suspended", "total", "total_float" ],
+        "type" : "object"
+      },
+      "SimulateC2bRequest" : {
+        "properties" : {
+          "amount" : {
+            "example" : 10,
+            "minimum" : 1,
+            "type" : "number"
+          },
+          "bill_ref_number" : {
+            "description" : "Account number; defaults to the shortcode's account reference",
+            "example" : "ELM-004512",
+            "maxLength" : 20,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone_number" : {
+            "example" : 254708374149,
+            "minLength" : 1,
+            "pattern" : "^254[17][0-9]{8}$",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "phone_number" ],
+        "type" : "object"
+      },
+      "SimulateC2bResult" : {
+        "properties" : {
+          "conversation_id" : {
+            "type" : "string"
+          },
+          "originator_conversation_id" : {
+            "type" : "string"
+          },
+          "response_description" : {
+            "example" : "Accept the service request successfully.",
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "StatusQueryDto" : {
@@ -1430,6 +2062,17 @@
           "ResponseDescription" : {
             "description" : "Response description from Safaricom",
             "example" : "Success. Request accepted for processing",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SuspendShortcodeRequest" : {
+        "properties" : {
+          "reason" : {
+            "example" : "Credentials leaked; rotating",
+            "maxLength" : 500,
+            "minLength" : 0,
             "type" : "string"
           }
         },
@@ -1957,6 +2600,54 @@
           }
         },
         "required" : [ "amount", "count", "payment_type" ],
+        "type" : "object"
+      },
+      "UpdateShortcodeRequest" : {
+        "properties" : {
+          "account_reference" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "b2c_result_url" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "pattern" : "^$|^https://.+",
+            "type" : "string"
+          },
+          "b2c_timeout_url" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "pattern" : "^$|^https://.+",
+            "type" : "string"
+          },
+          "business_name" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "pattern" : "[\\s\\S]*\\S[\\s\\S]*",
+            "type" : "string"
+          },
+          "callback_url" : {
+            "description" : "Override where Safaricom posts STK results; \"\" restores the default",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "pattern" : "^$|^https://.+",
+            "type" : "string"
+          },
+          "max_amount" : {
+            "minimum" : 1,
+            "type" : "number"
+          },
+          "min_amount" : {
+            "minimum" : 1,
+            "type" : "number"
+          },
+          "transaction_desc" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "UpdateValidationRulesRequest" : {
@@ -2562,6 +3253,891 @@
         },
         "summary" : "Successful collections and payouts per hour or day (Africa/Nairobi), zero-filled",
         "tags" : [ "Admin: Metrics" ]
+      }
+    },
+    "/api/v1/admin/shortcodes" : {
+      "get" : {
+        "operationId" : "listShortcodes",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: business_name, shortcode, created_at. Default business_name,asc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "business_name,asc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "environment",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          }
+        }, {
+          "description" : "true: active only; false: drafts and suspended",
+          "in" : "query",
+          "name" : "active",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "$ref" : "#/components/schemas/ShortcodeStatus"
+          }
+        }, {
+          "description" : "Matches business name (any case) or shortcode",
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseShortcodeSummary"
+                }
+              }
+            },
+            "description" : "A page of shortcodes"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          }
+        },
+        "summary" : "List shortcodes with their health, A to Z by default",
+        "tags" : [ "Admin: Shortcodes" ]
+      },
+      "post" : {
+        "description" : "Secrets are write-only. A PRODUCTION shortcode needs mpesa-admin.",
+        "operationId" : "createShortcode",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateShortcodeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The new draft shortcode"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The shortcode number already exists"
+          }
+        },
+        "summary" : "Add a shortcode as a draft",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/callback-urls" : {
+      "get" : {
+        "operationId" : "getShortcodeCallbackUrls",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeCallbackUrls"
+                }
+              }
+            },
+            "description" : "The configured callback URLs"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          }
+        },
+        "summary" : "The callback URLs this service registers with Safaricom",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/totals" : {
+      "get" : {
+        "operationId" : "getShortcodeTotals",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeTotals"
+                }
+              }
+            },
+            "description" : "Totals across every shortcode"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          }
+        },
+        "summary" : "Counts and float across every shortcode",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}" : {
+      "get" : {
+        "operationId" : "getShortcode",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The shortcode"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "A shortcode's profile, masked credentials and health",
+        "tags" : [ "Admin: Shortcodes" ]
+      },
+      "patch" : {
+        "operationId" : "updateShortcode",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateShortcodeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The updated shortcode"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Change a shortcode's profile, limits or defaults",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/activate" : {
+      "post" : {
+        "operationId" : "activateShortcode",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The active shortcode"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Already active, or a draft whose token check has not passed"
+          }
+        },
+        "summary" : "Let the shortcode take STK pushes and payouts",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/c2b-registrations" : {
+      "get" : {
+        "operationId" : "listShortcodeC2bRegistrations",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc. Fields: created_at. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseC2bRegistration"
+                }
+              }
+            },
+            "description" : "A page of registration attempts"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          }
+        },
+        "summary" : "C2B URL registration attempts, newest first",
+        "tags" : [ "Admin: Shortcodes" ]
+      },
+      "post" : {
+        "description" : "The attempt is kept either way; a refusal answers 502 and an unreachable Safaricom 503.",
+        "operationId" : "registerShortcodeC2bUrls",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterC2bUrlsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/C2bRegistration"
+                }
+              }
+            },
+            "description" : "Safaricom accepted the URLs"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "A B2C shortcode has no C2B URLs"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the registration"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Register the C2B URLs with Safaricom",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/credentials" : {
+      "put" : {
+        "description" : "Empty fields keep the stored value. The token check must pass again afterwards.",
+        "operationId" : "rotateShortcodeCredentials",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RotateShortcodeCredentialsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The shortcode with its new masked credentials"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Rotate a shortcode's Daraja credentials",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/simulate-c2b" : {
+      "post" : {
+        "operationId" : "simulateShortcodeC2b",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SimulateC2bRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SimulateC2bResult"
+                }
+              }
+            },
+            "description" : "Safaricom accepted the simulation"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not a sandbox shortcode"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the simulation"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Simulate a C2B payment (sandbox shortcodes only)",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/suspend" : {
+      "post" : {
+        "operationId" : "suspendShortcode",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SuspendShortcodeRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The suspended shortcode"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The shortcode is not active"
+          }
+        },
+        "summary" : "Refuse STK pushes and payouts on the shortcode",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/test-connection" : {
+      "post" : {
+        "description" : "Always 200 with ok=false and the reason when Daraja refuses or cannot be reached.",
+        "operationId" : "testShortcodeConnection",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConnectionTestResult"
+                }
+              }
+            },
+            "description" : "The outcome of the token check"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Ask Daraja for an OAuth token with this shortcode's credentials",
+        "tags" : [ "Admin: Shortcodes" ]
       }
     },
     "/api/v1/admin/shortcodes/{uuid}/validation-rules" : {
@@ -3571,6 +5147,9 @@
   }, {
     "description" : "Figures for the console Overview",
     "name" : "Admin: Metrics"
+  }, {
+    "description" : "Paybills, tills and B2C shortcodes: onboarding, health and lifecycle",
+    "name" : "Admin: Shortcodes"
   }, {
     "description" : "How a paybill answers Safaricom's C2B validation request",
     "name" : "Admin: C2B validation"

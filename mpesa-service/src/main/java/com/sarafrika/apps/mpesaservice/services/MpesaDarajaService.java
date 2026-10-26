@@ -60,7 +60,17 @@ public interface MpesaDarajaService {
      * @param validationUrl URL for payment validations
      * @return C2B registration response
      */
-    MpesaApiResponse<C2BRegistrationResponse> registerC2BUrls(UUID shortcodeUuid, String confirmationUrl, String validationUrl);
+    default MpesaApiResponse<C2BRegistrationResponse> registerC2BUrls(UUID shortcodeUuid, String confirmationUrl,
+                                                                      String validationUrl) {
+        return registerC2BUrls(shortcodeUuid, confirmationUrl, validationUrl, "Completed");
+    }
+
+    /** As above, with Safaricom's ResponseType: Completed or Cancelled when validation is unreachable. */
+    MpesaApiResponse<C2BRegistrationResponse> registerC2BUrls(UUID shortcodeUuid, String confirmationUrl,
+                                                              String validationUrl, String responseType);
+
+    /** Forgets a cached Daraja token, e.g. after the shortcode's credentials were rotated. */
+    void evictAccessToken(UUID shortcodeUuid);
 
     /**
      * Simulate C2B payment (for testing purposes)
