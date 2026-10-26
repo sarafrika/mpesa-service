@@ -28,6 +28,8 @@ const ACTION: Record<string, string> = {
   POSSIBLE_C2B_DUPLICATES: "View",
   APPROVALS_WAITING: "Review",
   CALLBACKS_FAILING: "Open inbox",
+  UNLINKED_DEPOSITS: "Review",
+  RECONCILIATION_EXCEPTIONS: "Open reconciliation",
 };
 
 export function AttentionCard({ query }: { query: UseQueryResult<AttentionItemDto[], ApiError> }) {
