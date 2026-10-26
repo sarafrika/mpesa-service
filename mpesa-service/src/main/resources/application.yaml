@@ -69,6 +69,14 @@ mpesa:
     low-float: ${MPESA_ALERTS_LOW_FLOAT:50000}
     stale-after: ${MPESA_ALERTS_STALE_AFTER:6h}
 
+  # Callback inbox: bodies over max-body-bytes are not stored (and cannot be replayed); an entry still
+  # RECEIVED after stuck-after may be replayed; more failures than the threshold in an hour is critical.
+  callbacks:
+    inbox:
+      max-body-bytes: ${MPESA_CALLBACK_INBOX_MAX_BODY_BYTES:65536}
+      stuck-after: ${MPESA_CALLBACK_INBOX_STUCK_AFTER:5m}
+      failure-alert-threshold: ${MPESA_CALLBACK_FAILURE_ALERT_THRESHOLD:0}
+
   # Daraja base URLs and HTTP timeouts.
   daraja:
     sandbox:
