@@ -8,6 +8,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.TransactionDto;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionFeedService;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionStatusService;
 import com.sarafrika.apps.mpesaservice.utils.PageRequests;
+import com.sarafrika.apps.mpesaservice.services.exports.CsvExports;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -15,6 +16,8 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +46,7 @@ public class TransactionAdminController {
 
     private final TransactionFeedService feedService;
     private final TransactionStatusService statusService;
+    private final CsvExports exports;
 
     @GetMapping
     @PreAuthorize("hasRole('mpesa-viewer')")
@@ -83,6 +87,46 @@ public class TransactionAdminController {
         TransactionFeedService.Filter filter = new TransactionFeedService.Filter(direction, type, status,
                 shortcodeUuid, phone, q, from, to);
         return PageResponse.from(feedService.list(filter, PageRequests.of(page, size, sort, SORTABLE, DEFAULT_SORT)));
+    }
+
+    @PostMapping(value = "/export", produces = "text/csv")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "exportTransactions",
+            summary = "Download the transactions matching the list's filters as CSV (audited)",
+            description = "Rows stop at mpesa.exports.max-rows; X-Export-Total holds the matching count and "
+                    + "X-Export-Truncated is true when the file stops short of it.")
+    @ApiResponse(responseCode = "200", description = "The CSV file",
+            content = @Content(mediaType = "text/csv", schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(responseCode = "400", description = "Bad sort or filter value",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "Requires mpesa-finance",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
+    public void exportTransactions(
+            @Parameter(description = "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
+                    array = @ArraySchema(schema = @Schema(type = "string", example = "created_at,desc")))
+            @RequestParam(name = "sort", required = false) List<String> sort,
+            @Parameter(description = "Money in or money out", schema = @Schema(allowableValues = {"in", "out"}))
+            @RequestParam(name = "direction", required = false) String direction,
+            @Parameter(schema = @Schema(allowableValues = {"C2B", "STK_PUSH", "B2B_EXPRESS_CHECKOUT", "B2C", "B2B"}))
+            @RequestParam(name = "type", required = false) String type,
+            @Parameter(schema = @Schema(allowableValues = {"PENDING", "SUCCESS", "FAILED", "CANCELLED"}))
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "shortcode_uuid", required = false) UUID shortcodeUuid,
+            @Parameter(description = "Payer or recipient phone; 07…, 7… and +254… are all understood")
+            @RequestParam(name = "phone", required = false) String phone,
+            @Parameter(description = "Receipt, checkout id or conversation id (exact), or account/client reference (prefix)")
+            @RequestParam(name = "q", required = false) String q,
+            @Parameter(description = "Created at or after (ISO-8601 with offset)")
+            @RequestParam(name = "from", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
+            @Parameter(description = "Created before (ISO-8601 with offset)")
+            @RequestParam(name = "to", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
+            HttpServletResponse response) throws IOException {
+        TransactionFeedService.Filter filter = new TransactionFeedService.Filter(direction, type, status,
+                shortcodeUuid, phone, q, from, to);
+        Sort order = PageRequests.of(0, 1, sort, SORTABLE, DEFAULT_SORT).getSort();
+        exports.transactions(filter, order, response);
     }
 
     @GetMapping("/{uuid}")

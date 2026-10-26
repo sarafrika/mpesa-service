@@ -286,6 +286,28 @@ class CollectionsIntegrationTest {
     }
 
     @Test
+    void anExportStreamsTheFilteredFeedInOrderUpToTheCap() throws Exception {
+        LocalDateTime base = LocalDateTime.of(2026, 1, 12, 9, 0);
+        UUID in1 = c2b("100", base.plusMinutes(1));
+        UUID out1 = payout("200", base.plusMinutes(2), OutgoingPaymentStatus.SUCCESS);
+        UUID in2 = c2b("300", base.plusMinutes(3));
+        TransactionFeedService.Filter mine = filter(null, null, null, null, null);
+        List<UUID> written = new java.util.ArrayList<>();
+
+        long count = feedService.count(mine);
+        long rows = feedService.export(mine, page(0, 1, null).getSort(), 2, row -> written.add(row.uuid()));
+
+        assertThat(count).isEqualTo(3);
+        assertThat(rows).isEqualTo(2);
+        assertThat(written).containsExactly(in2, out1);
+        List<UUID> byAmount = new java.util.ArrayList<>();
+        feedService.export(mine, page(0, 1, List.of("amount,asc")).getSort(), 10, row -> byAmount.add(row.uuid()));
+        assertThat(byAmount).containsExactly(in1, out1, in2);
+        assertThatThrownBy(() -> feedService.count(filter("sideways", null, null, null, null)))
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
     void theFeedFiltersByDirectionTypeStatusPhoneQueryAndDates() {
         LocalDateTime base = LocalDateTime.of(2026, 2, 10, 9, 0);
         UUID deposit = c2b("100", base);

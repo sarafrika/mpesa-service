@@ -1,5 +1,9 @@
 package com.sarafrika.apps.mpesaservice.controllers.admin;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import com.sarafrika.apps.mpesaservice.services.collections.TransactionFeedService;
+import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.exports.CsvExports;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -56,7 +60,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 @WebMvcTest(ShortcodeAdminController.class)
-@Import(CallbackSecurityConfig.class)
+@Import({CallbackSecurityConfig.class, CsvExports.class})
 class ShortcodeAdminControllerTest {
 
     private static final UUID ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
@@ -72,6 +76,27 @@ class ShortcodeAdminControllerTest {
     private ShortcodeAdminService shortcodes;
     @MockitoBean
     private ShortcodeC2bService c2b;
+    @MockitoBean
+    private TransactionFeedService feed;
+    @MockitoBean
+    private AuditService audit;
+
+    @Test
+    @WithMockUser(roles = "mpesa-viewer")
+    void aViewerExportsThePaybillsListAsCsv() throws Exception {
+        ShortcodeSummaryDto code = new ShortcodeSummaryDto(UUID.randomUUID(), "600100", "@Elimika Fees",
+                ShortcodeType.PAYBILL, Environment.SANDBOX, ShortcodeStatus.ACTIVE, true, null, null, null,
+                List.of(new ShortcodeSummaryDto.ProductRef("elimika-backend", "Elimika")));
+        when(shortcodes.list(any(), any())).thenReturn(new PageImpl<>(List.of(code)));
+
+        String csv = mockMvc.perform(get("/api/v1/admin/shortcodes/export").param("type", "PAYBILL"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Export-Total", "1"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(csv.lines().toList()).hasSize(2);
+        assertThat(csv.lines().toList().get(1)).startsWith("600100,'@Elimika Fees,PAYBILL,SANDBOX,ACTIVE,elimika-backend,");
+    }
 
     // ---- list, totals, callback URLs, detail (viewer)
 

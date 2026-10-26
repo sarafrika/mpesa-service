@@ -5,12 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
-import { useListTransactions } from "@/api/generated/endpoints/admin-transactions/admin-transactions";
-import type { ListTransactionsParams } from "@/api/generated/model";
+import {
+  getExportTransactionsUrl,
+  useListTransactions,
+} from "@/api/generated/endpoints/admin-transactions/admin-transactions";
+import type { ExportTransactionsParams, ListTransactionsParams } from "@/api/generated/model";
 import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { FilterChips } from "@/components/filter-chips";
 import { SearchInput } from "@/components/search-input";
 import { SectionCard } from "@/components/section-card";
@@ -34,6 +38,38 @@ import {
 import { TABLE_COLUMNS, TransactionsTable } from "./transactions-table";
 
 const FILTER_KEYS = ["q", "type", "status", "paybill", "from", "to"] as const;
+
+/** The list's filters (and sort) from the URL, without paging. */
+function filterParams(params: URLSearchParams, sort: string | undefined): ExportTransactionsParams {
+  const type = asTypeFilter(params.get("type"));
+  const status = asStatusFilter(params.get("status"));
+  const paybill = params.get("paybill") ?? undefined;
+  return {
+    ...(sort ? { sort: [sort] } : {}),
+    ...(type !== "all" ? { type } : {}),
+    ...(status !== "any" ? { status } : {}),
+    ...(paybill ? { shortcode_uuid: paybill } : {}),
+    ...searchParams(params.get("q") ?? ""),
+    ...dateRangeParams(params.get("from") ?? undefined, params.get("to") ?? undefined),
+  };
+}
+
+/** "Export (finance)": the feed under the current filters as CSV. */
+export function TransactionsExport() {
+  const params = useSearchParams();
+  const { sort } = usePaging();
+  return (
+    <ExportCsvButton
+      label="Export (finance)"
+      method="POST"
+      fileName="transactions.csv"
+      requiredRole="mpesa-finance"
+      url={() =>
+        getExportTransactionsUrl(filterParams(new URLSearchParams(params.toString()), sort))
+      }
+    />
+  );
+}
 
 /** The transactions screen below its header: filters, the paged feed and the side panel (`?tx=`). */
 export function TransactionsView() {
@@ -70,12 +106,7 @@ export function TransactionsView() {
   const query: ListTransactionsParams = {
     page,
     size,
-    ...(sort ? { sort: [sort] } : {}),
-    ...(type !== "all" ? { type } : {}),
-    ...(status !== "any" ? { status } : {}),
-    ...(paybill ? { shortcode_uuid: paybill } : {}),
-    ...searchParams(urlQuery),
-    ...dateRangeParams(from, to),
+    ...filterParams(new URLSearchParams(params.toString()), sort),
   };
   const list = useListTransactions(query, { query: pagedQueryOptions });
   const data = list.data?.status === 200 ? list.data.data : undefined;

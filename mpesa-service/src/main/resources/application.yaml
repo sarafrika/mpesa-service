@@ -76,6 +76,10 @@ mpesa:
     low-float: ${MPESA_ALERTS_LOW_FLOAT:50000}
     stale-after: ${MPESA_ALERTS_STALE_AFTER:6h}
 
+  # CSV exports (transactions, paybills) stop after this many rows; the response says when they did.
+  exports:
+    max-rows: ${MPESA_EXPORT_MAX_ROWS:100000}
+
   # Callback inbox: bodies over max-body-bytes are not stored (and cannot be replayed); an entry still
   # RECEIVED after stuck-after may be replayed; more failures than the threshold in an hour is critical.
   callbacks:

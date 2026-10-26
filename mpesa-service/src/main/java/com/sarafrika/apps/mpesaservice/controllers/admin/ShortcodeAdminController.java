@@ -1,5 +1,8 @@
 package com.sarafrika.apps.mpesaservice.controllers.admin;
 
+import com.sarafrika.apps.mpesaservice.services.exports.CsvExports;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import com.sarafrika.apps.mpesaservice.dtos.admin.ApiError;
 import com.sarafrika.apps.mpesaservice.dtos.admin.PageResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationDto;
@@ -67,6 +70,7 @@ public class ShortcodeAdminController {
 
     private final ShortcodeAdminService shortcodes;
     private final ShortcodeC2bService c2b;
+    private final CsvExports exports;
 
     @GetMapping
     @PreAuthorize("hasRole('mpesa-viewer')")
@@ -96,6 +100,34 @@ public class ShortcodeAdminController {
         return PageResponse.from(shortcodes.list(
                 new ShortcodeAdminService.ShortcodeQuery(type, environment, active, status, q, clientId),
                 PageRequests.of(page, size, sort, SORTABLE, DEFAULT_SORT)));
+    }
+
+    @GetMapping(value = "/export", produces = "text/csv")
+    @PreAuthorize("hasRole('mpesa-viewer')")
+    @Operation(operationId = "exportShortcodes",
+            summary = "Download the shortcodes matching the list's filters as CSV, with their health",
+            description = "Rows stop at mpesa.exports.max-rows; X-Export-Total holds the matching count.")
+    @ApiResponse(responseCode = "200", description = "The CSV file",
+            content = @Content(mediaType = "text/csv", schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(responseCode = "400", description = "Bad sort or filter value",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
+    public void exportShortcodes(
+            @Parameter(description = "field,asc|desc; repeatable. Fields: business_name, shortcode, created_at. "
+                    + "Default business_name,asc",
+                    array = @ArraySchema(schema = @Schema(type = "string", example = "business_name,asc")))
+            @RequestParam(name = "sort", required = false) List<String> sort,
+            @RequestParam(name = "type", required = false) ShortcodeType type,
+            @RequestParam(name = "environment", required = false) Environment environment,
+            @Parameter(description = "true: active only; false: drafts and suspended")
+            @RequestParam(name = "active", required = false) Boolean active,
+            @RequestParam(name = "status", required = false) ShortcodeStatus status,
+            @Parameter(description = "Matches business name (any case) or shortcode")
+            @RequestParam(name = "q", required = false) String q,
+            @Parameter(description = "Only shortcodes this product (Keycloak client id) holds an active grant on")
+            @RequestParam(name = "client_id", required = false) String clientId,
+            HttpServletResponse response) throws IOException {
+        exports.shortcodes(new ShortcodeAdminService.ShortcodeQuery(type, environment, active, status, q, clientId),
+                PageRequests.of(0, 1, sort, SORTABLE, DEFAULT_SORT).getSort(), response);
     }
 
     @GetMapping("/totals")

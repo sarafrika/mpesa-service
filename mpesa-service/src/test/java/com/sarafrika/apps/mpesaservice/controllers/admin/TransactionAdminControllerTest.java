@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,6 +21,9 @@ import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionFeedService;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionStatusService;
+import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.exports.CsvExports;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeAdminService;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -38,7 +42,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(TransactionAdminController.class)
-@Import(CallbackSecurityConfig.class)
+@Import({CallbackSecurityConfig.class, CsvExports.class})
 class TransactionAdminControllerTest {
 
     @Autowired
@@ -48,6 +52,58 @@ class TransactionAdminControllerTest {
     private TransactionFeedService feedService;
     @MockitoBean
     private TransactionStatusService statusService;
+    @MockitoBean
+    private ShortcodeAdminService shortcodes;
+    @MockitoBean
+    private AuditService audit;
+
+    @Test
+    @WithMockUser(roles = "mpesa-finance")
+    void financeExportsTheFilteredFeedAsCsvAndItIsAudited() throws Exception {
+        TransactionDto row = new TransactionDto(TX, "in", "C2B", "SUCCESS", null, "600100", "Elimika, Fees",
+                "TJQ4K2L9XA", null, null, null, "=HYPERLINK(\"x\")", "254712345612", new BigDecimal("4500.00"), 0,
+                null, null, "JANE KAMAU", "PAYBILL", OffsetDateTime.parse("2026-10-26T14:32:08+03:00"), null, null);
+        when(feedService.count(any())).thenReturn(1L);
+        when(feedService.export(any(), any(), org.mockito.ArgumentMatchers.anyInt(), any())).thenAnswer(call -> {
+            call.<TransactionFeedService.RowWriter>getArgument(3).write(row);
+            return 1L;
+        });
+
+        String csv = mockMvc.perform(post("/api/v1/admin/transactions/export").param("direction", "in")
+                        .param("sort", "amount,asc"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Export-Total", "1"))
+                .andExpect(header().string("X-Export-Truncated", "false"))
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith(
+                        "attachment; filename=\"transactions-")))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(csv).startsWith("uuid,created_at,transaction_date,");
+        assertThat(csv).contains(",\"Elimika, Fees\",TJQ4K2L9XA,,,,\"'=HYPERLINK(\"\"x\"\")\",254712345612,");
+        verify(audit).record(org.mockito.ArgumentMatchers.eq("TRANSACTIONS_EXPORTED"),
+                org.mockito.ArgumentMatchers.eq("TRANSACTION"), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(), any());
+        ArgumentCaptor<Sort> sort = ArgumentCaptor.forClass(Sort.class);
+        verify(feedService).export(any(), sort.capture(), org.mockito.ArgumentMatchers.eq(100000), any());
+        assertThat(sort.getValue()).isEqualTo(Sort.by(Sort.Order.asc("amount"), Sort.Order.desc("id")));
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-operator")
+    void onlyFinanceExportsTransactions() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/transactions/export")).andExpect(status().isForbidden());
+        verifyNoInteractions(feedService, audit);
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-finance")
+    void aBadExportFilterIsAFieldErrorNotAHalfFile() throws Exception {
+        when(feedService.count(any())).thenThrow(new InvalidRequestException("direction", "must be in or out"));
+        mockMvc.perform(post("/api/v1/admin/transactions/export").param("direction", "up"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field_errors[0].field").value("direction"));
+        verifyNoInteractions(audit);
+    }
 
     private static final UUID TX = UUID.fromString("11111111-2222-3333-4444-555555555555");
 

@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useListProducts } from "@/api/generated/endpoints/admin-products/admin-products";
 import {
+  getExportShortcodesUrl,
   useGetShortcodeTotals,
   useListShortcodes,
 } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
@@ -18,6 +19,7 @@ import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
+import { ExportCsvButton } from "@/components/export-csv-button";
 import { FilterChips } from "@/components/filter-chips";
 import { Money } from "@/components/money";
 import { PageHeader } from "@/components/page-header";
@@ -106,13 +108,42 @@ function PaybillsHeader() {
       title="Paybills & tills"
       description={description}
       actions={
-        <RoleGate needs="mpesa-operator">
-          <Button asChild>
-            <Link href="/paybills/new">
-              <Plus /> Add paybill
-            </Link>
-          </Button>
-        </RoleGate>
+        <div className="flex flex-wrap gap-3">
+          <PaybillsExport />
+          <RoleGate needs="mpesa-operator">
+            <Button asChild>
+              <Link href="/paybills/new">
+                <Plus /> Add paybill
+              </Link>
+            </Button>
+          </RoleGate>
+        </div>
+      }
+    />
+  );
+}
+
+/** "Export CSV": the list under the current filters, with each shortcode's health. */
+function PaybillsExport() {
+  const params = useSearchParams();
+  const paging = usePaging();
+  return (
+    <ExportCsvButton
+      label="Export CSV"
+      method="GET"
+      fileName="paybills.csv"
+      url={() =>
+        getExportShortcodesUrl({
+          sort: paging.sort ? [paging.sort] : undefined,
+          type: pick<ListShortcodesType>(params.get("type"), TYPE_OPTIONS),
+          status: pick<ShortcodeStatus>(params.get("status"), STATUS_OPTIONS),
+          environment: pick<ListShortcodesEnvironment>(
+            params.get("environment"),
+            ENVIRONMENT_OPTIONS,
+          ),
+          q: params.get("q") || undefined,
+          client_id: params.get("product") ?? undefined,
+        })
       }
     />
   );

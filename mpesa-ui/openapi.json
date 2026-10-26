@@ -8605,7 +8605,7 @@
                 }
               }
             },
-            "description" : "The configured callback URLs"
+            "description" : "The callback URLs with a token placeholder"
           },
           "400" : {
             "content" : {
@@ -8628,7 +8628,108 @@
             "description" : "Missing the role the operation needs"
           }
         },
-        "summary" : "The callback URLs this service registers with Safaricom",
+        "summary" : "The callback URL pattern; each shortcode's own secret token replaces {callback-token}",
+        "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/export" : {
+      "get" : {
+        "description" : "Rows stop at mpesa.exports.max-rows; X-Export-Total holds the matching count.",
+        "operationId" : "exportShortcodes",
+        "parameters" : [ {
+          "description" : "field,asc|desc; repeatable. Fields: business_name, shortcode, created_at. Default business_name,asc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "business_name,asc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "environment",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          }
+        }, {
+          "description" : "true: active only; false: drafts and suspended",
+          "in" : "query",
+          "name" : "active",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "$ref" : "#/components/schemas/ShortcodeStatus"
+          }
+        }, {
+          "description" : "Matches business name (any case) or shortcode",
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only shortcodes this product (Keycloak client id) holds an active grant on",
+          "in" : "query",
+          "name" : "client_id",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "binary",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "The CSV file"
+          },
+          "400" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          }
+        },
+        "summary" : "Download the shortcodes matching the list's filters as CSV, with their health",
         "tags" : [ "Admin: Shortcodes" ]
       }
     },
@@ -11687,6 +11788,127 @@
           }
         },
         "summary" : "List incoming and outgoing payments, newest first",
+        "tags" : [ "Admin: Transactions" ]
+      }
+    },
+    "/api/v1/admin/transactions/export" : {
+      "post" : {
+        "description" : "Rows stop at mpesa.exports.max-rows; X-Export-Total holds the matching count and X-Export-Truncated is true when the file stops short of it.",
+        "operationId" : "exportTransactions",
+        "parameters" : [ {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "description" : "Money in or money out",
+          "in" : "query",
+          "name" : "direction",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "in", "out" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "C2B", "STK_PUSH", "B2B_EXPRESS_CHECKOUT", "B2C", "B2B" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Payer or recipient phone; 07…, 7… and +254… are all understood",
+          "in" : "query",
+          "name" : "phone",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Receipt, checkout id or conversation id (exact), or account/client reference (prefix)",
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Created at or after (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Created before (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "binary",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "The CSV file"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad sort or filter value"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          }
+        },
+        "summary" : "Download the transactions matching the list's filters as CSV (audited)",
         "tags" : [ "Admin: Transactions" ]
       }
     },

@@ -5,6 +5,8 @@ import { UNREACHABLE_HEADER } from "@/lib/service-status";
 
 const SERVICE_URL = process.env.MPESA_SERVICE_URL ?? "http://localhost:8080";
 const FORWARDED_HEADERS = ["accept", "content-type", "idempotency-key"];
+// CSV exports name their file and say how many rows matched.
+const RETURNED_HEADERS = ["content-disposition", "x-export-total", "x-export-truncated"];
 
 // Same shape as the service's own ApiError body, so the browser parses one format.
 function apiError(status: number, error: string, message: string, headers?: HeadersInit) {
@@ -44,10 +46,14 @@ async function forward(request: NextRequest, ctx: RouteContext<"/api/mpesa/[...p
     });
   }
 
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
+  const returned = new Headers({
+    "content-type": upstream.headers.get("content-type") ?? "application/json",
   });
+  for (const name of RETURNED_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) returned.set(name, value);
+  }
+  return new Response(upstream.body, { status: upstream.status, headers: returned });
 }
 
 export { forward as GET, forward as POST, forward as PUT, forward as PATCH, forward as DELETE };

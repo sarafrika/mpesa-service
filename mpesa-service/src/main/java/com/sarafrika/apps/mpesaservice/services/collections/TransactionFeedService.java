@@ -28,6 +28,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryMethod;
 import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryStatus;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -39,10 +40,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +67,7 @@ public class TransactionFeedService {
     private final ReversalRequestRepository reversalRepository;
     private final ObjectProvider<ReversalService> reversalService;
     private final ObjectMapper objectMapper;
+    private final EntityManager entityManager;
 
     /** Optional filters; q matches a receipt, checkout or conversation id exactly, or an account reference prefix. */
     public record Filter(String direction, String type, String status, UUID shortcodeUuid, String phone, String q,
@@ -75,6 +79,37 @@ public class TransactionFeedService {
         boolean full = PersonalData.visible();
         return feedRepository.findAll(matching(validated(filter)), pageable)
                 .map(TransactionFeedService::toDto).map(row -> full ? row : row.masked());
+    }
+
+    /** Writes one exported row; may fail with an IOException when the client goes away. */
+    @FunctionalInterface
+    public interface RowWriter {
+        void write(TransactionDto row) throws java.io.IOException;
+    }
+
+    /** Checks the filter and counts its rows, before anything of an export is written. */
+    @Transactional(readOnly = true)
+    public long count(Filter filter) {
+        return feedRepository.count(matching(validated(filter)));
+    }
+
+    /** Streams up to maxRows rows in the given order, masked like the list; returns how many were written. */
+    @Transactional(readOnly = true)
+    public long export(Filter filter, Sort sort, int maxRows, RowWriter out) throws java.io.IOException {
+        boolean full = PersonalData.visible();
+        long written = 0;
+        try (Stream<TransactionFeedEntry> rows = feedRepository.findBy(matching(validated(filter)),
+                query -> query.sortBy(sort).limit(maxRows).stream())) {
+            for (TransactionFeedEntry entry : (Iterable<TransactionFeedEntry>) rows::iterator) {
+                TransactionDto row = toDto(entry);
+                out.write(full ? row : row.masked());
+                // The view's rows are read-only; dropping them keeps a 100k-row export's memory flat.
+                if (++written % 500 == 0) {
+                    entityManager.clear();
+                }
+            }
+        }
+        return written;
     }
 
     @Transactional(readOnly = true)
