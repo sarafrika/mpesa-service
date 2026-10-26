@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.treasury;
 
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,6 +54,7 @@ public class BalanceService {
 
     static final String AUDIT_QUERIED = "BALANCE_QUERIED";
     static final String AUDIT_THRESHOLD = "FLOAT_THRESHOLD_UPDATED";
+    static final String UNKNOWN_OUTCOME = "Safaricom did not answer this query; its result may still arrive.";
     static final Duration MAX_HISTORY = Duration.ofDays(31);
     static final int MAX_HISTORY_POINTS = 1000;
     private static final TypeReference<List<BalanceAccountDto>> ACCOUNTS = new TypeReference<>() {
@@ -93,7 +95,8 @@ public class BalanceService {
         }
         Sent sent = send(shortcode, BalanceQuerySource.MANUAL);
         BalanceSnapshot snapshot = sent.snapshot();
-        if (snapshot.getStatus() == BalanceSnapshotStatus.FAILED) {
+        // No answer keeps the snapshot PENDING (its result may still come), but the console still hears 503.
+        if (snapshot.getStatus() == BalanceSnapshotStatus.FAILED || sent.error() != null) {
             throw DarajaErrors.toUpstream(sent.error(), "query the balance");
         }
         audit.record(AUDIT_QUERIED, "SHORTCODE", shortcodeUuid.toString(), null,
@@ -106,7 +109,7 @@ public class BalanceService {
     }
 
     /** Saves a PENDING snapshot (committed, so the result can find it), then asks Safaricom. A refusal marks
-     * it FAILED; no answer at all leaves it PENDING for the result or the queue timeout to settle. */
+     * it FAILED; no answer at all (timeout, 5xx) leaves it PENDING with its outcome unknown. */
     public Sent send(MpesaShortCode shortcode, BalanceQuerySource source) {
         BalanceSnapshot pending = new BalanceSnapshot();
         pending.setShortcodeUuid(shortcode.getUuid());
@@ -122,6 +125,8 @@ public class BalanceService {
             if (response.success() && response.data() != null && response.data().isAccepted()) {
                 row.setConversationId(response.data().conversationId());
                 row.setOriginatorConversationId(response.data().originatorConversationId());
+            } else if (outcomeUnknown(response)) {
+                row.setResultDesc(UNKNOWN_OUTCOME);
             } else {
                 row.setStatus(BalanceSnapshotStatus.FAILED);
                 row.setResultDesc(truncate(response.error() != null ? response.error().errorMessage()
@@ -134,6 +139,19 @@ public class BalanceService {
         return new Sent(settled, response.success() ? null : response.error());
     }
 
+    /** True unless Daraja itself answered: a refusal (4xx, or ResponseCode not 0) or nothing was sent. */
+    static boolean outcomeUnknown(MpesaApiResponse<AccountBalanceResponse> response) {
+        if (response.success()) {
+            return response.data() == null;
+        }
+        String code = response.error() == null ? null : response.error().errorCode();
+        if (MpesaErrorResponse.NOT_SENT.equals(code) || "AUTH_FAILED".equals(code)) {
+            return false;
+        }
+        return code == null || MpesaErrorResponse.NETWORK_ERROR.equals(code) || "INTERNAL_ERROR".equals(code)
+                || response.httpStatus() >= 500 || response.httpStatus() == 408;
+    }
+
     /** Safaricom's Account Balance result. Only a PENDING or TIMED_OUT query takes it, so repeats are ignored. */
     @Transactional
     public Optional<BalanceSnapshot> applyResult(AccountBalanceResultData result, String raw) {
@@ -141,6 +159,7 @@ public class BalanceService {
         if (match.isEmpty()) {
             log.warn("Account balance result for unknown query {} / {}", result.originatorConversationId(),
                     result.conversationId());
+            CallbackOutcome.failed("No balance query matches this result; replay it once the query's ids are saved.");
             return Optional.empty();
         }
         BalanceSnapshot snapshot = match.get();

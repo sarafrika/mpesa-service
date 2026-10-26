@@ -6,6 +6,7 @@ import {
   batchProgress,
   decisionBlocker,
   preCheckTone,
+  previewRows,
   tabStatuses,
 } from "./approval-format.ts";
 
@@ -15,6 +16,29 @@ describe("approval tabs", () => {
     assert.equal(asApprovalTab("nonsense"), "waiting");
     assert.equal(asApprovalTab(null), "waiting");
     assert.deepEqual(tabStatuses("approved"), ["APPROVED", "EXECUTING", "EXECUTED", "FAILED"]);
+  });
+});
+
+describe("previewRows", () => {
+  const rows = [
+    { line: 2, valid: true },
+    { line: 3, valid: false },
+    { line: 4, valid: true },
+    { line: 5, valid: true },
+    { line: 6, valid: false },
+  ];
+
+  it("puts invalid rows first and caps the valid ones", () => {
+    const { shown, hiddenValid } = previewRows(rows, 2);
+    assert.deepEqual(
+      shown.map((row) => row.line),
+      [3, 6, 2, 4],
+    );
+    assert.equal(hiddenValid, 1);
+  });
+
+  it("hides nothing when the cap is not reached", () => {
+    assert.equal(previewRows(rows, 10).hiddenValid, 0);
   });
 });
 

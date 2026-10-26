@@ -91,4 +91,11 @@ public class B2bTransfer extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    /** Set when finance closed it as FAILED by hand after checking the statement. */
+    @Column(name = "closed_by")
+    private String closedBy;
+
+    @Column(name = "close_note")
+    private String closeNote;
 }

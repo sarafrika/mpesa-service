@@ -9,11 +9,9 @@ export function ApprovalsBadge() {
   const waiting = summary.data?.status === 200 ? summary.data.data.waiting : 0;
   if (waiting <= 0) return null;
   return (
-    <SidebarMenuBadge
-      className="rounded-full bg-warning-soft text-warning"
-      aria-label={`${waiting} waiting`}
-    >
+    <SidebarMenuBadge className="rounded-full bg-warning-soft text-warning">
       {waiting > 99 ? "99+" : waiting}
+      <span className="sr-only"> {waiting === 1 ? "request" : "requests"} waiting</span>
     </SidebarMenuBadge>
   );
 }

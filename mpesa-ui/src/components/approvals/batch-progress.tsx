@@ -56,7 +56,11 @@ export function BatchSummary({ batch }: { batch: PayoutBatchDto }) {
   const percent = batchProgress(batch.processed_count, batch.item_count);
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+      <div
+        className="flex flex-wrap items-center justify-between gap-2 text-sm"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         <span className="flex items-center gap-2">
           <StatusBadge status={batch.status} />
           <span className="text-muted-foreground">
@@ -113,6 +117,9 @@ function countFor(batch: PayoutBatchDto, outcome: string): number {
       return counts.failed;
     case "REFUSED":
       return counts.refused;
+    case "ERROR":
+      // Rows that could not be sent (retried on resume), counted apart from Safaricom failures.
+      return counts.error;
     default:
       return 0;
   }

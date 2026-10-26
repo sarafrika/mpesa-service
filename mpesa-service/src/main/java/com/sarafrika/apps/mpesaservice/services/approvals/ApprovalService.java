@@ -20,6 +20,7 @@ import com.sarafrika.apps.mpesaservice.repositories.PayoutBatchRepository;
 import com.sarafrika.apps.mpesaservice.repositories.ReversalRequestRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
 import com.sarafrika.apps.mpesaservice.utils.enums.ApprovalStatus;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
@@ -62,6 +63,8 @@ public class ApprovalService implements ApprovalGateway {
     static final String AUDIT_REJECTED = "APPROVAL_REJECTED";
     static final String AUDIT_EXPIRED = "APPROVAL_EXPIRED";
     static final String OWN_REQUEST = "You raised this request, so another finance user has to decide it.";
+    static final String NO_SUBJECT = "Your sign-in does not say who you are (no subject), so it cannot raise or "
+            + "decide a money request. Sign in again.";
 
     private final ApprovalRequestRepository repository;
     private final MpesaShortCodeRepository shortcodes;
@@ -106,6 +109,10 @@ public class ApprovalService implements ApprovalGateway {
         if (submission.reason().length() > 1000) {
             throw new InvalidRequestException("reason", "must be at most 1000 characters");
         }
+        String makerSub = CurrentActor.subject();
+        if (makerSub == null) {
+            throw new MakerCheckerException(NO_SUBJECT);
+        }
         if (submission.shortcodeUuid() != null && shortcodes.findByUuid(submission.shortcodeUuid()).isEmpty()) {
             throw new NotFoundException("Shortcode not found");
         }
@@ -126,6 +133,7 @@ public class ApprovalService implements ApprovalGateway {
         request.setPayload(payload.toString());
         request.setPreChecks(mapper.valueToTree(readChecks(preChecks)).toString());
         request.setMaker(CurrentActor.name());
+        request.setMakerSub(makerSub);
         request.setMakerName(actorName());
         request.setExpiresAt(Instant.now().plus(properties.expireAfter()));
         ApprovalRequest saved = repository.saveAndFlush(request);
@@ -141,20 +149,21 @@ public class ApprovalService implements ApprovalGateway {
     public Page<ApprovalDto> list(Filter filter, Pageable pageable) {
         Page<ApprovalRequest> page = repository.findAll(matching(filter), pageable);
         Map<UUID, MpesaShortCode> codes = new HashMap<>();
-        String me = CurrentActor.name();
+        Me me = Me.current();
         return page.map(request -> view(request, code(codes, request.getShortcodeUuid()), me, false));
     }
 
     @Transactional(readOnly = true)
     public ApprovalDto get(UUID uuid) {
         ApprovalRequest request = repository.findByUuid(uuid).orElseThrow(() -> notFound());
-        return view(request, code(new HashMap<>(), request.getShortcodeUuid()), CurrentActor.name(), true);
+        return view(request, code(new HashMap<>(), request.getShortcodeUuid()), Me.current(), true);
     }
 
     @Transactional(readOnly = true)
     public ApprovalSummaryDto summary() {
         return new ApprovalSummaryDto(repository.countByStatus(ApprovalStatus.WAITING),
-                repository.countByStatusAndMaker(ApprovalStatus.WAITING, CurrentActor.name()));
+                CurrentActor.subject() == null ? 0
+                        : repository.countByStatusAndMakerSub(ApprovalStatus.WAITING, CurrentActor.subject()));
     }
 
     /** Approves as the signed-in checker and starts the run once committed. */
@@ -173,7 +182,11 @@ public class ApprovalService implements ApprovalGateway {
 
     private void decide(UUID uuid, ApprovalStatus decision, String note) {
         String me = CurrentActor.name();
+        String mySub = CurrentActor.subject();
         String myName = actorName();
+        if (mySub == null) {
+            throw new MakerCheckerException(NO_SUBJECT);
+        }
         Boolean expired = tx.execute(status -> {
             ApprovalRequest request = repository.lockByUuid(uuid).orElseThrow(() -> notFound());
             if (request.getStatus() != ApprovalStatus.WAITING) {
@@ -184,12 +197,13 @@ public class ApprovalService implements ApprovalGateway {
                 expire(request);
                 return true;
             }
-            if (request.getMaker().equals(me)) {
+            if (new Me(me, mySub).made(request)) {
                 throw new MakerCheckerException(OWN_REQUEST);
             }
             Map<String, Object> before = ApprovalRunner.snapshot(request);
             request.setStatus(decision);
             request.setChecker(me);
+            request.setCheckerSub(mySub);
             request.setCheckerName(myName);
             request.setDecisionNote(StringUtils.hasText(note) ? note.trim() : null);
             request.setDecidedAt(Instant.now());
@@ -239,7 +253,20 @@ public class ApprovalService implements ApprovalGateway {
                 .forEach(l -> l.closed(request.getUuid(), request.getStatus()));
     }
 
-    private ApprovalDto view(ApprovalRequest r, MpesaShortCode code, String me, boolean detail) {
+    /** The signed-in person. The same subject (a username can change) or the same username both count as
+     * the maker; rows from before subjects were stored have only the username. */
+    record Me(String name, String sub) {
+        static Me current() {
+            return new Me(CurrentActor.name(), CurrentActor.subject());
+        }
+
+        boolean made(ApprovalRequest request) {
+            return (request.getMakerSub() != null && request.getMakerSub().equals(sub))
+                    || request.getMaker().equals(name);
+        }
+    }
+
+    private ApprovalDto view(ApprovalRequest r, MpesaShortCode code, Me me, boolean detail) {
         JsonNode payload = read(r.getPayload());
         UUID transactionUuid = uuid(payload.path("transaction_uuid"));
         UUID batchUuid = null;
@@ -251,14 +278,16 @@ public class ApprovalService implements ApprovalGateway {
             reversal = reversals.findByApprovalUuid(r.getUuid()).map(v -> new ReversalDto(v.getUuid(),
                     v.getPaymentUuid(), v.getTransactionId(), v.getAmount(), v.getOriginalAmount(),
                     v.getStatus().name(), v.getResultCode(), v.getResultDesc(), v.getReversalTransactionId(),
-                    offset(v.getSentAt()), offset(v.getCompletedAt()))).orElse(null);
+                    offset(v.getSentAt()), offset(v.getCompletedAt()), v.getClosedBy(), v.getCloseNote()))
+                    .orElse(null);
         }
         return new ApprovalDto(r.getUuid(), r.getType(), r.getStatus().name(), r.getTitle(), r.getShortcodeUuid(),
                 code == null ? null : code.getShortcode(), code == null ? null : code.getBusinessName(),
                 r.getAmount(), r.getReason(), r.getDarajaCall(), readChecks(read(r.getPreChecks())), r.getMaker(),
                 r.getMakerName(), r.getChecker(), r.getCheckerName(), r.getDecisionNote(), offset(r.getDecidedAt()),
                 offset(r.getExpiresAt()), offset(r.getExecutedAt()), r.getOutcomeMessage(), offset(r.getCreatedAt()),
-                r.getMaker().equals(me), transactionUuid, batchUuid, reversal);
+                me.made(r), transactionUuid, batchUuid, reversal,
+                !detail ? null : PersonalData.visible() ? payload : PersonalData.redact(payload));
     }
 
     private MpesaShortCode code(Map<UUID, MpesaShortCode> cache, UUID uuid) {

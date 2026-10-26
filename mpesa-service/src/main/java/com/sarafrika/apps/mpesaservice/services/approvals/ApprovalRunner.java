@@ -49,6 +49,7 @@ public class ApprovalRunner {
     private final TaskExecutor pool;
     private final TransactionTemplate tx;
     private final Set<UUID> running = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> queued = ConcurrentHashMap.newKeySet();
 
     public ApprovalRunner(ApprovalRequestRepository repository, ObjectProvider<ApprovalExecutor> executors,
                           AuditService audit,
@@ -95,10 +96,18 @@ public class ApprovalRunner {
         }
     }
 
+    // A request already queued or running is not queued again.
     private void dispatch(UUID uuid) {
+        if (running.contains(uuid) || !queued.add(uuid)) {
+            return;
+        }
         try {
-            pool.execute(() -> run(uuid));
+            pool.execute(() -> {
+                queued.remove(uuid);
+                run(uuid);
+            });
         } catch (TaskRejectedException ex) {
+            queued.remove(uuid);
             log.warn("Approval {} not started now ({}); the resume job will pick it up", uuid, ex.getMessage());
         }
     }
@@ -129,12 +138,14 @@ public class ApprovalRunner {
         }
     }
 
-    /** Requests approved but never started, and executions whose heartbeat went quiet. */
-    public void resumeDue() {
+    /** Hands requests approved but never started, and executions whose heartbeat went quiet, to the
+     * approval pool; never runs them on the caller's (scheduler) thread. Returns how many were found. */
+    public int resumeDue() {
         Instant now = Instant.now();
         List<UUID> due = repository.findResumable(now.minusSeconds(60), now.minus(properties.executionLease()),
                 PageRequest.of(0, 20));
-        due.forEach(this::run);
+        due.forEach(this::dispatch);
+        return due.size();
     }
 
     private ApprovalExecutor.Approved claim(UUID uuid) {

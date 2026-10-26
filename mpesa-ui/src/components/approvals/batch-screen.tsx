@@ -84,13 +84,25 @@ export function BatchScreen() {
         </SectionCard>
       </SectionBoundary>
       <SectionBoundary title="Rows">
-        <BatchItems uuid={uuid} running={data?.status === "RUNNING"} />
+        <BatchItems
+          uuid={uuid}
+          running={data?.status === "RUNNING"}
+          settling={Boolean(data && (data.counts.pending > 0 || data.counts.queued > 0))}
+        />
       </SectionBoundary>
     </>
   );
 }
 
-function BatchItems({ uuid, running }: { uuid: string; running: boolean }) {
+function BatchItems({
+  uuid,
+  running,
+  settling,
+}: {
+  uuid: string;
+  running: boolean;
+  settling: boolean;
+}) {
   const paging = usePaging({ sort: "line,asc" });
   const params = useSearchParams();
   const param = params.get("outcome");
@@ -103,7 +115,9 @@ function BatchItems({ uuid, running }: { uuid: string; running: boolean }) {
       sort: paging.sort ? [paging.sort] : undefined,
       outcome: outcome === "ALL" ? undefined : outcome,
     },
-    { query: { ...pagedQueryOptions, refetchInterval: running ? 3000 : false } },
+    {
+      query: { ...pagedQueryOptions, refetchInterval: running ? 3000 : settling ? 15_000 : false },
+    },
   );
   const data = items.data?.status === 200 ? items.data.data : undefined;
   useClampPage(data, paging.page, paging.setPage);

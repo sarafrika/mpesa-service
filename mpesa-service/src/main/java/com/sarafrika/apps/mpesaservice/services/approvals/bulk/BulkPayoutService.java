@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -124,6 +125,13 @@ public class BulkPayoutService {
         batch.setTotalAmount(total);
         batch.setCreatedBy(CurrentActor.name());
         PayoutBatch saved = batches.saveAndFlush(batch);
+        try {
+            valid.forEach(c -> items.claimReference(c.row().reference(), saved.getId()));
+        } catch (DataIntegrityViolationException ex) {
+            // Another upload queued one of these references since the check above; nothing is kept.
+            throw new ConflictException("A reference in this file was just queued in another bulk payout; "
+                    + "preview the file again.");
+        }
         items.saveAll(valid.stream().map(c -> {
             PayoutBatchItem item = new PayoutBatchItem();
             item.setBatchId(saved.getId());

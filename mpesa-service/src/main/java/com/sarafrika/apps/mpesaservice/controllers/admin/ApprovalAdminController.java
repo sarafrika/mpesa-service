@@ -36,6 +36,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import com.sarafrika.apps.mpesaservice.dtos.admin.CloseAsFailedRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.approvals.BulkPayoutUploadForm;
+import com.sarafrika.apps.mpesaservice.services.approvals.reversal.ReversalCallbackService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,6 +68,7 @@ public class ApprovalAdminController {
     private final ReversalService reversals;
     private final BulkPayoutService bulkPayouts;
     private final BulkPayoutViews batches;
+    private final ReversalCallbackService reversalCallbacks;
 
     @GetMapping
     @PreAuthorize("hasRole('mpesa-viewer')")
@@ -90,8 +94,10 @@ public class ApprovalAdminController {
                     array = @ArraySchema(schema = @Schema(type = "string", allowableValues = {"WAITING", "APPROVED",
                             "REJECTED", "EXPIRED", "EXECUTING", "EXECUTED", "FAILED"})))
             @RequestParam(name = "status", required = false) List<String> status,
-            @Parameter(schema = @Schema(allowableValues = {"REVERSAL", "BULK_PAYOUT", "B2B_SWEEP"}))
+            @Parameter(description = "Only requests of this type",
+                    schema = @Schema(allowableValues = {"REVERSAL", "BULK_PAYOUT", "B2B_SWEEP"}))
             @RequestParam(name = "type", required = false) String type,
+            @Parameter(description = "Only requests against this shortcode")
             @RequestParam(name = "shortcode_uuid", required = false) UUID shortcodeUuid) {
         ApprovalService.Filter filter = new ApprovalService.Filter(statuses(status), type, shortcodeUuid);
         return PageResponse.from(approvals.list(filter, PageRequests.of(page, size, sort, SORTABLE, DEFAULT_SORT)));
@@ -115,7 +121,8 @@ public class ApprovalAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such request",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public ApprovalDto getApproval(@PathVariable("uuid") UUID uuid) {
+    public ApprovalDto getApproval(
+            @Parameter(description = "Approval request uuid") @PathVariable("uuid") UUID uuid) {
         return approvals.get(uuid);
     }
 
@@ -130,7 +137,8 @@ public class ApprovalAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "Already decided, or expired",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public ApprovalDto approveApproval(@PathVariable("uuid") UUID uuid,
+    public ApprovalDto approveApproval(
+            @Parameter(description = "Approval request uuid") @PathVariable("uuid") UUID uuid,
                                        @Valid @RequestBody(required = false) ApproveApprovalRequest body) {
         return approvals.approve(uuid, body == null ? null : body.note());
     }
@@ -147,7 +155,8 @@ public class ApprovalAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "Already decided, or expired",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public ApprovalDto rejectApproval(@PathVariable("uuid") UUID uuid,
+    public ApprovalDto rejectApproval(
+            @Parameter(description = "Approval request uuid") @PathVariable("uuid") UUID uuid,
                                       @Valid @RequestBody RejectApprovalRequest body) {
         return approvals.reject(uuid, body.note());
     }
@@ -184,16 +193,17 @@ public class ApprovalAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "The paybill is suspended or has no B2C initiator",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(implementation = BulkPayoutUploadForm.class)))
+    // Every field is a part of the multipart body (documented by BulkPayoutUploadForm), none a query parameter.
     public BulkPayoutUploadDto uploadBulkPayout(
-            @Parameter(description = "CSV with a header row: phone, amount, reference, and optionally name")
-            @RequestPart("file") MultipartFile file,
-            @RequestParam("shortcode_uuid") UUID shortcodeUuid,
-            @Parameter(description = "Shown to the checker, and on recipients' M-Pesa statements")
-            @RequestParam("title") String title,
-            @Parameter(description = "Why the batch is paid; required unless preview")
-            @RequestParam(name = "reason", required = false) String reason,
-            @Parameter(description = "Only check the file; nothing is saved")
-            @RequestParam(name = "preview", required = false, defaultValue = "false") boolean preview) {
+            @Parameter(hidden = true) @RequestPart("file") MultipartFile file,
+            @Parameter(hidden = true) @RequestParam("shortcode_uuid") UUID shortcodeUuid,
+            @Parameter(hidden = true) @RequestParam("title") String title,
+            @Parameter(hidden = true) @RequestParam(name = "reason", required = false) String reason,
+            @Parameter(hidden = true) @RequestParam(name = "preview", required = false, defaultValue = "false")
+            boolean preview) {
         byte[] content;
         try {
             content = file.getBytes();
@@ -204,6 +214,28 @@ public class ApprovalAdminController {
                 title, reason, preview));
     }
 
+    @PostMapping("/reversals/{reversal_uuid}/close")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "closeReversalAsFailed",
+            summary = "Close a reversal whose outcome stayed unknown as FAILED after checking the statement (audited)",
+            description = "Only for an OUTCOME_UNKNOWN reversal. Nothing is sent to Safaricom. It frees the payment "
+                    + "for a new reversal request; a result that arrives later still settles this one.")
+    @ApiResponse(responseCode = "200", description = "The REVERSAL request with the reversal now FAILED")
+    @ApiResponse(responseCode = "400", description = "The note is missing",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "Requires mpesa-finance",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No such reversal",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "The reversal's outcome is not unknown",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public ApprovalDto closeReversalAsFailed(
+            @Parameter(description = "Reversal uuid (ApprovalDto.reversal.uuid)")
+            @PathVariable("reversal_uuid") UUID reversalUuid,
+            @Valid @RequestBody CloseAsFailedRequest body) {
+        return approvals.get(reversalCallbacks.closeAsFailed(reversalUuid, body.note()).getApprovalUuid());
+    }
+
     @GetMapping("/bulk-payouts/{uuid}")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getBulkPayoutBatch", summary = "A bulk payout with its progress and totals")
@@ -212,7 +244,8 @@ public class ApprovalAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such batch",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public PayoutBatchDto getBulkPayoutBatch(@PathVariable("uuid") UUID uuid) {
+    public PayoutBatchDto getBulkPayoutBatch(
+            @Parameter(description = "Bulk payout batch uuid") @PathVariable("uuid") UUID uuid) {
         return batches.batch(uuid);
     }
 
@@ -227,7 +260,7 @@ public class ApprovalAdminController {
     @ApiResponse(responseCode = "404", description = "No such batch",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public PageResponse<PayoutBatchItemDto> listBulkPayoutItems(
-            @PathVariable("uuid") UUID uuid,
+            @Parameter(description = "Bulk payout batch uuid") @PathVariable("uuid") UUID uuid,
             @Parameter(description = "Zero-based page number",
                     schema = @Schema(type = "integer", format = "int32", minimum = "0", defaultValue = "0"))
             @RequestParam(name = "page", required = false) Integer page,

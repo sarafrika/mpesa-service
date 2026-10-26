@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/sheet";
 import { useHasRole } from "@/hooks/use-has-role";
 import { formatDateTime } from "@/lib/format";
-import { redactPersonalData } from "@/lib/redact";
+import { maskPhoneLike, redactPersonalData } from "@/lib/redact";
+import { AttachResult } from "./attach-result";
 import { kindLabel } from "./callback-filters";
 import { CallbackStatusBadge } from "./callbacks-table";
 
@@ -127,7 +128,11 @@ function DetailContent({
       label: "Last attempt",
       value: formatDateTime(callback.last_attempt_at),
     },
-    callback.reference && { label: "Ids in body", value: callback.reference, mono: true },
+    callback.reference && {
+      label: "Ids in body",
+      value: canSeePersonal ? callback.reference : maskPhoneLike(callback.reference),
+      mono: true,
+    },
     {
       label: "Payment",
       value: callback.payment_uuid ? (
@@ -167,6 +172,7 @@ function DetailContent({
           </Alert>
         )}
         <KeyValueList items={items} />
+        {detail.attachable && canSeePersonal && <AttachResult detail={detail} />}
 
         <section className="flex flex-col gap-2" aria-labelledby="callback-body">
           <h2 id="callback-body" className="font-semibold text-sm">

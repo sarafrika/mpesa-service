@@ -8,6 +8,14 @@ import { SectionBoundary } from "@/components/error-boundary";
 import { PageHeader } from "@/components/page-header";
 import { RoleGate } from "@/components/role-gate";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePaging } from "@/hooks/use-paging";
 import { cn } from "@/lib/utils";
 import { ApprovalDetail } from "./approval-detail";
@@ -24,6 +32,8 @@ export function ApprovalsScreen() {
   const tab = asApprovalTab(params.get("tab"));
   const selected = params.get("request") ?? undefined;
   const [uploading, setUploading] = useState(false);
+  // False until hydrated, so wide screens never flash the sheet; CSS hides the column below lg.
+  const narrow = useMediaQuery("(max-width: 63.99rem)");
   const summary = useGetApprovalSummary({ query: { refetchInterval: 30_000 } });
   const waiting = summary.data?.status === 200 ? summary.data.data.waiting : undefined;
 
@@ -54,19 +64,14 @@ export function ApprovalsScreen() {
           </RoleGate>
         }
       />
-      <div
-        role="tablist"
-        aria-label="Approval queues"
-        className="-mt-2 flex gap-5 overflow-x-auto border-b"
-      >
+      <nav aria-label="Approval queues" className="-mt-2 flex gap-5 overflow-x-auto border-b">
         {APPROVAL_TABS.map((item) => {
           const on = item.value === tab;
           return (
             <button
               key={item.value}
               type="button"
-              role="tab"
-              aria-selected={on}
+              aria-current={on ? "page" : undefined}
               onClick={() => changeTab(item.value)}
               className={cn(
                 "-mb-px inline-flex min-h-10 shrink-0 items-center gap-2 border-b-2 px-0.5 font-medium text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -79,20 +84,39 @@ export function ApprovalsScreen() {
               {item.value === "waiting" && waiting !== undefined && waiting > 0 && (
                 <span className="rounded-full bg-warning-soft px-1.5 text-warning text-xs tabular-nums">
                   {waiting}
+                  <span className="sr-only"> waiting</span>
                 </span>
               )}
             </button>
           );
         })}
-      </div>
+      </nav>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <SectionBoundary title="Requests">
           <ApprovalList tab={tab} paging={paging} selected={selected} onSelect={select} />
         </SectionBoundary>
-        <SectionBoundary title="Request">
-          <ApprovalDetail uuid={selected} onDecided={() => summary.refetch()} />
-        </SectionBoundary>
+        {!narrow && (
+          <div className="hidden lg:block">
+            <SectionBoundary title="Request">
+              <ApprovalDetail uuid={selected} onDecided={() => summary.refetch()} />
+            </SectionBoundary>
+          </div>
+        )}
       </div>
+      {/* Below lg the open request slides over the list instead of sitting under it. */}
+      <Sheet open={narrow && Boolean(selected)} onOpenChange={(open) => !open && select(undefined)}>
+        <SheetContent className="w-full gap-0 overflow-y-auto data-[side=right]:sm:max-w-lg">
+          <SheetHeader className="border-b">
+            <SheetTitle>Request</SheetTitle>
+            <SheetDescription className="sr-only">The open approval request</SheetDescription>
+          </SheetHeader>
+          <div className="p-4">
+            <SectionBoundary title="Request">
+              <ApprovalDetail uuid={selected} onDecided={() => summary.refetch()} />
+            </SectionBoundary>
+          </div>
+        </SheetContent>
+      </Sheet>
       <BulkUploadDialog
         open={uploading}
         onOpenChange={setUploading}

@@ -19,11 +19,12 @@ spring:
         format_sql: false
     show-sql: false
 
-  # The STK status job and the webhook poller each get a scheduler thread, so a slow one never stalls the other.
+  # One scheduler thread per scheduled job (STK status, webhooks, approvals, balance queries, inbox
+  # retention, with room for one more), so a slow job never stalls another.
   task:
     scheduling:
       pool:
-        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:3}
+        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:6}
 
   # Uploads (statements, payout CSVs); each feature checks its own smaller limit for a clear error.
   servlet:
@@ -82,6 +83,9 @@ mpesa:
       max-body-bytes: ${MPESA_CALLBACK_INBOX_MAX_BODY_BYTES:65536}
       stuck-after: ${MPESA_CALLBACK_INBOX_STUCK_AFTER:5m}
       failure-alert-threshold: ${MPESA_CALLBACK_FAILURE_ALERT_THRESHOLD:0}
+      # Entries received longer ago are deleted every retention-interval; a setting of this service, 0 keeps all.
+      retention: ${MPESA_CALLBACK_INBOX_RETENTION:90d}
+      retention-interval: ${MPESA_CALLBACK_INBOX_RETENTION_INTERVAL:1h}
   # Scheduled Account Balance query for every active shortcode with an initiator. These are settings of this
   # service, not Safaricom's: blank or 0 keeps it off; e.g. 30m. Each instance polls every balance-query-poll
   # and claims due shortcodes, so a shortcode is asked once per interval however many instances run.

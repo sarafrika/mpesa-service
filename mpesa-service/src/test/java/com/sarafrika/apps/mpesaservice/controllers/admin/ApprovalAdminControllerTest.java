@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.controllers.admin;
 
+import com.sarafrika.apps.mpesaservice.services.approvals.reversal.ReversalCallbackService;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -59,6 +60,9 @@ class ApprovalAdminControllerTest {
     private BulkPayoutService bulkPayouts;
     @MockitoBean
     private BulkPayoutViews batches;
+
+    @MockitoBean
+    private ReversalCallbackService reversalCallbacks;
 
     @Test
     @WithMockUser(roles = "mpesa-viewer")
@@ -197,6 +201,6 @@ class ApprovalAdminControllerTest {
                 new BigDecimal("15000.00"), "Paid twice", "POST /mpesa/reversal/v1/request · TransactionReversal",
                 List.of(PreCheckDto.ok("Not reversed before")), "otieno", "Otieno", null, null, null, null,
                 OffsetDateTime.parse("2026-10-28T10:00:00+03:00"), null, null,
-                OffsetDateTime.parse("2026-10-26T10:00:00+03:00"), false, ID, null, null);
+                OffsetDateTime.parse("2026-10-26T10:00:00+03:00"), false, ID, null, null, null);
     }
 }

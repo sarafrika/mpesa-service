@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.AttachCallbackRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.CallbackDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.CallbackDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.metrics.AttentionItemDto;
@@ -107,6 +108,10 @@ class CallbackInboxIntegrationTest {
     private CallbackInboxService inboxService;
     @Autowired
     private CallbackReplayService replayService;
+    @Autowired
+    private CallbackAttachService attachService;
+    @Autowired
+    private CallbackInboxRetention retention;
     @Autowired
     private CallbackFailuresAttentionSource attentionSource;
     @Autowired
@@ -298,6 +303,129 @@ class CallbackInboxIntegrationTest {
             assertThat(item.href()).isEqualTo("/callbacks?status=FAILED");
         });
         assertThat(attentionSource.currentItems(new AttentionScope(shortcode.getUuid(), null))).isEmpty();
+    }
+
+    @Test
+    void aB2BResultNothingMatchesIsFailedAndFinanceAttachesItToItsTransfer() throws Exception {
+        String originator = unique("oc-");
+        post("/api/v1/callbacks/b2b/result", b2b(originator, "61200.00"))
+                .andExpect(jsonPath("$.ResultCode").value("00000000"));
+        CallbackInboxEntry entry = latest(originator);
+        assertThat(entry.getStatus()).isEqualTo(CallbackStatus.FAILED);
+        assertThat(entry.getError()).contains("No B2B transfer matches");
+        CallbackDetailDto detail = inboxService.get(entry.getUuid());
+        assertThat(detail.replayable()).isTrue();
+        assertThat(detail.attachable()).isTrue();
+
+        // Two open sweeps of that amount, neither with ids from Safaricom: the result cannot pick one itself.
+        UUID mine = openTransfer("61200.00");
+        UUID other = openTransfer("61200.00");
+        replayService.replay(entry.getUuid());
+        assertThat(inboxRepository.findByUuid(entry.getUuid()).orElseThrow().getStatus()).isEqualTo(CallbackStatus.FAILED);
+
+        signIn("mpesa-finance");
+        assertThat(attachService.candidates(entry.getUuid())).extracting("uuid").contains(mine, other);
+        CallbackDetailDto attached = attachService.attach(entry.getUuid(),
+                new AttachCallbackRequest(mine, "Statement shows the sweep to 522522 on this day"));
+
+        assertThat(attached.callback().status()).isEqualTo("REPLAYED");
+        assertThat(jdbc.queryForObject("SELECT status FROM b2b_transfers WHERE uuid = ?", String.class, mine))
+                .isEqualTo("SUCCESS");
+        assertThat(jdbc.queryForObject("SELECT status FROM b2b_transfers WHERE uuid = ?", String.class, other))
+                .isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events WHERE action = 'CALLBACK_ATTACHED' "
+                + "AND entity_id = ?", Long.class, entry.getUuid().toString())).isEqualTo(1);
+        assertThatThrownBy(() -> attachService.attach(entry.getUuid(), new AttachCallbackRequest(other, "again")))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void reversalAndStatusResultsShowPartyNamesOnlyToFinance() throws Exception {
+        String conversation = unique("AG_");
+        post("/api/v1/callbacks/reversal/result", """
+                {"Result":{"ResultType":0,"ResultCode":0,"ResultDesc":"The service request is processed successfully.",
+                  "OriginatorConversationID":"%s","ConversationID":"%s","TransactionID":"MJ561H6X5O",
+                  "ResultParameters":{"ResultParameter":[{"Key":"Amount","Value":"100"},
+                  {"Key":"OriginalTransactionID","Value":"%s"},
+                  {"Key":"CreditPartyPublicName","Value":"254708374149 - John Doe"},
+                  {"Key":"DebitPartyPublicName","Value":"601315 - Safaricom1338"}]}}}"""
+                .formatted(unique("rev-"), conversation, unique("MIP")));
+        UUID reversal = latest(conversation).getUuid();
+        assertThat(inboxRepository.findByUuid(reversal).orElseThrow().getStatus()).isEqualTo(CallbackStatus.FAILED);
+        String statusConversation = unique("AG_");
+        post("/api/v1/callbacks/transaction-status/result", """
+                {"Result":{"ResultType":0,"ResultCode":0,"ResultDesc":"The service request is processed successfully.",
+                  "OriginatorConversationID":"%s","ConversationID":"%s","TransactionID":"MBN0000000",
+                  "ResultParameters":{"ResultParameter":[{"Key":"DebitPartyName","Value":"600310 - Safaricom333"},
+                  {"Key":"CreditPartyName","Value":"254722000000 - Jane Wanjiru Doe"}]}}}"""
+                .formatted(unique("ts-"), statusConversation));
+        UUID status = latest(statusConversation).getUuid();
+
+        signIn("mpesa-viewer");
+        assertThat(inboxService.get(reversal).body().toString()).doesNotContain("254708374149")
+                .doesNotContain("John").contains("2547•••••149 - J. Doe");
+        assertThat(inboxService.get(status).body().toString()).doesNotContain("254722000000")
+                .doesNotContain("Wanjiru").contains("2547•••••000 - J. Doe");
+
+        signIn("mpesa-finance");
+        assertThat(inboxService.get(reversal).body().toString()).contains("254708374149 - John Doe");
+        assertThat(inboxService.get(status).body().toString()).contains("254722000000 - Jane Wanjiru Doe");
+    }
+
+    @Test
+    void aPhoneUsedAsTheBillReferenceIsMaskedInTheListForViewers() throws Exception {
+        String transId = unique("TP");
+        post("/api/v1/callbacks/c2b/confirmation", c2b(transId).replace("ELM-004512", "254712345699"));
+        Sort newest = Sort.by(Sort.Order.desc("receivedAt"));
+        CallbackInboxService.Filter filter = new CallbackInboxService.Filter(null, null, null, transId.toLowerCase(),
+                null, null);
+
+        signIn("mpesa-viewer");
+        assertThat(inboxService.list(filter, PageRequests.of(0, 25, null, Map.of(), newest)).getContent())
+                .singleElement().satisfies(row -> assertThat(row.reference()).contains(transId)
+                        .contains("2547•••••699").doesNotContain("254712345699"));
+        signIn("mpesa-finance");
+        assertThat(inboxService.list(filter, PageRequests.of(0, 25, null, Map.of(), newest)).getContent())
+                .singleElement().satisfies(row -> assertThat(row.reference()).contains("254712345699"));
+    }
+
+    @Test
+    void entriesOlderThanTheRetentionAreDeleted() throws Exception {
+        String oldId = unique("TO");
+        String newId = unique("TN");
+        post("/api/v1/callbacks/c2b/confirmation", c2b(oldId));
+        post("/api/v1/callbacks/c2b/confirmation", c2b(newId));
+        jdbc.update("UPDATE callback_inbox SET received_at = NOW() - INTERVAL '91 days' WHERE uuid = ?",
+                latest(oldId).getUuid());
+
+        assertThat(retention.purge()).isPositive();
+
+        assertThat(inboxRepository.findAll().stream().map(CallbackInboxEntry::getReference))
+                .noneMatch(r -> r != null && r.contains(oldId)).anyMatch(r -> r != null && r.contains(newId));
+    }
+
+    /** A sweep sent to a Safaricom that never answered: PENDING, outcome unknown, no conversation ids. */
+    private UUID openTransfer(String amount) {
+        UUID destination = jdbc.queryForObject("""
+                INSERT INTO b2b_destinations (shortcode_uuid, name, receiver_shortcode, receiver_type, account_reference)
+                VALUES (?, ?, '522522', 'PAYBILL', 'SAR-001') RETURNING uuid""", UUID.class, shortcode.getUuid(),
+                unique("Bank "));
+        return jdbc.queryForObject("""
+                INSERT INTO b2b_transfers (shortcode_uuid, destination_uuid, approval_request_uuid, command_id,
+                  receiver_shortcode, account_reference, amount, reference, outcome_unknown)
+                VALUES (?, ?, ?, 'BusinessPayBill', '522522', 'SAR-001', ?, ?, true) RETURNING uuid""", UUID.class,
+                shortcode.getUuid(), destination, UUID.randomUUID(), new BigDecimal(amount), unique("SWP-"));
+    }
+
+    /** Daraja's BusinessPayBill result sample, for a request whose ids we never stored. */
+    private static String b2b(String originator, String amount) {
+        return """
+                {"Result":{"ResultType":"0","ResultCode":0,"ResultDesc":"The service request is processed successfully",
+                 "OriginatorConversationID":"%s","ConversationID":"AG_20261027_%s","TransactionID":"QKA81LK5CY",
+                 "ResultParameters":{"ResultParameter":[{"Key":"Amount","Value":"%s"},
+                 {"Key":"ReceiverPartyPublicName","Value":"522522 - Sarafrika Bank"},{"Key":"Currency","Value":"KES"}]},
+                 "ReferenceData":{"ReferenceItem":[{"Key":"BillReferenceNumber","Value":"SAR-001"}]}}}"""
+                .formatted(originator, originator.substring(3), amount);
     }
 
     private org.springframework.test.web.servlet.ResultActions post(String path, String body) throws Exception {

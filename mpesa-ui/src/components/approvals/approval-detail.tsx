@@ -10,10 +10,12 @@ import {
   getGetApprovalSummaryQueryKey,
   getListApprovalsQueryKey,
   useApproveApproval,
+  useCloseReversalAsFailed,
   useGetApproval,
   useRejectApproval,
 } from "@/api/generated/endpoints/admin-approvals/admin-approvals";
 import type { ApprovalDto } from "@/api/generated/model";
+import { CloseAsFailedDialog } from "@/components/close-as-failed-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -23,6 +25,7 @@ import { SectionCard } from "@/components/section-card";
 import { DetailPanelSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
+import { B2bSweepSummary } from "@/components/treasury/b2b-sweep-summary";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -100,6 +103,7 @@ function DetailContent({
   const isFinance = useHasRole("mpesa-finance");
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState<string>();
+  const [rejecting, setRejecting] = useState(false);
   const blocker = decisionBlocker({
     status: detail.status,
     ownRequest: detail.own_request,
@@ -127,6 +131,10 @@ function DetailContent({
   };
   const approve = useApproveApproval({ mutation: { meta: { errorToast: false }, onError } });
   const reject = useRejectApproval({ mutation: { meta: { errorToast: false }, onError } });
+  const closeReversal = useCloseReversalAsFailed({
+    mutation: { meta: { requiredRole: "mpesa-finance" } },
+  });
+  const stuckReversal = detail.reversal?.status === "OUTCOME_UNKNOWN" ? detail.reversal : undefined;
 
   const facts: (KeyValueItem | false | undefined | "")[] = [
     {
@@ -161,6 +169,10 @@ function DetailContent({
         </span>
       ),
     },
+    detail.reversal?.closed_by && {
+      label: "Closed by hand",
+      value: `${detail.reversal.closed_by}${detail.reversal.close_note ? `: ${detail.reversal.close_note}` : ""}`,
+    },
     detail.outcome_message && { label: "Outcome", value: detail.outcome_message },
   ];
   const items = facts.filter((item): item is KeyValueItem => Boolean(item));
@@ -182,6 +194,14 @@ function DetailContent({
       </div>
       <StaleNotice query={query} />
       <KeyValueList items={items} />
+      {detail.type === "B2B_SWEEP" && (
+        <section aria-labelledby="sweep-summary" className="flex flex-col gap-2 border-t pt-4">
+          <h3 id="sweep-summary" className="font-semibold text-sm">
+            Sweep
+          </h3>
+          <B2bSweepSummary payload={detail.payload} />
+        </section>
+      )}
 
       {detail.transaction_uuid && (
         <Button variant="link" className="h-auto w-fit p-0" asChild>
@@ -189,6 +209,34 @@ function DetailContent({
             Open the original transaction <ArrowUpRight />
           </Link>
         </Button>
+      )}
+      {stuckReversal && isFinance && (
+        <Alert>
+          <Info aria-hidden />
+          <AlertDescription className="flex flex-col items-start gap-3">
+            Safaricom never confirmed this reversal, so it holds the payment. If the M-Pesa
+            statement shows it did not happen, close it as failed; that frees the payment for a new
+            request.
+            <CloseAsFailedDialog
+              title="Close this reversal as failed?"
+              description="Nothing is sent to Safaricom. If its result still arrives, that result settles it."
+              pending={closeReversal.isPending}
+              trigger={
+                <Button variant="outline" size="sm">
+                  Close as failed
+                </Button>
+              }
+              onSubmit={async (note) => {
+                await closeReversal.mutateAsync({
+                  reversalUuid: stuckReversal.uuid,
+                  data: { note },
+                });
+                toast.success("Reversal closed as failed");
+                await refresh();
+              }}
+            />
+          </AlertDescription>
+        </Alert>
       )}
       {detail.batch_uuid && (
         <BatchProgress uuid={detail.batch_uuid} running={isRunning(detail.status)} />
@@ -237,22 +285,30 @@ function DetailContent({
             </Alert>
           )}
           <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="outline"
+              className="text-destructive"
+              disabled={!canDecide}
+              onClick={() => {
+                if (!note.trim()) {
+                  setNoteError("Add a note so the maker knows why.");
+                  document.getElementById("decision-note")?.focus();
+                  return;
+                }
+                setRejecting(true);
+              }}
+            >
+              Reject
+            </Button>
             <ConfirmDialog
               title="Reject this request?"
               description="The maker sees your note. A rejected request cannot be approved later; they can raise it again."
               confirmLabel="Reject"
               destructive
               pending={reject.isPending}
-              trigger={
-                <Button variant="outline" className="text-destructive" disabled={!canDecide}>
-                  Reject
-                </Button>
-              }
+              open={rejecting}
+              onOpenChange={setRejecting}
               onConfirm={async () => {
-                if (!note.trim()) {
-                  setNoteError("Add a note so the maker knows why.");
-                  return true;
-                }
                 try {
                   await reject.mutateAsync({ uuid: detail.uuid, data: { note: note.trim() } });
                 } catch (error) {

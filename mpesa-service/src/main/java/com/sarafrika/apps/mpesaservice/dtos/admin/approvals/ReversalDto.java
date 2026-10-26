@@ -28,5 +28,9 @@ public record ReversalDto(
         @Schema(description = "Safaricom's receipt for the reversal itself")
         @JsonProperty("reversal_receipt") String reversalReceipt,
         @JsonProperty("sent_at") OffsetDateTime sentAt,
-        @JsonProperty("completed_at") OffsetDateTime completedAt) {
+        @JsonProperty("completed_at") OffsetDateTime completedAt,
+        @Schema(nullable = true, description = "Who closed it as FAILED by hand after checking the statement")
+        @JsonProperty("closed_by") String closedBy,
+        @Schema(nullable = true)
+        @JsonProperty("close_note") String closeNote) {
 }

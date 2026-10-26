@@ -5,6 +5,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.PayoutBatchItemStatus;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,6 +32,16 @@ public interface PayoutBatchItemRepository extends JpaRepository<PayoutBatchItem
     List<Object[]> findUsedReferences(@Param("references") Collection<String> references,
                                       @Param("consoleClient") String consoleClient,
                                       @Param("since") java.time.LocalDateTime since);
+
+    /** Claims a reference for a batch; the primary key refuses a reference another open batch holds. */
+    @Modifying(flushAutomatically = true)
+    @Query(value = "INSERT INTO payout_reference_claims (reference, batch_id) VALUES (:reference, :batchId)",
+            nativeQuery = true)
+    int claimReference(@Param("reference") String reference, @Param("batchId") Long batchId);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = "DELETE FROM payout_reference_claims WHERE batch_id = :batchId", nativeQuery = true)
+    int releaseReferences(@Param("batchId") Long batchId);
 
     /** References already in a batch that is waiting or running, so one row cannot be queued twice. */
     @Query("""

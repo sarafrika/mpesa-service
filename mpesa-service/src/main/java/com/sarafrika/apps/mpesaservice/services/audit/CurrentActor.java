@@ -37,6 +37,16 @@ public final class CurrentActor {
         return name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name;
     }
 
+    /** The signed-in person's JWT "sub" (stable in Keycloak, unlike the username), or null without one. */
+    public static String subject() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken jwt) {
+            String sub = jwt.getToken().getSubject();
+            return StringUtils.hasText(sub) && sub.length() <= 255 ? sub : null;
+        }
+        return null;
+    }
+
     /** mpesa-admin sits at the top of the hierarchy, so only the role itself grants it. */
     public static boolean isAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

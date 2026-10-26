@@ -53,7 +53,7 @@ public class PaybillAttentionSource implements AttentionSource {
                         paybill.businessName() + " float below " + kes(lowFloat),
                         "Utility account " + kes(paybill.floatAmount())
                                 + " as last reported. Payouts fail once it runs out.",
-                        href, paybill.shortcodeUuid()));
+                        href + "?tab=float", paybill.shortcodeUuid()));
             }
             if (paybill.state() == PaybillState.STALE) {
                 Instant since = paybill.lastActivityAt();

@@ -14,7 +14,8 @@ public record RequestReversalRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "The received payment to reverse")
         @NotNull
         @JsonProperty("transaction_uuid") UUID transactionUuid,
-        @Schema(description = "Defaults to the original amount; never more than it", example = "15000")
+        @Schema(description = "Whole shillings; defaults to the original amount and is never more than it",
+                example = "15000")
         @Positive
         @JsonProperty("amount") BigDecimal amount,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,

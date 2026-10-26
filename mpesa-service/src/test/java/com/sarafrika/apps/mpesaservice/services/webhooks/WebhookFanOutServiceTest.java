@@ -76,6 +76,15 @@ class WebhookFanOutServiceTest {
     }
 
     @Test
+    void aReversalGoesWhereItsPaymentWent() {
+        // An STK payment's product, while it still has the grant; a C2B payment's C2B feed products.
+        assertThat(fanOut.recipients(event(PaymentEvent.REVERSAL_COMPLETED, "shop-api"))).containsExactly("shop-api");
+        assertThat(fanOut.recipients(event(PaymentEvent.REVERSAL_FAILED, "reports"))).isEmpty();
+        assertThat(fanOut.recipients(event(PaymentEvent.REVERSAL_FAILED, null))).containsExactly("elimika-backend");
+        assertThat(WebhookEvents.SUBSCRIBABLE).contains("reversal.completed", "reversal.failed");
+    }
+
+    @Test
     void unknownEventsGoNowhere() {
         assertThat(fanOut.enqueue(event("balance.updated", "elimika-backend"))).isEmpty();
         verify(deliveries, never()).saveAll(any());

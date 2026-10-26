@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { useListApprovals } from "@/api/generated/endpoints/admin-approvals/admin-approvals";
 import type { ApprovalDto, ListApprovalsStatusItem } from "@/api/generated/model";
 import { DataTablePagination } from "@/components/data-table-pagination";
@@ -9,6 +10,7 @@ import { ErrorState } from "@/components/error-state";
 import { Money } from "@/components/money";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pagedQueryOptions, useClampPage, type usePaging } from "@/hooks/use-paging";
 import { formatRelative } from "@/lib/format";
@@ -85,7 +87,25 @@ export function ApprovalList({ tab, paging, selected, onSelect }: ApprovalListPr
   if (!data || data.items.length === 0) {
     return (
       <div className="rounded-xl border bg-card">
-        <EmptyState icon={ShieldCheck} {...EMPTY_COPY[tab]} />
+        <EmptyState
+          icon={ShieldCheck}
+          {...EMPTY_COPY[tab]}
+          action={
+            tab === "waiting" ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/transactions">Find a payment to reverse</Link>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => paging.setFilters({ tab: undefined, request: undefined })}
+              >
+                See waiting requests
+              </Button>
+            )
+          }
+        />
       </div>
     );
   }

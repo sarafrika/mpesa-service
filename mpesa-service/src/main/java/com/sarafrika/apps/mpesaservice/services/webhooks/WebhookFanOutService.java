@@ -62,12 +62,15 @@ public class WebhookFanOutService {
         return deliveries.save(pending(subscription, eventId, WebhookEvents.TEST, "test", body, null));
     }
 
-    /** Client ids entitled to the event on its shortcode. */
+    /** Client ids entitled to the event on its shortcode. A reversal goes where its payment's own event went:
+     * the product that started the STK push, else every product with the C2B feed. */
     Set<String> recipients(PaymentEvent event) {
         if (WebhookEvents.isPayout(event.type())) {
             return event.clientId() == null ? Set.of() : Set.of(event.clientId());
         }
-        Optional<GrantOperation> required = WebhookEvents.requiredGrant(event.type());
+        Optional<GrantOperation> required = WebhookEvents.isReversal(event.type())
+                ? Optional.of(event.clientId() != null ? GrantOperation.STK_PUSH : GrantOperation.C2B_FEED)
+                : WebhookEvents.requiredGrant(event.type());
         if (required.isEmpty() || event.shortcodeUuid() == null) {
             return Set.of();
         }

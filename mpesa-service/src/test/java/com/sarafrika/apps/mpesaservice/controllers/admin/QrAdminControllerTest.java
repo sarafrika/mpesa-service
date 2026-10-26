@@ -65,7 +65,7 @@ class QrAdminControllerTest {
         mockMvc.perform(post(BASE).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"merchant_name\":\"\",\"ref_no\":\"R\",\"trx_code\":\"SM\",\"size\":50}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.field_errors.length()").value(3));
+                .andExpect(jsonPath("$.field_errors.length()").value(4));
         verifyNoInteractions(qrCodeService);
     }
 

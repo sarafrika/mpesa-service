@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.collections;
 
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
@@ -147,6 +148,7 @@ public class TransactionStatusService {
         if (found.isEmpty()) {
             log.warn("Transaction status result for unknown conversation {} / {}", result.conversationId(),
                     result.originatorConversationId());
+            CallbackOutcome.failed("No status query matches this result; replay it once the query's ids are saved.");
             return Optional.empty();
         }
         TransactionStatusQuery query = found.get();

@@ -198,6 +198,10 @@
             "description" : "The caller raised this request, so they cannot approve or reject it",
             "type" : "boolean"
           },
+          "payload" : {
+            "additionalProperties" : true,
+            "description" : "The request's own fields (e.g. a B2B_SWEEP's destination and float), on the single-request read only; phones and names masked unless finance or admin"
+          },
           "pre_checks" : {
             "items" : {
               "$ref" : "#/components/schemas/PreCheckDto"
@@ -270,6 +274,60 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "AttachCallbackRequest" : {
+        "properties" : {
+          "note" : {
+            "description" : "Why this result belongs to it; kept in the audit trail",
+            "example" : "Statement shows the 27 Oct sweep to 522522",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "target_uuid" : {
+            "description" : "The B2B transfer or reversal (uuid from the candidates list) the result belongs to",
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "note", "target_uuid" ],
+        "type" : "object"
+      },
+      "AttachCandidateDto" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "fits" : {
+            "description" : "The result's amount and receiver (or original receipt) agree with it",
+            "type" : "boolean"
+          },
+          "kind" : {
+            "enum" : [ "B2B_TRANSFER", "REVERSAL" ],
+            "type" : "string"
+          },
+          "label" : {
+            "example" : "Sweep SWP-7K2Q9XHD to 522522",
+            "type" : "string"
+          },
+          "outcome_unknown" : {
+            "type" : "boolean"
+          },
+          "status" : {
+            "example" : "PENDING",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "created_at", "fits", "kind", "label", "outcome_unknown", "status", "uuid" ],
         "type" : "object"
       },
       "AttentionItemDto" : {
@@ -362,6 +420,10 @@
             "description" : "Originator conversation ID",
             "example" : "21605-295434-4",
             "type" : "string"
+          },
+          "ReferenceData" : {
+            "$ref" : "#/components/schemas/JsonNode",
+            "description" : "Reference items, e.g. BillReferenceNumber and QueueTimeoutURL"
           },
           "ResultCode" : {
             "description" : "Result code (0 = success)",
@@ -1011,6 +1073,37 @@
         "required" : [ "invalid_count", "preview", "rows", "valid_count", "valid_total" ],
         "type" : "object"
       },
+      "BulkPayoutUploadForm" : {
+        "properties" : {
+          "file" : {
+            "description" : "CSV with a header row: phone, amount, reference, and optionally name",
+            "format" : "binary",
+            "type" : "string"
+          },
+          "preview" : {
+            "default" : false,
+            "description" : "Only check the file; nothing is saved",
+            "type" : "boolean"
+          },
+          "reason" : {
+            "description" : "Why the batch is paid; required unless preview",
+            "maxLength" : 1000,
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "description" : "The paybill that pays",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "title" : {
+            "description" : "Shown to the checker, and on recipients' M-Pesa statements",
+            "maxLength" : 200,
+            "type" : "string"
+          }
+        },
+        "required" : [ "file", "shortcode_uuid", "title" ],
+        "type" : "object"
+      },
       "C2BConfirmationAcknowledgment" : {
         "properties" : {
           "ResultCode" : {
@@ -1161,6 +1254,10 @@
       },
       "CallbackDetailDto" : {
         "properties" : {
+          "attachable" : {
+            "description" : "A failed B2B or reversal result that finance may attach to its transfer or reversal by hand",
+            "type" : "boolean"
+          },
           "body" : {
             "additionalProperties" : true,
             "description" : "The body as received; null when it was too large"
@@ -1193,7 +1290,7 @@
             "type" : "boolean"
           }
         },
-        "required" : [ "body_size", "body_truncated", "callback", "headers", "replayable" ],
+        "required" : [ "attachable", "body_size", "body_truncated", "callback", "headers", "replayable" ],
         "type" : "object"
       },
       "CallbackDto" : {
@@ -1300,6 +1397,19 @@
           }
         },
         "required" : [ "failed", "processed", "received", "replayed", "since", "total" ],
+        "type" : "object"
+      },
+      "CloseAsFailedRequest" : {
+        "properties" : {
+          "note" : {
+            "description" : "What the statement showed; kept with the record and in the audit trail",
+            "example" : "M-Pesa statement for 27-28 Oct shows no debit for this amount",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "note" ],
         "type" : "object"
       },
       "ConnectProductRequest" : {
@@ -1418,7 +1528,7 @@
       "CreateQrCodeRequest" : {
         "properties" : {
           "amount" : {
-            "description" : "Daraja Amount in KES; leave out for any amount",
+            "description" : "Daraja Amount in KES, whole shillings. Required here: whether Daraja accepts a QR code without an amount is not confirmed",
             "example" : 1500,
             "minimum" : 1,
             "type" : "number"
@@ -1452,7 +1562,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "merchant_name", "ref_no" ],
+        "required" : [ "amount", "merchant_name", "ref_no" ],
         "type" : "object"
       },
       "CreateShortcodeRequest" : {
@@ -2602,6 +2712,11 @@
       },
       "PayoutBatchCounts" : {
         "properties" : {
+          "error" : {
+            "description" : "Rows that could not be sent (an error on our side); retried when the batch resumes",
+            "format" : "int32",
+            "type" : "integer"
+          },
           "failed" : {
             "format" : "int32",
             "type" : "integer"
@@ -2627,7 +2742,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "failed", "paid", "pending", "queued", "refused", "unknown" ],
+        "required" : [ "error", "failed", "paid", "pending", "queued", "refused", "unknown" ],
         "type" : "object"
       },
       "PayoutBatchDto" : {
@@ -3553,7 +3668,7 @@
       "RequestReversalRequest" : {
         "properties" : {
           "amount" : {
-            "description" : "Defaults to the original amount; never more than it",
+            "description" : "Whole shillings; defaults to the original amount and is never more than it",
             "example" : 15000,
             "type" : "number"
           },
@@ -3619,6 +3734,13 @@
         "properties" : {
           "amount" : {
             "type" : "number"
+          },
+          "close_note" : {
+            "type" : "string"
+          },
+          "closed_by" : {
+            "description" : "Who closed it as FAILED by hand after checking the statement",
+            "type" : "string"
           },
           "completed_at" : {
             "format" : "date-time",
@@ -4440,6 +4562,10 @@
             "description" : "Whether Safaricom can be asked for its status (a known shortcode, and a receipt, checkout id or conversation id to ask about)",
             "type" : "boolean"
           },
+          "can_reverse" : {
+            "description" : "Whether an operator may ask for this payment to be reversed now",
+            "type" : "boolean"
+          },
           "charges_paid" : {
             "type" : "number"
           },
@@ -4486,6 +4612,14 @@
           "remarks" : {
             "type" : "string"
           },
+          "reversal" : {
+            "$ref" : "#/components/schemas/TransactionReversalDto",
+            "description" : "Money received only: its latest reversal request, if any"
+          },
+          "reverse_blocked_reason" : {
+            "description" : "Why it cannot be reversed now (null for payouts)",
+            "type" : "string"
+          },
           "status_queries" : {
             "items" : {
               "$ref" : "#/components/schemas/StatusQueryDto"
@@ -4516,7 +4650,7 @@
             "type" : "number"
           }
         },
-        "required" : [ "can_query_status", "outcome_unknown", "status_queries", "timeline", "transaction" ],
+        "required" : [ "can_query_status", "can_reverse", "outcome_unknown", "status_queries", "timeline", "transaction" ],
         "type" : "object"
       },
       "TransactionDto" : {
@@ -4615,6 +4749,24 @@
           }
         },
         "required" : [ "amount", "created_at", "direction", "status", "type", "uuid" ],
+        "type" : "object"
+      },
+      "TransactionReversalDto" : {
+        "properties" : {
+          "approval_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "WAITING_APPROVAL", "CANCELLED", "SENDING", "SENT", "OUTCOME_UNKNOWN", "REVERSED", "FAILED" ],
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "approval_uuid", "status", "uuid" ],
         "type" : "object"
       },
       "TransactionStatusResult" : {
@@ -5314,6 +5466,7 @@
             "type" : "array"
           }
         }, {
+          "description" : "Only requests of this type",
           "in" : "query",
           "name" : "type",
           "required" : false,
@@ -5322,6 +5475,7 @@
             "type" : "string"
           }
         }, {
+          "description" : "Only requests against this shortcode",
           "in" : "query",
           "name" : "shortcode_uuid",
           "required" : false,
@@ -5369,56 +5523,15 @@
     "/api/v1/admin/approvals/bulk-payouts" : {
       "post" : {
         "operationId" : "uploadBulkPayout",
-        "parameters" : [ {
-          "in" : "query",
-          "name" : "shortcode_uuid",
-          "required" : true,
-          "schema" : {
-            "format" : "uuid",
-            "type" : "string"
-          }
-        }, {
-          "description" : "Shown to the checker, and on recipients' M-Pesa statements",
-          "in" : "query",
-          "name" : "title",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        }, {
-          "description" : "Why the batch is paid; required unless preview",
-          "in" : "query",
-          "name" : "reason",
-          "required" : false,
-          "schema" : {
-            "type" : "string"
-          }
-        }, {
-          "description" : "Only check the file; nothing is saved",
-          "in" : "query",
-          "name" : "preview",
-          "required" : false,
-          "schema" : {
-            "default" : false,
-            "type" : "boolean"
-          }
-        } ],
         "requestBody" : {
           "content" : {
             "multipart/form-data" : {
               "schema" : {
-                "properties" : {
-                  "file" : {
-                    "description" : "CSV with a header row: phone, amount, reference, and optionally name",
-                    "format" : "binary",
-                    "type" : "string"
-                  }
-                },
-                "required" : [ "file" ],
-                "type" : "object"
+                "$ref" : "#/components/schemas/BulkPayoutUploadForm"
               }
             }
-          }
+          },
+          "required" : true
         },
         "responses" : {
           "200" : {
@@ -5480,6 +5593,7 @@
       "get" : {
         "operationId" : "getBulkPayoutBatch",
         "parameters" : [ {
+          "description" : "Bulk payout batch uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -5528,6 +5642,7 @@
       "get" : {
         "operationId" : "listBulkPayoutItems",
         "parameters" : [ {
+          "description" : "Bulk payout batch uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -5694,6 +5809,86 @@
         "tags" : [ "Admin: Approvals" ]
       }
     },
+    "/api/v1/admin/approvals/reversals/{reversal_uuid}/close" : {
+      "post" : {
+        "description" : "Only for an OUTCOME_UNKNOWN reversal. Nothing is sent to Safaricom. It frees the payment for a new reversal request; a result that arrives later still settles this one.",
+        "operationId" : "closeReversalAsFailed",
+        "parameters" : [ {
+          "description" : "Reversal uuid (ApprovalDto.reversal.uuid)",
+          "in" : "path",
+          "name" : "reversal_uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CloseAsFailedRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovalDto"
+                }
+              }
+            },
+            "description" : "The REVERSAL request with the reversal now FAILED"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The note is missing"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such reversal"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The reversal's outcome is not unknown"
+          }
+        },
+        "summary" : "Close a reversal whose outcome stayed unknown as FAILED after checking the statement (audited)",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
     "/api/v1/admin/approvals/summary" : {
       "get" : {
         "operationId" : "getApprovalSummary",
@@ -5727,6 +5922,7 @@
       "get" : {
         "operationId" : "getApproval",
         "parameters" : [ {
+          "description" : "Approval request uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -5775,6 +5971,7 @@
       "post" : {
         "operationId" : "approveApproval",
         "parameters" : [ {
+          "description" : "Approval request uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -5842,6 +6039,7 @@
       "post" : {
         "operationId" : "rejectApproval",
         "parameters" : [ {
+          "description" : "Approval request uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -6219,6 +6417,138 @@
           }
         },
         "summary" : "One callback with its headers and body; phones and names masked unless finance or admin",
+        "tags" : [ "Admin: Inbox" ]
+      }
+    },
+    "/api/v1/admin/callbacks/{uuid}/attach" : {
+      "post" : {
+        "description" : "For a result nothing matched, after checking the statement. It settles the record from the stored body; nothing is sent to Safaricom.",
+        "operationId" : "attachCallbackResult",
+        "parameters" : [ {
+          "description" : "Inbox entry uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AttachCallbackRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackDetailDto"
+                }
+              }
+            },
+            "description" : "The callback, now REPLAYED"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing target or note"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such callback or target"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not attachable, the target is settled, or the result names another conversation, amount or receiver"
+          }
+        },
+        "summary" : "Apply a failed B2B or reversal result to the transfer or reversal it belongs to (audited)",
+        "tags" : [ "Admin: Inbox" ]
+      }
+    },
+    "/api/v1/admin/callbacks/{uuid}/attach-candidates" : {
+      "get" : {
+        "operationId" : "listCallbackAttachCandidates",
+        "parameters" : [ {
+          "description" : "Inbox entry uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AttachCandidateDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Candidates; empty when the entry cannot be attached"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such callback"
+          }
+        },
+        "summary" : "Open B2B transfers or reversals a failed result could belong to, those that fit it first",
         "tags" : [ "Admin: Inbox" ]
       }
     },
@@ -8531,6 +8861,7 @@
       "get" : {
         "operationId" : "listB2bDestinations",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -8630,6 +8961,7 @@
       "post" : {
         "operationId" : "createB2bDestination",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -8704,10 +9036,11 @@
         "tags" : [ "Admin: Treasury" ]
       }
     },
-    "/api/v1/admin/shortcodes/{uuid}/b2b-destinations/{destinationUuid}" : {
+    "/api/v1/admin/shortcodes/{uuid}/b2b-destinations/{destination_uuid}" : {
       "delete" : {
         "operationId" : "deleteB2bDestination",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -8716,8 +9049,9 @@
             "type" : "string"
           }
         }, {
+          "description" : "B2B destination uuid",
           "in" : "path",
-          "name" : "destinationUuid",
+          "name" : "destination_uuid",
           "required" : true,
           "schema" : {
             "format" : "uuid",
@@ -8766,6 +9100,7 @@
         "description" : "Sweeps waiting for approval against the old details are refused when they run.",
         "operationId" : "updateB2bDestination",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -8774,8 +9109,9 @@
             "type" : "string"
           }
         }, {
+          "description" : "B2B destination uuid",
           "in" : "path",
-          "name" : "destinationUuid",
+          "name" : "destination_uuid",
           "required" : true,
           "schema" : {
             "format" : "uuid",
@@ -8853,6 +9189,7 @@
         "description" : "Nothing is sent until a checker (finance or admin, not the maker) approves it. The amount may not exceed the utility balance last reported, when one is known.",
         "operationId" : "requestB2bSweep",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -8941,6 +9278,7 @@
       "get" : {
         "operationId" : "listB2bTransfers",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -8984,6 +9322,7 @@
             "type" : "array"
           }
         }, {
+          "description" : "Only transfers in this state; PENDING includes those whose outcome is unknown",
           "in" : "query",
           "name" : "status",
           "required" : false,
@@ -9038,10 +9377,100 @@
         "tags" : [ "Admin: Treasury" ]
       }
     },
+    "/api/v1/admin/shortcodes/{uuid}/b2b-transfers/{transfer_uuid}/close" : {
+      "post" : {
+        "description" : "Only for a PENDING transfer whose outcome is unknown. Nothing is sent to Safaricom; a result that arrives later still settles it.",
+        "operationId" : "closeB2bTransferAsFailed",
+        "parameters" : [ {
+          "description" : "Shortcode uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "B2B transfer uuid",
+          "in" : "path",
+          "name" : "transfer_uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CloseAsFailedRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/B2bTransferDto"
+                }
+              }
+            },
+            "description" : "The transfer, now FAILED"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The transfer is settled or its outcome is known"
+          }
+        },
+        "summary" : "Close a sweep whose outcome stayed unknown as FAILED after checking the statement (audited)",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
     "/api/v1/admin/shortcodes/{uuid}/balance" : {
       "get" : {
         "operationId" : "getShortcodeBalance",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -9101,6 +9530,7 @@
         "description" : "Daraja answers later on the result URL, so this returns the PENDING query; poll getShortcodeBalance until last_query settles. Needs the shortcode's initiator.",
         "operationId" : "queryShortcodeBalance",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -9190,6 +9620,7 @@
         "description" : "Defaults to the last 7 days; the range may span at most 31 days and returns at most 1000 results.",
         "operationId" : "listShortcodeBalanceHistory",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,
@@ -9647,6 +10078,7 @@
       "patch" : {
         "operationId" : "updateShortcodeFloatThreshold",
         "parameters" : [ {
+          "description" : "Shortcode uuid",
           "in" : "path",
           "name" : "uuid",
           "required" : true,

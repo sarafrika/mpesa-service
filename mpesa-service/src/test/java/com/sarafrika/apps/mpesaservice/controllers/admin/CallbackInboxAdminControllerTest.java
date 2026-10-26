@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.controllers.admin;
 
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackAttachService;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -51,6 +52,9 @@ class CallbackInboxAdminControllerTest {
     @MockitoBean
     private CallbackReplayService replayService;
 
+    @MockitoBean
+    private CallbackAttachService attachService;
+
     @Test
     @WithMockUser(roles = "mpesa-viewer")
     void aViewerPagesTheInboxWithFilters() throws Exception {
@@ -85,7 +89,7 @@ class CallbackInboxAdminControllerTest {
     @WithMockUser(roles = "mpesa-viewer")
     void aViewerReadsOneCallbackAndTheSummary() throws Exception {
         when(inboxService.get(ID)).thenReturn(new CallbackDetailDto(ROW, Map.of("User-Agent", "Safaricom"), null, 0,
-                false, true, null));
+                false, true, null, false));
         when(inboxService.summary()).thenReturn(new CallbackSummaryDto(AT, 12, 1, 9, 1, 1));
 
         mockMvc.perform(get("/api/v1/admin/callbacks/" + ID)).andExpect(status().isOk())
@@ -112,7 +116,7 @@ class CallbackInboxAdminControllerTest {
     @Test
     @WithMockUser(roles = "mpesa-operator")
     void anOperatorReplaysAndConflictsAndMissesAreMapped() throws Exception {
-        when(replayService.replay(ID)).thenReturn(new CallbackDetailDto(ROW, Map.of(), null, 0, false, false, "x"));
+        when(replayService.replay(ID)).thenReturn(new CallbackDetailDto(ROW, Map.of(), null, 0, false, false, "x", false));
         mockMvc.perform(post("/api/v1/admin/callbacks/" + ID + "/replay")).andExpect(status().isOk());
 
         when(replayService.replay(ID)).thenThrow(new ConflictException("Only failed callbacks can be replayed"));

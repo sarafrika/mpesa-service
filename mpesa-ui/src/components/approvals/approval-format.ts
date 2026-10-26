@@ -89,3 +89,16 @@ export function batchProgress(processed: number, total: number): number {
   if (total <= 0) return 0;
   return Math.min(100, Math.round((processed / total) * 100));
 }
+
+/** Preview rows to show: every invalid row first, then at most `validLimit` valid ones, in file order. */
+export function previewRows<T extends { valid: boolean }>(
+  rows: readonly T[],
+  validLimit: number,
+): { shown: T[]; hiddenValid: number } {
+  const invalid = rows.filter((row) => !row.valid);
+  const valid = rows.filter((row) => row.valid);
+  return {
+    shown: [...invalid, ...valid.slice(0, validLimit)],
+    hiddenValid: Math.max(0, valid.length - validLimit),
+  };
+}

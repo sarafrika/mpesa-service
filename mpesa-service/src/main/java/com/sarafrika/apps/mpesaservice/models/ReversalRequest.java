@@ -92,6 +92,13 @@ public class ReversalRequest {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    /** Set when finance closed it as FAILED by hand after checking the statement. */
+    @Column(name = "closed_by", length = 100)
+    private String closedBy;
+
+    @Column(name = "close_note", length = 500)
+    private String closeNote;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

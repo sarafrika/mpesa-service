@@ -5,6 +5,9 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.PageResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.CallbackDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.CallbackDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.CallbackSummaryDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.AttachCallbackRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.AttachCandidateDto;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackAttachService;
 import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackInboxService;
 import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackReplayService;
 import com.sarafrika.apps.mpesaservice.utils.PageRequests;
@@ -19,6 +22,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -26,6 +30,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,6 +47,7 @@ public class CallbackInboxAdminController {
 
     private final CallbackInboxService inboxService;
     private final CallbackReplayService replayService;
+    private final CallbackAttachService attachService;
 
     @GetMapping
     @PreAuthorize("hasRole('mpesa-viewer')")
@@ -116,5 +122,41 @@ public class CallbackInboxAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public CallbackDetailDto replayCallback(@Parameter(description = "Inbox entry uuid") @PathVariable("uuid") UUID uuid) {
         return replayService.replay(uuid);
+    }
+
+    @GetMapping("/{uuid}/attach-candidates")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "listCallbackAttachCandidates",
+            summary = "Open B2B transfers or reversals a failed result could belong to, those that fit it first")
+    @ApiResponse(responseCode = "200", description = "Candidates; empty when the entry cannot be attached")
+    @ApiResponse(responseCode = "403", description = "Requires mpesa-finance",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No such callback",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public List<AttachCandidateDto> listCallbackAttachCandidates(
+            @Parameter(description = "Inbox entry uuid") @PathVariable("uuid") UUID uuid) {
+        return attachService.candidates(uuid);
+    }
+
+    @PostMapping("/{uuid}/attach")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "attachCallbackResult",
+            summary = "Apply a failed B2B or reversal result to the transfer or reversal it belongs to (audited)",
+            description = "For a result nothing matched, after checking the statement. It settles the record from "
+                    + "the stored body; nothing is sent to Safaricom.")
+    @ApiResponse(responseCode = "200", description = "The callback, now REPLAYED")
+    @ApiResponse(responseCode = "400", description = "Missing target or note",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "403", description = "Requires mpesa-finance",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No such callback or target",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Not attachable, the target is settled, or the result names "
+            + "another conversation, amount or receiver",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public CallbackDetailDto attachCallbackResult(
+            @Parameter(description = "Inbox entry uuid") @PathVariable("uuid") UUID uuid,
+            @Valid @RequestBody AttachCallbackRequest body) {
+        return attachService.attach(uuid, body);
     }
 }

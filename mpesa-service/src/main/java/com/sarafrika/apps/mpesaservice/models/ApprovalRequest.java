@@ -76,6 +76,13 @@ public class ApprovalRequest {
     @Column(name = "maker_name")
     private String makerName;
 
+    /** The maker's JWT sub: maker-checker compares these, since a username can change. */
+    @Column(name = "maker_sub")
+    private String makerSub;
+
+    @Column(name = "checker_sub")
+    private String checkerSub;
+
     @Column(name = "checker")
     private String checker;
 

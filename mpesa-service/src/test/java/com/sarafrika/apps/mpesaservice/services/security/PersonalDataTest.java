@@ -36,6 +36,41 @@ class PersonalDataTest {
         assertThat(PersonalData.visible()).isFalse();
     }
 
+    // Daraja's reversal result (developer.safaricom.co.ke/apis/Reversal) and a Transaction Status result.
+    static final String REVERSAL_RESULT = """
+            {"Result":{"ResultType":0,"ResultCode":0,"ResultDesc":"The service request is processed successfully.",
+              "OriginatorConversationID":"8521-4298025-1","ConversationID":"AG_20181005_00004d7ee675c0c7ee0b",
+              "TransactionID":"MJ561H6X5O","ResultParameters":{"ResultParameter":[
+                {"Key":"Amount","Value":"100"},{"Key":"OriginalTransactionID","Value":"MIP3XXXX"},
+                {"Key":"CreditPartyPublicName","Value":"254708374149 - John Doe"},
+                {"Key":"DebitPartyPublicName","Value":"601315 - Safaricom1338"}]}}}""";
+    static final String STATUS_RESULT = """
+            {"Result":{"ResultCode":0,"ConversationID":"AG_20180223_0000493344ae97d86f75","ResultParameters":{
+              "ResultParameter":[{"Key":"DebitPartyName","Value":"600310 - Safaricom333"},
+                {"Key":"CreditPartyName","Value":"254722000000 - Jane Wanjiru Doe"},
+                {"Key":"ReceiptNo","Value":"MBN0000000"}]}}}""";
+
+    @ParameterizedTest
+    @CsvSource({"mpesa-viewer,false", "mpesa-operator,false", "mpesa-finance,true", "mpesa-admin,true"})
+    void partyNamesInReversalAndStatusResultsAreMaskedByRole(String role, boolean full) throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("jane", "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_" + role))));
+        JsonNode reversal = json.readTree(REVERSAL_RESULT);
+        JsonNode status = json.readTree(STATUS_RESULT);
+        String shownReversal = (PersonalData.visible() ? reversal : PersonalData.redact(reversal)).toString();
+        String shownStatus = (PersonalData.visible() ? status : PersonalData.redact(status)).toString();
+
+        if (full) {
+            assertThat(shownReversal).contains("254708374149 - John Doe");
+            assertThat(shownStatus).contains("254722000000 - Jane Wanjiru Doe");
+        } else {
+            assertThat(shownReversal).doesNotContain("254708374149").doesNotContain("John")
+                    .contains("2547•••••149 - J. Doe").contains("601315 - S.").contains("MIP3XXXX");
+            assertThat(shownStatus).doesNotContain("254722000000").doesNotContain("Wanjiru")
+                    .contains("2547•••••000 - J. Doe").contains("MBN0000000");
+        }
+    }
+
     @Test
     void phonesAndNamesAreMaskedAndShortened() {
         assertThat(PersonalData.maskPhone("254712345123")).isEqualTo("2547•••••123");

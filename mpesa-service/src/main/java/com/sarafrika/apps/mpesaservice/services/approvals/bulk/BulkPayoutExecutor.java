@@ -90,6 +90,7 @@ public class BulkPayoutExecutor implements ResumableExecutor, ApprovalLifecycle 
                 b.setFinishedAt(Instant.now());
                 b.setProcessedCount(b.getItemCount());
                 batches.save(b);
+                items.releaseReferences(b.getId());
             }));
         }
         return summary(batch.getId());
@@ -109,6 +110,10 @@ public class BulkPayoutExecutor implements ResumableExecutor, ApprovalLifecycle 
                 // The reference was used before this batch existed: that payout is not this row's.
                 status = PayoutBatchItemStatus.REFUSED;
                 message = "Reference already used by an earlier payout; not sent";
+            } else if (!sameRow(item, sent)) {
+                // The payout for this reference pays another phone or amount, so it is not this row's.
+                status = PayoutBatchItemStatus.REFUSED;
+                message = "Reference already used by another payout to a different phone or amount; not sent";
             } else {
                 status = PayoutBatchItemStatus.SENT;
                 payoutUuid = sent.getUuid();
@@ -136,6 +141,11 @@ public class BulkPayoutExecutor implements ResumableExecutor, ApprovalLifecycle 
         }));
     }
 
+    static boolean sameRow(PayoutBatchItem item, MpesaOutgoingPayment payout) {
+        return item.getPhoneNumber().equals(payout.getRecipientPhoneNumber()) && payout.getAmount() != null
+                && item.getAmount().compareTo(payout.getAmount()) == 0;
+    }
+
     private Outcome summary(Long batchId) {
         List<Object[]> rows = items.findWithPayouts(batchId);
         long sent = rows.stream().filter(r -> ((PayoutBatchItem) r[0]).getStatus() == PayoutBatchItemStatus.SENT)
@@ -157,6 +167,7 @@ public class BulkPayoutExecutor implements ResumableExecutor, ApprovalLifecycle 
                 .ifPresent(b -> {
                     b.setStatus(status == ApprovalStatus.REJECTED ? PayoutBatchStatus.REJECTED : PayoutBatchStatus.EXPIRED);
                     batches.save(b);
+                    items.releaseReferences(b.getId());
                 });
     }
 

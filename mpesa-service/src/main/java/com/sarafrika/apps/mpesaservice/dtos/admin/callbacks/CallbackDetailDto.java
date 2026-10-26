@@ -23,5 +23,8 @@ public record CallbackDetailDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Whether an operator may replay it now")
         @JsonProperty("replayable") boolean replayable,
         @Schema(nullable = true, description = "Why it cannot be replayed now")
-        @JsonProperty("replay_blocked_reason") String replayBlockedReason) {
+        @JsonProperty("replay_blocked_reason") String replayBlockedReason,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "A failed B2B or reversal result that "
+                + "finance may attach to its transfer or reversal by hand")
+        @JsonProperty("attachable") boolean attachable) {
 }

@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.dtos.admin.approvals;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
@@ -56,5 +57,9 @@ public record ApprovalDto(
         @Schema(description = "BULK_PAYOUT: the batch of payouts")
         @JsonProperty("batch_uuid") UUID batchUuid,
         @Schema(description = "REVERSAL: where the reversal stands at Safaricom")
-        @JsonProperty("reversal") ReversalDto reversal) {
+        @JsonProperty("reversal") ReversalDto reversal,
+        @Schema(implementation = Object.class, type = "object", nullable = true,
+                additionalProperties = Schema.AdditionalPropertiesValue.TRUE, description = "The request's own fields (e.g. a B2B_SWEEP's destination and float), "
+                + "on the single-request read only; phones and names masked unless finance or admin")
+        @JsonProperty("payload") JsonNode payload) {
 }

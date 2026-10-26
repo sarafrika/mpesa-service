@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart3, Table2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useListShortcodeBalanceHistory } from "@/api/generated/endpoints/admin-treasury/admin-treasury";
 import { EmptyState } from "@/components/empty-state";
@@ -32,7 +32,14 @@ const config = { utility: { label: "Utility balance", color: MONEY_IN } } satisf
 const compact = new Intl.NumberFormat("en-KE", { notation: "compact", maximumFractionDigits: 1 });
 
 /** The utility balance at the end of each of the last 7 Nairobi days, from Account Balance results. */
-export function BalanceHistory({ shortcodeUuid }: { shortcodeUuid: string }) {
+export function BalanceHistory({
+  shortcodeUuid,
+  action,
+}: {
+  shortcodeUuid: string;
+  /** The next step an empty history offers, e.g. a query button. */
+  action?: ReactNode;
+}) {
   const [asTable, setAsTable] = useState(false);
   // Fixed when the tab opens, so the query key stays stable between renders.
   const [now] = useState(() => Date.now());
@@ -74,6 +81,7 @@ export function BalanceHistory({ shortcodeUuid }: { shortcodeUuid: string }) {
           icon={BarChart3}
           title="No balance results in the last 7 days"
           description="Query the balance now, or turn on the scheduled query, to build the history."
+          action={action}
         />
       ) : asTable ? (
         <div className="overflow-x-auto rounded-lg border">

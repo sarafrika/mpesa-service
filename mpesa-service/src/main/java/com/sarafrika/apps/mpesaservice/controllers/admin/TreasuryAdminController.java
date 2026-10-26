@@ -32,6 +32,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import com.sarafrika.apps.mpesaservice.dtos.admin.CloseAsFailedRequest;
+import com.sarafrika.apps.mpesaservice.services.treasury.B2bTransferService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,6 +66,7 @@ public class TreasuryAdminController {
     private final BalanceService balances;
     private final B2bDestinationService destinations;
     private final B2bSweepService sweeps;
+    private final B2bTransferService transfers;
 
     // ---- balance
 
@@ -80,7 +83,7 @@ public class TreasuryAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "503", description = "Safaricom could not be reached",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public BalanceSnapshotDto queryShortcodeBalance(@PathVariable UUID uuid) {
+    public BalanceSnapshotDto queryShortcodeBalance(@Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid) {
         return balances.requestQuery(uuid);
     }
 
@@ -89,7 +92,7 @@ public class TreasuryAdminController {
     @Operation(operationId = "getShortcodeBalance",
             summary = "Latest balances, the newest query and the low-float threshold")
     @ApiResponse(responseCode = "200", description = "The shortcode's float status")
-    public ShortcodeFloatStatusDto getShortcodeBalance(@PathVariable UUID uuid) {
+    public ShortcodeFloatStatusDto getShortcodeBalance(@Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid) {
         return balances.status(uuid);
     }
 
@@ -101,7 +104,7 @@ public class TreasuryAdminController {
                     + "1000 results.")
     @ApiResponse(responseCode = "200", description = "Balance results, oldest first")
     public List<BalanceSnapshotDto> listShortcodeBalanceHistory(
-            @PathVariable UUID uuid,
+            @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
             @Parameter(description = "Inclusive start, ISO-8601 with offset; default 7 days before to")
             @RequestParam(name = "from", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
@@ -117,7 +120,7 @@ public class TreasuryAdminController {
             summary = "Set the shortcode's low-float threshold; null goes back to the service default")
     @ApiResponse(responseCode = "200", description = "The float status with the new threshold")
     public ShortcodeFloatStatusDto updateShortcodeFloatThreshold(
-            @PathVariable UUID uuid, @Valid @RequestBody UpdateFloatThresholdRequest request) {
+            @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid, @Valid @RequestBody UpdateFloatThresholdRequest request) {
         return balances.updateThreshold(uuid, request.lowFloatThreshold());
     }
 
@@ -128,7 +131,7 @@ public class TreasuryAdminController {
     @Operation(operationId = "listB2bDestinations", summary = "Paybills and tills this shortcode may sweep to")
     @ApiResponse(responseCode = "200", description = "A page of destinations")
     public PageResponse<B2bDestinationDto> listB2bDestinations(
-            @PathVariable UUID uuid,
+            @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
             @Parameter(description = "Zero-based page number",
                     schema = @Schema(type = "integer", format = "int32", minimum = "0", defaultValue = "0"))
             @RequestParam(name = "page", required = false) Integer page,
@@ -152,29 +155,31 @@ public class TreasuryAdminController {
     @ApiResponse(responseCode = "201", description = "The new destination")
     @ApiResponse(responseCode = "409", description = "A destination with this name exists",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public B2bDestinationDto createB2bDestination(@PathVariable UUID uuid,
+    public B2bDestinationDto createB2bDestination(@Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
                                                   @Valid @RequestBody CreateB2bDestinationRequest request) {
         return destinations.create(uuid, request);
     }
 
-    @PatchMapping("/b2b-destinations/{destinationUuid}")
+    @PatchMapping("/b2b-destinations/{destination_uuid}")
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "updateB2bDestination", summary = "Change or (de)activate a B2B destination",
             description = "Sweeps waiting for approval against the old details are refused when they run.")
     @ApiResponse(responseCode = "200", description = "The updated destination")
     @ApiResponse(responseCode = "409", description = "A destination with this name exists",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public B2bDestinationDto updateB2bDestination(@PathVariable UUID uuid, @PathVariable UUID destinationUuid,
+    public B2bDestinationDto updateB2bDestination(@Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid, @Parameter(description = "B2B destination uuid")
+                                                  @PathVariable("destination_uuid") UUID destinationUuid,
                                                   @Valid @RequestBody UpdateB2bDestinationRequest request) {
         return destinations.update(uuid, destinationUuid, request);
     }
 
-    @DeleteMapping("/b2b-destinations/{destinationUuid}")
+    @DeleteMapping("/b2b-destinations/{destination_uuid}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "deleteB2bDestination", summary = "Remove a B2B destination")
     @ApiResponse(responseCode = "204", description = "Removed; transfers already sent keep their record")
-    public void deleteB2bDestination(@PathVariable UUID uuid, @PathVariable UUID destinationUuid) {
+    public void deleteB2bDestination(@Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid, @Parameter(description = "B2B destination uuid")
+                                                  @PathVariable("destination_uuid") UUID destinationUuid) {
         destinations.delete(uuid, destinationUuid);
     }
 
@@ -191,7 +196,7 @@ public class TreasuryAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "503", description = "Approvals are not available",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public B2bSweepSubmittedDto requestB2bSweep(@PathVariable UUID uuid,
+    public B2bSweepSubmittedDto requestB2bSweep(@Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
                                                 @Valid @RequestBody RequestB2bSweepRequest request) {
         return sweeps.request(uuid, request);
     }
@@ -201,7 +206,7 @@ public class TreasuryAdminController {
     @Operation(operationId = "listB2bTransfers", summary = "Approved sweeps sent to Safaricom, newest first")
     @ApiResponse(responseCode = "200", description = "A page of transfers")
     public PageResponse<B2bTransferDto> listB2bTransfers(
-            @PathVariable UUID uuid,
+            @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
             @Parameter(description = "Zero-based page number",
                     schema = @Schema(type = "integer", format = "int32", minimum = "0", defaultValue = "0"))
             @RequestParam(name = "page", required = false) Integer page,
@@ -212,8 +217,25 @@ public class TreasuryAdminController {
             @Parameter(description = "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
                     array = @ArraySchema(schema = @Schema(type = "string", example = "created_at,desc")))
             @RequestParam(name = "sort", required = false) List<String> sort,
+            @Parameter(description = "Only transfers in this state; PENDING includes those whose outcome is unknown")
             @RequestParam(name = "status", required = false) B2bTransferStatus status) {
         return PageResponse.from(sweeps.list(uuid, status,
                 PageRequests.of(page, size, sort, TRANSFER_SORTABLE, TRANSFER_DEFAULT_SORT)));
+    }
+
+    @PostMapping("/b2b-transfers/{transfer_uuid}/close")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "closeB2bTransferAsFailed",
+            summary = "Close a sweep whose outcome stayed unknown as FAILED after checking the statement (audited)",
+            description = "Only for a PENDING transfer whose outcome is unknown. Nothing is sent to Safaricom; a "
+                    + "result that arrives later still settles it.")
+    @ApiResponse(responseCode = "200", description = "The transfer, now FAILED")
+    @ApiResponse(responseCode = "409", description = "The transfer is settled or its outcome is known",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public B2bTransferDto closeB2bTransferAsFailed(
+            @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
+            @Parameter(description = "B2B transfer uuid") @PathVariable("transfer_uuid") UUID transferUuid,
+            @Valid @RequestBody CloseAsFailedRequest request) {
+        return sweeps.view(transfers.closeAsFailed(uuid, transferUuid, request.note()));
     }
 }
