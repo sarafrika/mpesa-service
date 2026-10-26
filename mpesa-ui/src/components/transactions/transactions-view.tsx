@@ -16,6 +16,7 @@ import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
 import { ExportCsvButton } from "@/components/export-csv-button";
 import { FilterChips } from "@/components/filter-chips";
+import { OptionsError } from "@/components/options-error";
 import { SearchInput } from "@/components/search-input";
 import { SectionCard } from "@/components/section-card";
 import { TableSkeleton } from "@/components/skeletons";
@@ -159,6 +160,7 @@ export function TransactionsView() {
               value={paybill}
               onChange={(uuid) => setFilters({ paybill: uuid })}
             />
+            <OptionsError what="the paybill list" query={shortcodes} />
             <DateRangeFilter
               from={from}
               to={to}

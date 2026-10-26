@@ -10,6 +10,7 @@ import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
+import { OptionsError } from "@/components/options-error";
 import { PageHeader } from "@/components/page-header";
 import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
@@ -94,6 +95,7 @@ export function ReconciliationScreen() {
               value={paybill}
               onChange={(uuid) => navigate({ paybill: uuid, run: undefined, runs_page: undefined })}
             />
+            <OptionsError what="the paybill list" query={shortcodes} />
             <RoleGate needs="mpesa-finance">
               <UploadStatementDialog paybills={options} paybill={paybill} onDone={showRun} />
             </RoleGate>

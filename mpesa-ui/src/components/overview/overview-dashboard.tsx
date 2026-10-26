@@ -4,6 +4,7 @@ import { Store } from "lucide-react";
 import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
+import { OptionsError } from "@/components/options-error";
 import { PageHeader } from "@/components/page-header";
 import { SectionCard } from "@/components/section-card";
 import { useHasRole } from "@/hooks/use-has-role";
@@ -60,6 +61,7 @@ export function OverviewDashboard() {
               onPeriodChange={setPeriod}
               onEnvironmentChange={setEnvironment}
             />
+            <OptionsError what="the paybill list" query={shortcodes} />
             <AddPaybillButton />
           </>
         }

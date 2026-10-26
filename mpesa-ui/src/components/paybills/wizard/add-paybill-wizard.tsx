@@ -23,6 +23,7 @@ import type {
 } from "@/api/generated/model";
 import { CreateShortcodeBody } from "@/api/generated/zod/admin-shortcodes/admin-shortcodes.zod";
 import { EmptyState } from "@/components/empty-state";
+import { OptionsError } from "@/components/options-error";
 import { PageHeader } from "@/components/page-header";
 import { SectionCard } from "@/components/section-card";
 import { FormSkeleton } from "@/components/skeletons";
@@ -473,6 +474,7 @@ function Wizard() {
                           Gets access once the draft is saved; change what it may do on the
                           paybill's Product access tab.
                         </FieldDescription>
+                        <OptionsError what="the products" query={products} />
                       </Field>
                     )}
                   />
@@ -566,12 +568,14 @@ function Wizard() {
                       )}
                     />
                   )}
-                  <TextField
-                    label="Default account reference"
-                    placeholder="ELIMIKA"
-                    error={errors.account_reference}
-                    {...form.register("account_reference")}
-                  />
+                  {!b2c && (
+                    <TextField
+                      label="Default account reference"
+                      placeholder="ELIMIKA"
+                      error={errors.account_reference}
+                      {...form.register("account_reference")}
+                    />
+                  )}
                   <TextField
                     label="Minimum (KES)"
                     inputMode="decimal"

@@ -13,6 +13,7 @@ import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/ad
 import type { BulkPayoutUploadDto } from "@/api/generated/model";
 import { MaskedPhone } from "@/components/masked-phone";
 import { Money } from "@/components/money";
+import { OptionsError } from "@/components/options-error";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -197,9 +198,11 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
                   placeholder={
                     shortcodes.isPending
                       ? "Loading shortcodes…"
-                      : paybills.length === 0
-                        ? "No active B2C shortcode"
-                        : "Choose a B2C shortcode"
+                      : !page && shortcodes.isError
+                        ? "Shortcodes could not be loaded"
+                        : paybills.length === 0
+                          ? "No active B2C shortcode"
+                          : "Choose a B2C shortcode"
                   }
                 />
               </SelectTrigger>
@@ -216,6 +219,7 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
                 {`Showing the first ${formatCount(paybills.length)} of ${formatCount(page.total_items)}; search to narrow.`}
               </FieldDescription>
             )}
+            <OptionsError what="the B2C shortcodes" query={shortcodes} />
             <FieldError>{errors.shortcode_uuid}</FieldError>
           </Field>
           <Field data-invalid={Boolean(errors.title) || undefined}>
