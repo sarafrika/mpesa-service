@@ -14,7 +14,7 @@ const amount = z
 export const validationRulesSchema = z
   .object({
     active: z.boolean(),
-    account_pattern: z.string().trim().max(255, "Keep the pattern under 255 characters"),
+    account_pattern: z.string().trim().max(200, "Keep the pattern to 200 characters or fewer"),
     min_amount: amount,
     max_amount: amount,
     use_lookup: z.boolean(),
