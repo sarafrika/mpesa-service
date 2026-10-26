@@ -8,6 +8,9 @@
     "name" : "M-Pesa Payments",
     "description" : "Initiate STK Push payments and poll incoming payment status"
   }, {
+    "name" : "Admin: Audit",
+    "description" : "The trail of changes made through the console"
+  }, {
     "name" : "M-Pesa Payouts",
     "description" : "Send B2C payouts and poll their outcome"
   } ],
@@ -46,7 +49,7 @@
         "tags" : [ "M-Pesa Payouts" ],
         "summary" : "Send a B2C payout",
         "description" : "202 while Safaricom processes it; the same client_reference returns the first payout.",
-        "operationId" : "payout",
+        "operationId" : "sendB2cPayout",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -383,7 +386,7 @@
       "get" : {
         "tags" : [ "M-Pesa Payouts" ],
         "summary" : "A shortcode's float as last reported on a payout result",
-        "operationId" : "payoutFloat",
+        "operationId" : "getShortcodeFloat",
         "parameters" : [ {
           "name" : "uuid",
           "in" : "path",
@@ -411,7 +414,7 @@
       "get" : {
         "tags" : [ "M-Pesa Payouts" ],
         "summary" : "Fetch one of your payouts by your own reference",
-        "operationId" : "getByReference",
+        "operationId" : "getPayoutByClientReference",
         "parameters" : [ {
           "name" : "client_reference",
           "in" : "query",
@@ -438,7 +441,7 @@
       "get" : {
         "tags" : [ "M-Pesa Payouts" ],
         "summary" : "Fetch one of your payouts",
-        "operationId" : "get",
+        "operationId" : "getPayout",
         "parameters" : [ {
           "name" : "uuid",
           "in" : "path",
@@ -466,7 +469,7 @@
       "get" : {
         "tags" : [ "M-Pesa Payments" ],
         "summary" : "Fetch incoming payments by account reference or M-Pesa transaction id",
-        "operationId" : "getPayments",
+        "operationId" : "listPayments",
         "parameters" : [ {
           "name" : "account_reference",
           "in" : "query",
@@ -519,6 +522,109 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MpesaIncomingPaymentDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit" : {
+      "get" : {
+        "tags" : [ "Admin: Audit" ],
+        "summary" : "List audit events, newest first",
+        "operationId" : "listAuditEvents",
+        "parameters" : [ {
+          "name" : "page",
+          "in" : "query",
+          "description" : "Zero-based page number",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0,
+            "minimum" : 0
+          }
+        }, {
+          "name" : "size",
+          "in" : "query",
+          "description" : "Page size; values above 100 are clamped to 100",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 25,
+            "maximum" : 100,
+            "minimum" : 1
+          }
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "field,asc|desc; repeatable. Fields: created_at, action, actor. Default created_at,desc",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "example" : "created_at,desc"
+            }
+          }
+        }, {
+          "name" : "actor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "action",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "entity_type",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "entity_id",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "A page of audit events",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseAuditEventDto"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Negative page, size below 1 or an unknown sort field",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Requires mpesa-admin",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
                 }
               }
             }
@@ -1151,6 +1257,9 @@
           "reversalType" : {
             "type" : "string"
           },
+          "creditPartyCharges" : {
+            "type" : "string"
+          },
           "chargesPaidAccountAvailableFunds" : {
             "type" : "string"
           },
@@ -1158,9 +1267,6 @@
             "type" : "string"
           },
           "originatorAccountCurrentBalance" : {
-            "type" : "string"
-          },
-          "creditPartyCharges" : {
             "type" : "string"
           }
         }
@@ -1440,9 +1546,6 @@
               "$ref" : "#/components/schemas/B2CResultParameter"
             }
           },
-          "b2CUtilityAccountAvailableFunds" : {
-            "type" : "string"
-          },
           "transactionReceipt" : {
             "type" : "string"
           },
@@ -1450,6 +1553,9 @@
             "type" : "string"
           },
           "b2CChargesPaidAmount" : {
+            "type" : "string"
+          },
+          "b2CUtilityAccountAvailableFunds" : {
             "type" : "string"
           },
           "b2CWorkingAccountAvailableFunds" : {
@@ -1780,6 +1886,123 @@
             "format" : "date-time"
           }
         }
+      },
+      "ApiError" : {
+        "type" : "object",
+        "properties" : {
+          "status" : {
+            "type" : "integer",
+            "format" : "int32",
+            "example" : 404
+          },
+          "error" : {
+            "type" : "string",
+            "example" : "Not Found"
+          },
+          "message" : {
+            "type" : "string",
+            "example" : "Shortcode not found"
+          },
+          "field_errors" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ApiFieldError"
+            }
+          }
+        },
+        "required" : [ "error", "field_errors", "message", "status" ]
+      },
+      "ApiFieldError" : {
+        "type" : "object",
+        "properties" : {
+          "field" : {
+            "type" : "string",
+            "example" : "size"
+          },
+          "message" : {
+            "type" : "string",
+            "example" : "must be less than or equal to 100"
+          }
+        },
+        "required" : [ "field", "message" ]
+      },
+      "AuditEventDto" : {
+        "type" : "object",
+        "properties" : {
+          "uuid" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "actor" : {
+            "type" : "string",
+            "example" : "jane.doe"
+          },
+          "actor_name" : {
+            "type" : "string",
+            "example" : "Jane Doe"
+          },
+          "action" : {
+            "type" : "string",
+            "example" : "SHORTCODE_UPDATED"
+          },
+          "entity_type" : {
+            "type" : "string",
+            "example" : "SHORTCODE"
+          },
+          "entity_id" : {
+            "type" : "string",
+            "example" : "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "before" : {
+            "additionalProperties" : true,
+            "description" : "The record before the change, secrets redacted"
+          },
+          "after" : {
+            "additionalProperties" : true,
+            "description" : "The record after the change, secrets redacted"
+          },
+          "ip" : {
+            "type" : "string",
+            "example" : "196.201.214.200"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        },
+        "required" : [ "action", "actor", "created_at", "entity_type", "uuid" ]
+      },
+      "PageResponseAuditEventDto" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AuditEventDto"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32",
+            "example" : 0
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32",
+            "example" : 25
+          },
+          "total_items" : {
+            "type" : "integer",
+            "format" : "int64",
+            "example" : 120
+          },
+          "total_pages" : {
+            "type" : "integer",
+            "format" : "int32",
+            "example" : 5
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ]
       }
     }
   }

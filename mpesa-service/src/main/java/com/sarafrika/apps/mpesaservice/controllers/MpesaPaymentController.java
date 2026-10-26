@@ -45,7 +45,7 @@ public class MpesaPaymentController {
      * Initiate an STK Push against a configured shortcode.
      */
     @PostMapping("/stk-push")
-    @Operation(summary = "Initiate an STK Push payment for a configured shortcode")
+    @Operation(operationId = "initiateStkPush", summary = "Initiate an STK Push payment for a configured shortcode")
     public ResponseEntity<MpesaApiResponse<StkPushResponse>> initiateStkPush(
             @RequestBody StkPushRequest request) {
 
@@ -67,7 +67,8 @@ public class MpesaPaymentController {
      * Consuming systems poll this endpoint to determine the final payment status.
      */
     @GetMapping("/payments/by-checkout/{checkoutRequestId}")
-    @Operation(summary = "Fetch an incoming payment by STK Push checkout request id")
+    @Operation(operationId = "getPaymentByCheckoutRequestId",
+            summary = "Fetch an incoming payment by STK Push checkout request id")
     public ResponseEntity<MpesaIncomingPaymentDto> getPaymentByCheckoutRequestId(
             @PathVariable String checkoutRequestId) {
 
@@ -82,7 +83,8 @@ public class MpesaPaymentController {
      * system tracks payments by its own reference rather than a checkout id.
      */
     @GetMapping("/payments")
-    @Operation(summary = "Fetch incoming payments by account reference or M-Pesa transaction id")
+    @Operation(operationId = "listPayments",
+            summary = "Fetch incoming payments by account reference or M-Pesa transaction id")
     public ResponseEntity<List<MpesaIncomingPaymentDto>> getPayments(
             @RequestParam(name = "account_reference", required = false) String accountReference,
             @RequestParam(name = "transaction_id", required = false) String transactionId) {

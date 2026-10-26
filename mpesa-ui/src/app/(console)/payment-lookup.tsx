@@ -2,8 +2,8 @@
 
 import { Search } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { useGetPayments } from "@/api/generated/endpoints/m-pesa-payments/m-pesa-payments";
-import type { GetPaymentsParams } from "@/api/generated/model";
+import { useListPayments } from "@/api/generated/endpoints/m-pesa-payments/m-pesa-payments";
+import type { ListPaymentsParams } from "@/api/generated/model";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,14 +27,14 @@ const kes = new Intl.NumberFormat("en-KE", {
 const when = new Intl.DateTimeFormat("en-KE", { dateStyle: "medium", timeStyle: "short" });
 
 // M-Pesa receipts are 10 upper-case letters and digits; anything else is an account reference.
-function toParams(query: string): GetPaymentsParams {
+function toParams(query: string): ListPaymentsParams {
   return /^[A-Z0-9]{10}$/.test(query) ? { transaction_id: query } : { account_reference: query };
 }
 
 export function PaymentLookup() {
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
-  const payments = useGetPayments(toParams(query), { query: { enabled: query.length > 0 } });
+  const payments = useListPayments(toParams(query), { query: { enabled: query.length > 0 } });
   const rows = payments.data?.data ?? [];
 
   function submit(event: FormEvent) {

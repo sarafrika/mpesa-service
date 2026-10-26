@@ -40,6 +40,8 @@ services:
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/sarafrika/protocol/openid-connect/certs
       KEYCLOAK_AUDIENCE: mpesa-service
       CALLBACK_IP_WHITELIST_ENABLED: "false"
+      # Development-only key for shortcode secrets; production supplies its own.
+      MPESA_ENCRYPTION_KEY: ZGV2LW9ubHktbXBlc2EtZW5jcnlwdGlvbi1rZXktMzI=
     ports: ["8080:8080"]
 
   mpesa-ui:

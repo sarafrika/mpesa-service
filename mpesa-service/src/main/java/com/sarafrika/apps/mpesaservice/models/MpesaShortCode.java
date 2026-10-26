@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import com.sarafrika.apps.mpesaservice.utils.converters.EncryptedSecretConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.EnvironmentConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.ShortcodeTypeConverter;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @NoArgsConstructor
+/** Daraja credentials are encrypted at rest by {@link EncryptedSecretConverter}. */
 public class MpesaShortCode extends BaseEntity {
 
     @Column(name = "shortcode")
@@ -31,12 +33,15 @@ public class MpesaShortCode extends BaseEntity {
     @Column(name = "business_name")
     private String businessName;
 
+    @Convert(converter = EncryptedSecretConverter.class)
     @Column(name = "consumer_key")
     private String consumerKey;
 
+    @Convert(converter = EncryptedSecretConverter.class)
     @Column(name = "consumer_secret")
     private String consumerSecret;
 
+    @Convert(converter = EncryptedSecretConverter.class)
     @Column(name = "passkey")
     private String passkey;
 
@@ -73,10 +78,12 @@ public class MpesaShortCode extends BaseEntity {
     private String initiatorName;
 
     /** Initiator password; encrypted with Safaricom's certificate into the security credential. */
+    @Convert(converter = EncryptedSecretConverter.class)
     @Column(name = "initiator_password")
     private String initiatorPassword;
 
     /** A security credential generated on the Daraja portal; used as is when set. */
+    @Convert(converter = EncryptedSecretConverter.class)
     @Column(name = "security_credential")
     private String securityCredential;
 

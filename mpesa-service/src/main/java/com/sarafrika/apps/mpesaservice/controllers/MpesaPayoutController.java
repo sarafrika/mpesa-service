@@ -41,7 +41,7 @@ public class MpesaPayoutController {
     private final MpesaPayoutService payoutService;
 
     @PostMapping("/b2c")
-    @Operation(summary = "Send a B2C payout",
+    @Operation(operationId = "sendB2cPayout", summary = "Send a B2C payout",
             description = "202 while Safaricom processes it; the same client_reference returns the first payout.")
     public ResponseEntity<MpesaApiResponse<MpesaPayoutDto>> payout(@Valid @RequestBody B2CPayoutRequest request,
                                                                    Authentication authentication) {
@@ -62,7 +62,7 @@ public class MpesaPayoutController {
     }
 
     @GetMapping("/payouts/{uuid}")
-    @Operation(summary = "Fetch one of your payouts")
+    @Operation(operationId = "getPayout", summary = "Fetch one of your payouts")
     public ResponseEntity<MpesaPayoutDto> get(@PathVariable UUID uuid, Authentication authentication) {
         return payoutService.findForClient(clientId(authentication), uuid)
                 .map(MpesaPayoutDto::from).map(ResponseEntity::ok)
@@ -70,7 +70,8 @@ public class MpesaPayoutController {
     }
 
     @GetMapping("/payouts")
-    @Operation(summary = "Fetch one of your payouts by your own reference")
+    @Operation(operationId = "getPayoutByClientReference",
+            summary = "Fetch one of your payouts by your own reference")
     public ResponseEntity<MpesaPayoutDto> getByReference(@RequestParam("client_reference") String clientReference,
                                                          Authentication authentication) {
         return payoutService.findForClient(clientId(authentication), clientReference)
@@ -79,7 +80,8 @@ public class MpesaPayoutController {
     }
 
     @GetMapping("/shortcodes/{uuid}/float")
-    @Operation(summary = "A shortcode's float as last reported on a payout result")
+    @Operation(operationId = "getShortcodeFloat",
+            summary = "A shortcode's float as last reported on a payout result")
     public ResponseEntity<PayoutFloatDto> payoutFloat(@PathVariable UUID uuid) {
         return ResponseEntity.ok(payoutService.latestFloat(uuid));
     }
