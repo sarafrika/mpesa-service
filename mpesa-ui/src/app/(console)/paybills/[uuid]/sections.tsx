@@ -1,10 +1,12 @@
 import type { ComponentType } from "react";
 import type { ShortcodeDetail } from "@/api/generated/model";
+import { ValidationRulesEditor } from "@/components/collections/validation-rules-editor";
 import { C2bSection } from "@/components/paybills/sections/c2b-section";
 import { CredentialsSection } from "@/components/paybills/sections/credentials-section";
 import { FloatSection } from "@/components/paybills/sections/float-section";
 import { OverviewSection } from "@/components/paybills/sections/overview-section";
 import type { PaybillSectionProps } from "@/components/paybills/sections/types";
+import { ProductAccess } from "@/components/products/product-access";
 
 export type { PaybillSectionProps };
 
@@ -18,7 +20,15 @@ export type PaybillSection = {
   Component: ComponentType<PaybillSectionProps>;
 };
 
-// Later slices add a tab with one entry here (validation rules, product access, features).
+function ValidationRulesSection({ shortcode }: PaybillSectionProps) {
+  return <ValidationRulesEditor shortcodeUuid={shortcode.uuid} />;
+}
+
+function ProductAccessSection({ shortcode }: PaybillSectionProps) {
+  return <ProductAccess shortcodeUuid={shortcode.uuid} />;
+}
+
+// One entry per tab; a later slice adds its tab here (features).
 export const PAYBILL_SECTIONS: readonly PaybillSection[] = [
   { id: "overview", label: "Overview", Component: OverviewSection },
   {
@@ -27,6 +37,13 @@ export const PAYBILL_SECTIONS: readonly PaybillSection[] = [
     visible: (shortcode) => shortcode.shortcode_type !== "B2C",
     Component: C2bSection,
   },
+  {
+    id: "validation",
+    label: "Validation rules",
+    visible: (shortcode) => shortcode.shortcode_type !== "B2C",
+    Component: ValidationRulesSection,
+  },
+  { id: "products", label: "Product access", Component: ProductAccessSection },
   { id: "credentials", label: "Credentials", Component: CredentialsSection },
   { id: "float", label: "Float", Component: FloatSection },
 ];

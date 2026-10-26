@@ -1,30 +1,19 @@
 "use client";
 
-import { ListChecks } from "lucide-react";
 import type { ShortcodeDetail } from "@/api/generated/model";
+import { ValidationRulesEditor } from "@/components/collections/validation-rules-editor";
 
 export type ValidationRulesSlotProps = {
   /** The draft saved at the end of step 2; rules attach to its uuid. */
   shortcode: ShortcodeDetail;
 };
 
-// SLOT for the collections slice: replace this body with the C2B validation-rules editor.
-// The wizard renders it in step 3 for paybills and tills (never B2C), after the draft exists.
+/** Step 3 of the wizard, paybills and tills only: the compact C2B validation-rules editor. */
 export function ValidationRulesSlot({ shortcode }: ValidationRulesSlotProps) {
   return (
-    <div
-      data-slot="validation-rules"
-      className="flex items-start gap-3 rounded-lg border border-dashed p-4 text-sm"
-    >
-      <ListChecks className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="flex flex-col gap-1">
-        <span className="font-medium">Validation rules</span>
-        <span className="text-muted-foreground">
-          Account-number patterns, limits and product lookups for {shortcode.business_name} are set
-          here once configurable C2B validation ships. Until then the service's built-in validation
-          applies.
-        </span>
-      </div>
+    <div data-slot="validation-rules" className="flex flex-col gap-2">
+      <h3 className="font-semibold text-sm">Validation rules</h3>
+      <ValidationRulesEditor shortcodeUuid={shortcode.uuid} compact />
     </div>
   );
 }

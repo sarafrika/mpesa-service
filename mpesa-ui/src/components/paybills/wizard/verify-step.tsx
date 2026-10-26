@@ -4,6 +4,7 @@ import { CircleCheck } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
+import { useDryRunValidationRules } from "@/api/generated/endpoints/admin-c2b-validation/admin-c2b-validation";
 import {
   useActivateShortcode,
   useGetShortcode,
@@ -21,7 +22,7 @@ import { SendTestStkDialog } from "../lifecycle-actions";
 
 type Row = { title: string; state: string; tone: Tone; detail: string; action?: ReactNode };
 
-/** Step 4: ask Daraja for a token, register the C2B URLs, then (admins) go live. */
+/** Step 4: ask Daraja for a token, register the C2B URLs, dry-run the rules, then (admins) go live. */
 export function VerifyStep({
   uuid,
   responseType,
@@ -44,6 +45,7 @@ export function VerifyStep({
       onSettled: () => invalidate(),
     },
   });
+  const dryRun = useDryRunValidationRules({ mutation: { meta: { errorToast: false } } });
   const activate = useActivateShortcode({
     mutation: {
       meta: { errorToast: false },
@@ -64,7 +66,16 @@ export function VerifyStep({
   const c2bOk = b2c || health.c2b_state === "REGISTERED";
   const live = shortcode.status === "ACTIVE";
 
+  // A sample payment (default account, smallest allowed amount) through the saved rules, M-Pesa untouched.
+  const sample = {
+    account: shortcode.account_reference?.trim() || "TEST-001",
+    amount: Math.max(shortcode.min_amount ?? 1, 1),
+  };
+  const runDryRun = () => dryRun.mutateAsync({ uuid, data: sample }).catch(() => undefined);
+  const dryRunResult = okData(dryRun.data);
+
   async function runAll() {
+    if (!b2c) void runDryRun();
     const result = okData(await test.mutateAsync({ uuid }).catch(() => undefined));
     if (result?.ok && !b2c && health.c2b_state !== "REGISTERED") {
       setC2bError(undefined);
@@ -153,6 +164,43 @@ export function VerifyStep({
             >
               {register.isPending && <Spinner />}
               {health.c2b_state === "NOT_REGISTERED" ? "Register" : "Register again"}
+            </Button>
+          ),
+        },
+    b2c
+      ? {
+          title: "Validation rule dry run",
+          state: "n/a",
+          tone: "neutral",
+          detail: "B2C shortcodes take no C2B payments",
+        }
+      : {
+          title: "Validation rule dry run",
+          ...(dryRun.isPending
+            ? { state: "Running", tone: "info" as const, detail: "Trying a sample payment" }
+            : dryRunResult
+              ? {
+                  state: dryRunResult.accepted ? "Accepted" : "Rejected",
+                  tone: dryRunResult.accepted ? ("success" as const) : ("warning" as const),
+                  detail: dryRunResult.accepted
+                    ? `${sample.account} for KES ${sample.amount} would be accepted`
+                    : `${sample.account} rejected with ${dryRunResult.result_code}: ${dryRunResult.reason}`,
+                }
+              : dryRun.isError
+                ? {
+                    state: "Failed",
+                    tone: "danger" as const,
+                    detail: upstreamMessage(dryRun.error) ?? "The dry run did not complete",
+                  }
+                : {
+                    state: "Not run",
+                    tone: "neutral" as const,
+                    detail: `Runs ${sample.account} for KES ${sample.amount} through the saved rules`,
+                  }),
+          action: (
+            <Button variant="outline" size="sm" disabled={dryRun.isPending} onClick={runDryRun}>
+              {dryRun.isPending && <Spinner />}
+              {dryRunResult ? "Run again" : "Run"}
             </Button>
           ),
         },
