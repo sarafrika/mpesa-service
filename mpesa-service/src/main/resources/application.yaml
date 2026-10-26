@@ -37,6 +37,11 @@ spring:
 
 # M-Pesa Daraja API Callback Configuration
 mpesa:
+  security:
+    # Only when the Keycloak issuer URL is not reachable from this service (docker-compose); tokens must
+    # still carry the issuer. Blank fetches keys from <issuer>/protocol/openid-connect/certs.
+    jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:}
+
   # Safaricom's public certificates (PEM text or a file path) used to encrypt a shortcode's B2C
   # initiator password into its SecurityCredential. Not needed for a shortcode whose
   # security_credential was generated on the Daraja portal.

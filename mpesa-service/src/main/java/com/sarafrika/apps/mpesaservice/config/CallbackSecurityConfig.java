@@ -54,6 +54,10 @@ public class CallbackSecurityConfig {
     @Value("${spring.security.oauth2.resourceserver.jwt.audiences:}")
     private List<String> audiences;
 
+    /** Where to fetch signing keys when the issuer itself is not reachable from here; blank uses the issuer. */
+    @Value("${mpesa.security.jwk-set-uri:}")
+    private String jwkSetUri;
+
     @Bean
     public SecurityFilterChain callbackSecurityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -71,7 +75,7 @@ public class CallbackSecurityConfig {
         // (and the @WebMvcTest suites) working without a running Keycloak.
         if (StringUtils.hasText(issuerUri)) {
             http.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(
-                    KeycloakJwtDecoder.forIssuer(issuerUri, audiences))));
+                    KeycloakJwtDecoder.forIssuer(issuerUri, audiences, jwkSetUri))));
         }
 
         if (ipWhitelistEnabled) {

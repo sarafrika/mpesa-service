@@ -104,6 +104,14 @@ class KeycloakJwtDecoderTest {
         assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(BadJwtException.class);
     }
 
+    @Test
+    void fetchesKeysFromTheIssuerUnlessACertsUriIsGiven() {
+        assertThat(KeycloakJwtDecoder.certsUri(ISSUER + "/", null))
+                .isEqualTo(ISSUER + "/protocol/openid-connect/certs");
+        assertThat(KeycloakJwtDecoder.certsUri(ISSUER, "http://keycloak:8080/realms/sarafrika/protocol/openid-connect/certs"))
+                .isEqualTo("http://keycloak:8080/realms/sarafrika/protocol/openid-connect/certs");
+    }
+
     private static KeycloakJwtDecoder decoderWith(List<String> audiences) {
         JWKSet published = new JWKSet(List.of(edKey.toPublicJWK(), rsaKey.toPublicJWK()));
         return new KeycloakJwtDecoder(new ImmutableJWKSet<>(published), ISSUER, audiences);

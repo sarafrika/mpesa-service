@@ -59,12 +59,25 @@ public class KeycloakJwtDecoder implements JwtDecoder {
 
     /** Keys come from the realm's certs endpoint, cached and refreshed when an unknown key ID appears. */
     public static KeycloakJwtDecoder forIssuer(String issuer, Collection<String> audiences) {
-        String certs = issuer.replaceAll("/+$", "") + "/protocol/openid-connect/certs";
+        return forIssuer(issuer, audiences, null);
+    }
+
+    // Keys may come from jwkSetUri when the browser-facing issuer is unreachable from here (docker-compose);
+    // tokens must still carry {@code issuer}.
+    public static KeycloakJwtDecoder forIssuer(String issuer, Collection<String> audiences, String jwkSetUri) {
+        String certs = certsUri(issuer, jwkSetUri);
         try {
             return new KeycloakJwtDecoder(JWKSourceBuilder.create(URI.create(certs).toURL()).build(), issuer, audiences);
         } catch (MalformedURLException e) {
-            throw new IllegalArgumentException("Invalid Keycloak issuer URI: " + issuer, e);
+            throw new IllegalArgumentException("Invalid Keycloak certs URI: " + certs, e);
         }
+    }
+
+    static String certsUri(String issuer, String jwkSetUri) {
+        if (jwkSetUri != null && !jwkSetUri.isBlank()) {
+            return jwkSetUri;
+        }
+        return issuer.replaceAll("/+$", "") + "/protocol/openid-connect/certs";
     }
 
     @Override
