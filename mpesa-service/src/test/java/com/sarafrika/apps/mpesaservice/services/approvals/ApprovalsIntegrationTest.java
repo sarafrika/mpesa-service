@@ -453,6 +453,38 @@ class ApprovalsIntegrationTest {
     }
 
     @Test
+    void aResultForAReversalWhoseIdsNeverCameBackMatchesByItsOriginalReceipt() throws Exception {
+        MpesaIncomingPayment payment = payment("1200");
+        UUID request = stuckReversal(payment);
+        String result = """
+                {"Result":{"ResultType":0,"ResultCode":0,"ResultDesc":"The service request is processed successfully.",
+                  "OriginatorConversationID":"never-seen","ConversationID":"AG_NEVER_SEEN","TransactionID":"SKE52PFALL",
+                  "ResultParameters":{"ResultParameter":[{"Key":"Amount","Value":1200.00},
+                  {"Key":"OriginalTransactionID","Value":"%s"}]}}}""".formatted(payment.getTransactionId());
+
+        assertThat(reversalCallbacks.applyResult(mapper.readTree(result), result)).isPresent();
+
+        ReversalRequest settled = reversals.findByApprovalUuid(request).orElseThrow();
+        assertThat(settled.getStatus()).isEqualTo(ReversalStatus.REVERSED);
+        assertThat(settled.getReversalTransactionId()).isEqualTo("SKE52PFALL");
+    }
+
+    @Test
+    void aReversalOfPartShillingsIsRefusedBeforeAnyApproval() {
+        MpesaIncomingPayment payment = payment("1500");
+        as("operator");
+        long before = jdbc.queryForObject("SELECT COUNT(*) FROM approval_requests", Long.class);
+
+        assertThatThrownBy(() -> reversalService.request(new RequestReversalRequest(payment.getUuid(),
+                new java.math.BigDecimal("100.50"), "Part refund")))
+                .isInstanceOfSatisfying(InvalidRequestException.class, e -> {
+                    assertThat(e.getField()).isEqualTo("amount");
+                    assertThat(e.getMessage()).contains("whole shillings");
+                });
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM approval_requests", Long.class)).isEqualTo(before);
+    }
+
+    @Test
     void anUnmatchedReversalResultIsAttachedToItsReversalByHand() throws Exception {
         MpesaIncomingPayment payment = payment("950");
         UUID request = stuckReversal(payment);

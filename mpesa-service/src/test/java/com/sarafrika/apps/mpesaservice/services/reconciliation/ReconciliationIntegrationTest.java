@@ -220,6 +220,8 @@ class ReconciliationIntegrationTest {
         assertThat(row.get("account_reference")).isEqualTo("ELM-003019");
         assertThat(row.get("shortcode_uuid")).isEqualTo(shortcode.getUuid());
         assertThat(events.all).filteredOn(e -> e.type().equals(PaymentEvent.C2B_CONFIRMED)).hasSize(1);
+        assertThat(events.all).filteredOn(e -> e.type().equals(PaymentEvent.C2B_CONFIRMED)).singleElement()
+                .satisfies(e -> assertThat(e.data()).containsEntry("source", "STATEMENT"));
 
         assertThatThrownBy(() -> resolver.backfill(missing.uuid())).isInstanceOf(ConflictException.class);
         // The next run's exception for the same receipt is gone: the deposit now matches.
@@ -433,6 +435,10 @@ class ReconciliationIntegrationTest {
         resolver.backfill(missing.uuid());
         assertThat(jdbc.queryForMap("SELECT source, phone_number FROM mpesa_incoming_payments WHERE transaction_id = ?",
                 p + "PL2")).containsEntry("source", "PULL_TRANSACTIONS").containsEntry("phone_number", "254722000001");
+        // Products can tell a Pull backfill from a live confirmation by the event's source.
+        assertThat(events.all).filteredOn(e -> e.type().equals(PaymentEvent.C2B_CONFIRMED)
+                        && (p + "PL2").equals(e.data().get("trans_id")))
+                .singleElement().satisfies(e -> assertThat(e.data()).containsEntry("source", "PULL_TRANSACTIONS"));
 
         assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start.minusDays(3), start,
                 ReconciliationTrigger.MANUAL)).isInstanceOf(InvalidRequestException.class).hasMessageContaining("48 hours");

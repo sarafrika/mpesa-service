@@ -93,6 +93,7 @@ class MetricsIntegrationTest {
 
     @BeforeEach
     void clean() {
+        jdbc.update("DELETE FROM callback_inbox");
         jdbc.update("DELETE FROM balance_snapshots");
         jdbc.update("DELETE FROM mpesa_outgoing_payments");
         jdbc.update("DELETE FROM mpesa_incoming_payments");
@@ -231,6 +232,25 @@ class MetricsIntegrationTest {
         assertThat(hours.points()).hasSize(12);
         assertThat(hours.points().get(1).collectionsAmount()).isEqualByComparingTo("400.00");
         assertThat(hours.points().get(11).collectionsAmount()).isEqualByComparingTo("600.00");
+    }
+
+    @Test
+    void aBackfilledDepositCountsWhenTheMoneyArrivedNotWhenItWasStored() {
+        UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
+        UUID backfilled = incoming(fees, "C2B", "SUCCESS", "700.00", NOW.minus(Duration.ofMinutes(5)));
+        // A statement or Pull backfill stores today a deposit made on 21 October (Nairobi).
+        jdbc.update("UPDATE mpesa_incoming_payments SET transaction_date = ? WHERE uuid = ?",
+                MetricsTime.toStorage(Instant.parse("2026-10-21T07:00:00Z")), backfilled);
+        incoming(fees, "C2B", "SUCCESS", "300.00", NOW.minus(Duration.ofMinutes(1)));
+
+        MetricsTimeseriesDto days = metrics.timeseries(WEEK_FROM, WEEK_TO, "day", Filter.ALL);
+        Map<UUID, PaybillHealthDto> byUuid = health.health(null).stream()
+                .collect(Collectors.toMap(PaybillHealthDto::shortcodeUuid, Function.identity()));
+
+        assertThat(days.points().get(1).collectionsAmount()).isEqualByComparingTo("700.00");
+        assertThat(days.points().get(6).collectionsAmount()).isEqualByComparingTo("300.00");
+        assertThat(byUuid.get(fees).collectedTodayAmount()).isEqualByComparingTo("300.00");
+        assertThat(byUuid.get(fees).collectedTodayCount()).isEqualTo(1);
     }
 
     @Test
