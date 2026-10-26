@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +47,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [ownOpen, setOwnOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const inFlight = useRef(false);
   const isOpen = open ?? ownOpen;
   const busy = pending || running;
 
@@ -58,6 +59,9 @@ export function ConfirmDialog({
 
   async function confirm(event: { preventDefault: () => void }) {
     event.preventDefault();
+    // A second click can land before the disabled state renders; it must not send the action twice.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setRunning(true);
     try {
       const result = await onConfirm();
@@ -68,6 +72,7 @@ export function ConfirmDialog({
     } catch {
       // The mutation's own error handling (toast or inline) explains what went wrong.
     } finally {
+      inFlight.current = false;
       setRunning(false);
     }
   }
