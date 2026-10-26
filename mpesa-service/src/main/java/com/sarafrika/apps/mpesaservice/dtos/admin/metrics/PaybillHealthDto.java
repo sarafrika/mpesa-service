@@ -34,7 +34,8 @@ public record PaybillHealthDto(
         @JsonProperty("paid_out_today_count") long paidOutTodayCount,
         @Schema(nullable = true, description = "Newest payment or callback on this shortcode; null when none yet")
         @JsonProperty("last_activity_at") Instant lastActivityAt,
-        @Schema(nullable = true, example = "38420.00", description = "B2C utility account balance last reported")
+        @Schema(nullable = true, example = "38420.00",
+                description = "Utility balance last reported by an Account Balance result or a settled payout")
         @JsonProperty("float_amount") BigDecimal floatAmount,
         @Schema(nullable = true)
         @JsonProperty("float_reported_at") Instant floatReportedAt,
@@ -43,5 +44,8 @@ public record PaybillHealthDto(
         @JsonProperty("failed_last_hour") long failedLastHour,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "40",
                 description = "Payments in either direction that settled in the last hour")
-        @JsonProperty("settled_last_hour") long settledLastHour) {
+        @JsonProperty("settled_last_hour") long settledLastHour,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "50000.00",
+                description = "Low-float line: the shortcode's own threshold, else mpesa.alerts.low-float")
+        @JsonProperty("low_float_threshold") BigDecimal lowFloatThreshold) {
 }

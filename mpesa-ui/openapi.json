@@ -310,39 +310,6 @@
         },
         "type" : "object"
       },
-      "B2BTimeoutCallback" : {
-        "description" : "B2B timeout callback from Daraja API",
-        "properties" : {
-          "ConversationID" : {
-            "description" : "Conversation ID",
-            "example" : "AG_20230727_2010400e808f7bb5f4",
-            "type" : "string"
-          },
-          "OriginatorConversationID" : {
-            "description" : "Originator conversation ID",
-            "example" : "21605-295434-4",
-            "type" : "string"
-          },
-          "ResultCode" : {
-            "description" : "Result code",
-            "example" : 1,
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "ResultDesc" : {
-            "description" : "Result description",
-            "example" : "The service request has timed out.",
-            "type" : "string"
-          },
-          "ResultType" : {
-            "description" : "Result type",
-            "example" : "Result",
-            "format" : "int32",
-            "type" : "integer"
-          }
-        },
-        "type" : "object"
-      },
       "B2BTransferResult" : {
         "description" : "B2B transfer result callback from Daraja API",
         "properties" : {
@@ -531,6 +498,249 @@
             "type" : "integer"
           }
         },
+        "type" : "object"
+      },
+      "B2bDestinationDto" : {
+        "properties" : {
+          "account_reference" : {
+            "description" : "Account at the receiving paybill",
+            "example" : 1234567890,
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "command_id" : {
+            "enum" : [ "BusinessPayBill", "BusinessBuyGoods" ],
+            "example" : "BusinessPayBill",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_by" : {
+            "type" : "string"
+          },
+          "name" : {
+            "example" : "Sarafrika bank paybill",
+            "type" : "string"
+          },
+          "receiver_shortcode" : {
+            "example" : 522522,
+            "type" : "string"
+          },
+          "receiver_type" : {
+            "enum" : [ "PAYBILL", "TILL" ],
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "updated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "command_id", "name", "receiver_shortcode", "receiver_type", "shortcode_uuid", "uuid" ],
+        "type" : "object"
+      },
+      "B2bSweepSubmittedDto" : {
+        "properties" : {
+          "amount" : {
+            "example" : 500000,
+            "type" : "number"
+          },
+          "approval_request_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "reference" : {
+            "example" : "SWP-7K2Q9XHD",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "approval_request_uuid", "reference" ],
+        "type" : "object"
+      },
+      "B2bTransferDto" : {
+        "properties" : {
+          "account_reference" : {
+            "type" : "string"
+          },
+          "amount" : {
+            "example" : 500000.0,
+            "type" : "number"
+          },
+          "approval_request_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "checker" : {
+            "type" : "string"
+          },
+          "command_id" : {
+            "enum" : [ "BusinessPayBill", "BusinessBuyGoods" ],
+            "type" : "string"
+          },
+          "completed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "destination_name" : {
+            "description" : "Null when the destination was deleted since",
+            "type" : "string"
+          },
+          "destination_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "maker" : {
+            "type" : "string"
+          },
+          "outcome_unknown" : {
+            "description" : "Safaricom never confirmed the request; it may still move. Never resend it.",
+            "type" : "boolean"
+          },
+          "receiver_shortcode" : {
+            "example" : 522522,
+            "type" : "string"
+          },
+          "reference" : {
+            "example" : "SWP-7K2Q9XHD",
+            "type" : "string"
+          },
+          "result_code" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED" ],
+            "type" : "string"
+          },
+          "timed_out_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "transaction_id" : {
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "approval_request_uuid", "command_id", "created_at", "destination_uuid", "outcome_unknown", "receiver_shortcode", "reference", "shortcode_uuid", "status", "uuid" ],
+        "type" : "object"
+      },
+      "BalanceAccountDto" : {
+        "properties" : {
+          "available" : {
+            "example" : 1640210.0,
+            "type" : "number"
+          },
+          "currency" : {
+            "example" : "KES",
+            "type" : "string"
+          },
+          "current" : {
+            "example" : 1640210.0,
+            "type" : "number"
+          },
+          "name" : {
+            "example" : "Utility Account",
+            "type" : "string"
+          },
+          "reserved" : {
+            "example" : 0.0,
+            "type" : "number"
+          },
+          "uncleared" : {
+            "example" : 0.0,
+            "type" : "number"
+          }
+        },
+        "required" : [ "currency", "name" ],
+        "type" : "object"
+      },
+      "BalanceSnapshotDto" : {
+        "properties" : {
+          "accounts" : {
+            "description" : "Empty until the result arrives",
+            "items" : {
+              "$ref" : "#/components/schemas/BalanceAccountDto"
+            },
+            "type" : "array"
+          },
+          "charges_paid_available" : {
+            "example" : 4812.0,
+            "type" : "number"
+          },
+          "received_at" : {
+            "description" : "When Safaricom's result (or timeout) arrived",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requested_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requested_by" : {
+            "description" : "Who asked; system for the scheduled query",
+            "type" : "string"
+          },
+          "result_code" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "result_desc" : {
+            "example" : "The service request is processed successfully.",
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "source" : {
+            "enum" : [ "MANUAL", "SCHEDULED" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "COMPLETED", "FAILED", "TIMED_OUT" ],
+            "type" : "string"
+          },
+          "utility_available" : {
+            "description" : "Utility account available balance",
+            "example" : 1640210.0,
+            "type" : "number"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "working_available" : {
+            "example" : 0.0,
+            "type" : "number"
+          }
+        },
+        "required" : [ "accounts", "requested_at", "shortcode_uuid", "source", "status", "uuid" ],
         "type" : "object"
       },
       "C2BConfirmationAcknowledgment" : {
@@ -903,6 +1113,38 @@
           }
         },
         "required" : [ "checked_at", "latency_ms", "ok" ],
+        "type" : "object"
+      },
+      "CreateB2bDestinationRequest" : {
+        "properties" : {
+          "account_reference" : {
+            "example" : 1234567890,
+            "maxLength" : 13,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "active" : {
+            "description" : "Defaults to true",
+            "type" : "boolean"
+          },
+          "name" : {
+            "example" : "Sarafrika bank paybill",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "receiver_shortcode" : {
+            "example" : 522522,
+            "minLength" : 1,
+            "pattern" : "\\d{5,7}",
+            "type" : "string"
+          },
+          "receiver_type" : {
+            "enum" : [ "PAYBILL", "TILL" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "name", "receiver_shortcode", "receiver_type" ],
         "type" : "object"
       },
       "CreateQrCodeRequest" : {
@@ -1461,6 +1703,70 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PageResponseB2bDestinationDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/B2bDestinationDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseB2bTransferDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/B2bTransferDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
       "PageResponseC2bRegistration" : {
         "properties" : {
           "items" : {
@@ -1779,7 +2085,7 @@
             "type" : "integer"
           },
           "float_amount" : {
-            "description" : "B2C utility account balance last reported",
+            "description" : "Utility balance last reported by an Account Balance result or a settled payout",
             "example" : 38420.0,
             "type" : "number"
           },
@@ -1791,6 +2097,11 @@
             "description" : "Newest payment or callback on this shortcode; null when none yet",
             "format" : "date-time",
             "type" : "string"
+          },
+          "low_float_threshold" : {
+            "description" : "Low-float line: the shortcode's own threshold, else mpesa.alerts.low-float",
+            "example" : 50000.0,
+            "type" : "number"
           },
           "paid_out_today_amount" : {
             "example" : 0.0,
@@ -1825,7 +2136,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "active", "business_name", "collected_today_amount", "collected_today_count", "environment", "failed_last_hour", "paid_out_today_amount", "paid_out_today_count", "settled_last_hour", "shortcode", "shortcode_type", "shortcode_uuid", "state" ],
+        "required" : [ "active", "business_name", "collected_today_amount", "collected_today_count", "environment", "failed_last_hour", "low_float_threshold", "paid_out_today_amount", "paid_out_today_count", "settled_last_hour", "shortcode", "shortcode_type", "shortcode_uuid", "state" ],
         "type" : "object"
       },
       "PayoutFloatDto" : {
@@ -2133,6 +2444,27 @@
         "required" : [ "response_type" ],
         "type" : "object"
       },
+      "RequestB2bSweepRequest" : {
+        "properties" : {
+          "amount" : {
+            "description" : "Whole shillings",
+            "example" : 500000,
+            "type" : "number"
+          },
+          "destination_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "reason" : {
+            "example" : "Weekly treasury sweep",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "destination_uuid", "reason" ],
+        "type" : "object"
+      },
       "STKCallback" : {
         "properties" : {
           "CallbackMetadata" : {
@@ -2359,6 +2691,66 @@
         "required" : [ "amount", "business_name", "shortcode", "shortcode_uuid" ],
         "type" : "object"
       },
+      "ShortcodeFloatStatusDto" : {
+        "properties" : {
+          "auto_query_interval_minutes" : {
+            "description" : "Minutes between scheduled balance queries; null when they are off",
+            "example" : 30,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "default_low_float_threshold" : {
+            "description" : "mpesa.alerts.low-float",
+            "example" : 50000.0,
+            "type" : "number"
+          },
+          "initiator_configured" : {
+            "description" : "The shortcode has an initiator, which Account Balance and B2B need",
+            "type" : "boolean"
+          },
+          "last_query" : {
+            "$ref" : "#/components/schemas/BalanceSnapshotDto",
+            "description" : "Newest balance query of any status, e.g. one still PENDING"
+          },
+          "latest" : {
+            "$ref" : "#/components/schemas/BalanceSnapshotDto",
+            "description" : "Newest completed Account Balance result; null when none yet"
+          },
+          "low_float" : {
+            "description" : "Utility balance known and below low_float_threshold",
+            "type" : "boolean"
+          },
+          "low_float_threshold" : {
+            "description" : "The line this shortcode is held to: its own, else the service default",
+            "example" : 50000.0,
+            "type" : "number"
+          },
+          "low_float_threshold_override" : {
+            "description" : "This shortcode's own threshold; null uses the default",
+            "type" : "number"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "utility_available" : {
+            "description" : "Utility balance from the newest report: a balance result or a settled B2C payout",
+            "example" : 1640210.0,
+            "type" : "number"
+          },
+          "utility_reported_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "utility_source" : {
+            "description" : "Where utility_available came from",
+            "enum" : [ "BALANCE_QUERY", "PAYOUT" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "default_low_float_threshold", "initiator_configured", "low_float", "low_float_threshold", "shortcode_uuid" ],
+        "type" : "object"
+      },
       "ShortcodeHealth" : {
         "properties" : {
           "c2b_registered_at" : {
@@ -2383,7 +2775,7 @@
             "type" : "string"
           },
           "float_utility" : {
-            "description" : "Utility account balance from the newest payout result; null when unknown",
+            "description" : "Utility balance from the newest Account Balance result or payout result; null when unknown",
             "type" : "number"
           },
           "float_working" : {
@@ -3268,6 +3660,42 @@
           }
         },
         "required" : [ "amount", "count", "payment_type" ],
+        "type" : "object"
+      },
+      "UpdateB2bDestinationRequest" : {
+        "properties" : {
+          "account_reference" : {
+            "maxLength" : 13,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "receiver_shortcode" : {
+            "pattern" : "\\d{5,7}",
+            "type" : "string"
+          },
+          "receiver_type" : {
+            "enum" : [ "PAYBILL", "TILL" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateFloatThresholdRequest" : {
+        "properties" : {
+          "low_float_threshold" : {
+            "example" : 200000.0,
+            "maximum" : 9.99999999999999E12,
+            "type" : "number"
+          }
+        },
         "type" : "object"
       },
       "UpdateShortcodeCredentialsRequest" : {
@@ -5285,6 +5713,744 @@
         "tags" : [ "Admin: Shortcodes" ]
       }
     },
+    "/api/v1/admin/shortcodes/{uuid}/b2b-destinations" : {
+      "get" : {
+        "operationId" : "listB2bDestinations",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: name, created_at. Default name,asc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "name,asc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "description" : "true: active only; false: inactive only",
+          "in" : "query",
+          "name" : "active",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseB2bDestinationDto"
+                }
+              }
+            },
+            "description" : "A page of destinations"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          }
+        },
+        "summary" : "Paybills and tills this shortcode may sweep to",
+        "tags" : [ "Admin: Treasury" ]
+      },
+      "post" : {
+        "operationId" : "createB2bDestination",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateB2bDestinationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/B2bDestinationDto"
+                }
+              }
+            },
+            "description" : "The new destination"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "A destination with this name exists"
+          }
+        },
+        "summary" : "Add a paybill or till this shortcode may sweep to",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/b2b-destinations/{destinationUuid}" : {
+      "delete" : {
+        "operationId" : "deleteB2bDestination",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "destinationUuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Removed; transfers already sent keep their record"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          }
+        },
+        "summary" : "Remove a B2B destination",
+        "tags" : [ "Admin: Treasury" ]
+      },
+      "patch" : {
+        "description" : "Sweeps waiting for approval against the old details are refused when they run.",
+        "operationId" : "updateB2bDestination",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "destinationUuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateB2bDestinationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/B2bDestinationDto"
+                }
+              }
+            },
+            "description" : "The updated destination"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "A destination with this name exists"
+          }
+        },
+        "summary" : "Change or (de)activate a B2B destination",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/b2b-sweeps" : {
+      "post" : {
+        "description" : "Nothing is sent until a checker (finance or admin, not the maker) approves it. The amount may not exceed the utility balance last reported, when one is known.",
+        "operationId" : "requestB2bSweep",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RequestB2bSweepRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/B2bSweepSubmittedDto"
+                }
+              }
+            },
+            "description" : "Submitted for approval"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The shortcode is not active or has no initiator"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Approvals are not available"
+          }
+        },
+        "summary" : "Ask for a B2B sweep; it waits in Approvals",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/b2b-transfers" : {
+      "get" : {
+        "operationId" : "listB2bTransfers",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseB2bTransferDto"
+                }
+              }
+            },
+            "description" : "A page of transfers"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          }
+        },
+        "summary" : "Approved sweeps sent to Safaricom, newest first",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/balance" : {
+      "get" : {
+        "operationId" : "getShortcodeBalance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeFloatStatusDto"
+                }
+              }
+            },
+            "description" : "The shortcode's float status"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          }
+        },
+        "summary" : "Latest balances, the newest query and the low-float threshold",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/balance-query" : {
+      "post" : {
+        "description" : "Daraja answers later on the result URL, so this returns the PENDING query; poll getShortcodeBalance until last_query settles. Needs the shortcode's initiator.",
+        "operationId" : "queryShortcodeBalance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BalanceSnapshotDto"
+                }
+              }
+            },
+            "description" : "The query was accepted by Safaricom and is pending"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The shortcode has no initiator"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the query"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Ask Safaricom for the shortcode's account balances",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/balance/history" : {
+      "get" : {
+        "description" : "Defaults to the last 7 days; the range may span at most 31 days and returns at most 1000 results.",
+        "operationId" : "listShortcodeBalanceHistory",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Inclusive start, ISO-8601 with offset; default 7 days before to",
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Exclusive end, ISO-8601 with offset; default now",
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/BalanceSnapshotDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Balance results, oldest first"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          }
+        },
+        "summary" : "Completed balance results in a time range, oldest first",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
     "/api/v1/admin/shortcodes/{uuid}/c2b-registrations" : {
       "get" : {
         "operationId" : "listShortcodeC2bRegistrations",
@@ -5522,6 +6688,74 @@
         },
         "summary" : "Store a shortcode's Daraja credentials after they were changed at Safaricom",
         "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/float-threshold" : {
+      "patch" : {
+        "operationId" : "updateShortcodeFloatThreshold",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFloatThresholdRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeFloatStatusDto"
+                }
+              }
+            },
+            "description" : "The float status with the new threshold"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          }
+        },
+        "summary" : "Set the shortcode's low-float threshold; null goes back to the service default",
+        "tags" : [ "Admin: Treasury" ]
       }
     },
     "/api/v1/admin/shortcodes/{uuid}/qr-codes" : {
@@ -7168,6 +8402,35 @@
         "tags" : [ "b-2-cb-2-b-callback-controller" ]
       }
     },
+    "/api/v1/callbacks/account-balance/timeout" : {
+      "post" : {
+        "operationId" : "handleAccountBalanceTimeout",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "additionalProperties" : { },
+                "type" : "object"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "b-2-cb-2-b-callback-controller" ]
+      }
+    },
     "/api/v1/callbacks/b2b/result" : {
       "post" : {
         "operationId" : "handleB2BResult",
@@ -7203,7 +8466,8 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/B2BTimeoutCallback"
+                "additionalProperties" : { },
+                "type" : "object"
               }
             }
           },
@@ -7695,6 +8959,9 @@
   }, {
     "description" : "Every deposit, STK request and payout across all paybills",
     "name" : "Admin: Transactions"
+  }, {
+    "description" : "Float: Account Balance queries, low-float threshold and B2B sweeps",
+    "name" : "Admin: Treasury"
   }, {
     "description" : "Initiate STK Push payments and poll incoming payment status",
     "name" : "M-Pesa Payments"

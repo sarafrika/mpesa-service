@@ -314,33 +314,28 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     // ==================== 4. B2B IMPLEMENTATION ====================
 
     @Override
-    public MpesaApiResponse<B2BTransferResponse> transferB2B(UUID senderShortcodeUuid, String receiverShortcode,
-                                                             BigDecimal amount, String remarks, String accountReference) {
-        log.info("Transferring B2B for sender: {}, receiver: {}, amount: {}",
-                senderShortcodeUuid, receiverShortcode, amount);
-
+    public MpesaApiResponse<B2BTransferResponse> sendB2BPayment(MpesaShortCode shortcode, B2BPaymentRequest request) {
         long startTime = System.currentTimeMillis();
-
+        String accessToken;
+        Map<String, Object> payload;
         try {
-            MpesaShortCode shortcode = getShortcodeOrThrow(senderShortcodeUuid);
-            String accessToken = getAccessToken(shortcode);
-
+            accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
-                return MpesaApiResponse.error("AUTH_FAILED",
-                        "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+                return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
             }
-
-            Map<String, Object> payload = buildB2BTransferPayload(shortcode, receiverShortcode,
-                    amount, remarks, accountReference);
-
-            MpesaDarajaHttpClient httpClient = getHttpClient(shortcode.getEnvironment());
-            B2BTransferResponse response = httpClient.transferB2B("Bearer " + accessToken, payload);
-
-            long processingTime = System.currentTimeMillis() - startTime;
-            return MpesaApiResponse.success(response, HttpStatus.OK.value(), processingTime);
-
+            payload = buildB2BPaymentPayload(shortcode, request);
         } catch (Exception e) {
-            return handleException(e, startTime, "B2B transfer");
+            // Nothing reached Safaricom, so this refusal is final.
+            log.error("B2B payment from {} not sent: {}", shortcode.getShortcode(), e.toString());
+            return MpesaApiResponse.error(MpesaErrorResponse.NOT_SENT, "The B2B payment could not be prepared: "
+                    + e.getMessage(), HttpStatus.UNPROCESSABLE_ENTITY.value());
+        }
+        try {
+            B2BTransferResponse response = getHttpClient(shortcode.getEnvironment())
+                    .transferB2B("Bearer " + accessToken, payload);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
+        } catch (Exception e) {
+            return handleException(e, startTime, "B2B payment");
         }
     }
 
@@ -404,28 +399,25 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     // ==================== 6. ACCOUNT BALANCE IMPLEMENTATION ====================
 
     @Override
-    public MpesaApiResponse<AccountBalanceResponse> queryAccountBalance(UUID shortcodeUuid, String remarks) {
-        log.info("Querying account balance for shortcode: {}", shortcodeUuid);
-
+    public MpesaApiResponse<AccountBalanceResponse> queryAccountBalance(MpesaShortCode shortcode, String remarks) {
         long startTime = System.currentTimeMillis();
-
+        String accessToken;
+        Map<String, Object> payload;
         try {
-            MpesaShortCode shortcode = getShortcodeOrThrow(shortcodeUuid);
-            String accessToken = getAccessToken(shortcode);
-
+            accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
-                return MpesaApiResponse.error("AUTH_FAILED",
-                        "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+                return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
             }
-
-            Map<String, Object> payload = buildAccountBalancePayload(shortcode, remarks);
-
-            MpesaDarajaHttpClient httpClient = getHttpClient(shortcode.getEnvironment());
-            AccountBalanceResponse response = httpClient.queryAccountBalance("Bearer " + accessToken, payload);
-
-            long processingTime = System.currentTimeMillis() - startTime;
-            return MpesaApiResponse.success(response, HttpStatus.OK.value(), processingTime);
-
+            payload = buildAccountBalancePayload(shortcode, remarks);
+        } catch (Exception e) {
+            log.error("Account balance query for {} not sent: {}", shortcode.getShortcode(), e.toString());
+            return MpesaApiResponse.error(MpesaErrorResponse.NOT_SENT, "The balance query could not be prepared: "
+                    + e.getMessage(), HttpStatus.UNPROCESSABLE_ENTITY.value());
+        }
+        try {
+            AccountBalanceResponse response = getHttpClient(shortcode.getEnvironment())
+                    .queryAccountBalance("Bearer " + accessToken, payload);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
         } catch (Exception e) {
             return handleException(e, startTime, "Account balance query");
         }
@@ -728,21 +720,24 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    private Map<String, Object> buildB2BTransferPayload(MpesaShortCode shortcode, String receiverShortcode,
-                                                        BigDecimal amount, String remarks, String accountReference) {
+    // Fields per developer.safaricom.co.ke/apis/BusinessPayBill and /apis/BusinessBuyGoods: both identifier
+    // types "4" only; AccountReference up to 13 characters, Remarks up to 100; Requester is optional (unused).
+    private Map<String, Object> buildB2BPaymentPayload(MpesaShortCode shortcode, B2BPaymentRequest request) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("Initiator", shortcode.getInitiatorName());
         payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
-        payload.put("CommandID", "BusinessToBusinessTransfer");
+        payload.put("CommandID", request.commandId());
         payload.put("SenderIdentifierType", "4");
         payload.put("RecieverIdentifierType", "4");
-        payload.put("Amount", amount);
+        payload.put("Amount", request.amount().setScale(0, java.math.RoundingMode.UNNECESSARY).toPlainString());
         payload.put("PartyA", shortcode.getShortcode());
-        payload.put("PartyB", receiverShortcode);
-        payload.put("AccountReference", accountReference != null ? accountReference : shortcode.getAccountReference());
-        payload.put("Remarks", remarks != null ? remarks : "B2B Transfer");
-        payload.put("QueueTimeOutURL", shortcode.getCallbackUrl());
-        payload.put("ResultURL", shortcode.getCallbackUrl());
+        payload.put("PartyB", request.receiverShortcode());
+        if (request.accountReference() != null && !request.accountReference().isBlank()) {
+            payload.put("AccountReference", request.accountReference());
+        }
+        payload.put("Remarks", request.remarks() != null && !request.remarks().isBlank() ? request.remarks() : "Sweep");
+        payload.put("QueueTimeOutURL", callbackUrl("/b2b/timeout"));
+        payload.put("ResultURL", callbackUrl("/b2b/result"));
         return payload;
     }
 
@@ -763,6 +758,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
+    // Fields per developer.safaricom.co.ke/apis/AccountBalance; IdentifierType 4 (organisation shortcode) is
+    // the only value the page documents, so tills are not given a different type here.
     private Map<String, Object> buildAccountBalancePayload(MpesaShortCode shortcode, String remarks) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("Initiator", shortcode.getInitiatorName());
@@ -770,9 +767,9 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         payload.put("CommandID", "AccountBalance");
         payload.put("PartyA", shortcode.getShortcode());
         payload.put("IdentifierType", "4");
-        payload.put("Remarks", remarks != null ? remarks : "Account Balance Query");
-        payload.put("QueueTimeOutURL", shortcode.getCallbackUrl());
-        payload.put("ResultURL", shortcode.getCallbackUrl());
+        payload.put("Remarks", remarks != null && !remarks.isBlank() ? remarks : "Account balance");
+        payload.put("QueueTimeOutURL", callbackUrl("/account-balance/timeout"));
+        payload.put("ResultURL", callbackUrl("/account-balance/result"));
         return payload;
     }
 

@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-/** A shortcode's B2C utility account balance as the newest payout result reported it. */
+/** A shortcode's utility balance as the newest Account Balance result or settled payout reported it. */
 @Schema(name = "ShortcodeFloatDto")
 public record ShortcodeFloatDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)

@@ -2,10 +2,13 @@ package com.sarafrika.apps.mpesaservice.services.shortcode;
 
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationState;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeHealthDto;
+import com.sarafrika.apps.mpesaservice.models.BalanceSnapshot;
 import com.sarafrika.apps.mpesaservice.models.C2bRegistration;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
+import com.sarafrika.apps.mpesaservice.repositories.BalanceSnapshotRepository;
 import com.sarafrika.apps.mpesaservice.repositories.C2bRegistrationRepository;
+import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
@@ -31,6 +34,7 @@ public class ShortcodeHealthReader {
 
     private final EntityManager entityManager;
     private final C2bRegistrationRepository registrations;
+    private final BalanceSnapshotRepository balanceSnapshots;
     private Clock clock = Clock.systemDefaultZone();
 
     void setClock(Clock clock) {
@@ -75,6 +79,8 @@ public class ShortcodeHealthReader {
                     WHERE o2.shortcodeUuid IN :ids AND o2.resultCode IS NOT NULL
                     GROUP BY o2.shortcodeUuid)""", Object[].class)
                 .setParameter("ids", ids).getResultList(), Integer.class);
+        Map<UUID, BalanceSnapshot> balances = balanceSnapshots.latestCompleted(ids, BalanceSnapshotStatus.COMPLETED)
+                .stream().collect(Collectors.toMap(BalanceSnapshot::getShortcodeUuid, Function.identity(), (a, b) -> a));
         Map<UUID, C2bRegistration> c2b = registrations.findLatestFor(ids).stream()
                 .collect(Collectors.toMap(C2bRegistration::getShortcodeUuid, Function.identity(), (a, b) -> a));
 
@@ -83,13 +89,19 @@ public class ShortcodeHealthReader {
             UUID id = code.getUuid();
             C2bRegistration registration = c2b.get(id);
             MpesaOutgoingPayment latestFloat = floats.get(id);
+            BalanceSnapshot balance = balances.get(id);
+            // An Account Balance result newer than (or as new as) the last payout report wins.
+            boolean useBalance = balance != null && (latestFloat == null || latestFloat.getProcessedAt() == null
+                    || !latestFloat.getProcessedAt().isAfter(balance.getReceivedAt()));
             result.put(id, new ShortcodeHealthDto(code.getLastConnectionOk(), code.getLastConnectionCheckedAt(),
                     code.getLastConnectionLatencyMs(), code.getLastConnectionError(), c2bState(code, registration),
                     registration != null ? registration.getCreatedAt() : null, lastPayment.get(id),
                     today.getOrDefault(id, BigDecimal.ZERO),
-                    latestFloat != null ? latestFloat.getUtilityAccountAvailableFunds() : null,
-                    latestFloat != null ? latestFloat.getWorkingAccountAvailableFunds() : null,
-                    latestFloat != null ? latestFloat.getProcessedAt() : null,
+                    useBalance ? balance.getUtilityAvailable()
+                            : latestFloat != null ? latestFloat.getUtilityAccountAvailableFunds() : null,
+                    useBalance ? balance.getWorkingAvailable()
+                            : latestFloat != null ? latestFloat.getWorkingAccountAvailableFunds() : null,
+                    useBalance ? balance.getReceivedAt() : latestFloat != null ? latestFloat.getProcessedAt() : null,
                     paidOut.getOrDefault(id, BigDecimal.ZERO), DarajaHints.forPayout(lastResult.get(id))));
         }
         return result;

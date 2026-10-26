@@ -30,7 +30,6 @@ public class PaybillAttentionSource implements AttentionSource {
     @Override
     public List<AttentionItemDto> currentItems(AttentionScope scope) {
         Instant now = health.now();
-        BigDecimal lowFloat = health.alerts().lowFloat();
         List<AttentionItemDto> items = new ArrayList<>();
         for (PaybillHealthDto paybill : health.health(scope.environment())) {
             if (!scope.includes(paybill.shortcodeUuid()) || paybill.state() == PaybillState.SUSPENDED
@@ -47,6 +46,7 @@ public class PaybillAttentionSource implements AttentionSource {
                         href, paybill.shortcodeUuid()));
             }
             if (paybill.state() == PaybillState.LOW_FLOAT) {
+                BigDecimal lowFloat = paybill.lowFloatThreshold();
                 boolean critical = paybill.floatAmount().compareTo(lowFloat.multiply(CRITICAL_SHARE)) < 0;
                 items.add(new AttentionItemDto("LOW_FLOAT",
                         critical ? AttentionItemDto.CRITICAL : AttentionItemDto.WARNING,

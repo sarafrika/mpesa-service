@@ -52,7 +52,8 @@ public class MetricsQueries {
     }
 
     public record ShortcodeRow(UUID uuid, String shortcode, String businessName, String shortcodeType,
-                               String environment, boolean active, Instant createdAt, Instant lastActivityAt) {
+                               String environment, boolean active, Instant createdAt, Instant lastActivityAt,
+                               BigDecimal lowFloatThreshold) {
     }
 
     public record ShortcodeWindow(Direction direction, UUID shortcodeUuid, long todayCount, BigDecimal todayAmount,
@@ -105,15 +106,20 @@ public class MetricsQueries {
                 rs.getTimestamp("bucket").toLocalDateTime(), rs.getLong("n"), rs.getBigDecimal("total")));
     }
 
-    /** Each active shortcode's newest reported B2C utility balance. */
+    /** Each active shortcode's newest reported utility balance: an Account Balance result or a settled B2C
+     * payout's report, whichever is newer (a tie goes to the balance result). */
     public List<LatestFloat> latestFloats(Filter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource();
+        String reports = "SELECT b.shortcode_uuid, b.utility_available AS amount, b.received_at AS reported_at, "
+                + "0 AS preference, b.id FROM balance_snapshots b WHERE b.deleted_at IS NULL "
+                + "AND b.status = 'COMPLETED' AND b.utility_available IS NOT NULL AND b.received_at IS NOT NULL "
+                + "UNION ALL SELECT o.shortcode_uuid, o.utility_account_available_funds, "
+                + "COALESCE(o.processed_at, o.updated_at), 1, o.id FROM mpesa_outgoing_payments o "
+                + "WHERE o.deleted_at IS NULL AND o.utility_account_available_funds IS NOT NULL";
         String sql = "SELECT DISTINCT ON (p.shortcode_uuid) p.shortcode_uuid, s.shortcode, s.business_name, "
-                + "p.utility_account_available_funds AS amount, COALESCE(p.processed_at, p.updated_at) AS reported_at "
-                + from(Direction.OUT)
-                + " AND s.deleted_at IS NULL AND s.is_active AND p.utility_account_available_funds IS NOT NULL"
-                + scope(filter, params)
-                + " ORDER BY p.shortcode_uuid, p.processed_at DESC NULLS LAST, p.id DESC";
+                + "p.amount, p.reported_at FROM (" + reports + ") p JOIN mpesa_shortcodes s ON s.uuid = p.shortcode_uuid "
+                + "WHERE s.deleted_at IS NULL AND s.is_active" + scope(filter, params)
+                + " ORDER BY p.shortcode_uuid, p.reported_at DESC NULLS LAST, p.preference, p.id DESC";
         return jdbc.query(sql, params, (rs, i) -> new LatestFloat(rs.getObject("shortcode_uuid", UUID.class),
                 rs.getString("shortcode"), rs.getString("business_name"), rs.getBigDecimal("amount"),
                 MetricsTime.fromStorage(rs.getTimestamp("reported_at"))));
@@ -123,7 +129,7 @@ public class MetricsQueries {
     public List<ShortcodeRow> shortcodes(Environment environment) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         StringBuilder sql = new StringBuilder("SELECT s.uuid, s.shortcode, s.business_name, s.shortcode_type, "
-                + "s.environment, s.is_active, s.created_at, GREATEST(");
+                + "s.environment, s.is_active, s.created_at, s.low_float_threshold, GREATEST(");
         List<String> latest = new ArrayList<>();
         for (Direction direction : Direction.values()) {
             for (String column : List.of("created_at", "processed_at")) {
@@ -141,7 +147,7 @@ public class MetricsQueries {
                 rs.getString("shortcode"), rs.getString("business_name"), rs.getString("shortcode_type"),
                 rs.getString("environment"), rs.getBoolean("is_active"),
                 MetricsTime.fromStorage(rs.getTimestamp("created_at")),
-                MetricsTime.fromStorage(rs.getTimestamp("last_activity"))));
+                MetricsTime.fromStorage(rs.getTimestamp("last_activity")), rs.getBigDecimal("low_float_threshold")));
     }
 
     /** Per shortcode: successful payments since {@code todayStart}, failed and settled ones since {@code recentStart}. */

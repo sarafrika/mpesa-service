@@ -4,12 +4,12 @@ import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 
 /** Turns MpesaDarajaService's error envelope into the 502/503 an admin endpoint answers. */
-final class DarajaErrors {
+public final class DarajaErrors {
 
     private DarajaErrors() {
     }
 
-    static UpstreamException toUpstream(MpesaErrorResponse error, String action) {
+    public static UpstreamException toUpstream(MpesaErrorResponse error, String action) {
         String code = error != null ? error.errorCode() : null;
         if ("AUTH_FAILED".equals(code)) {
             return UpstreamException.badGateway(

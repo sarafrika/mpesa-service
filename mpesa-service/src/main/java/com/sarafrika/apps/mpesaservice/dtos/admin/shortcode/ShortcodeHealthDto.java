@@ -23,7 +23,7 @@ public record ShortcodeHealthDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "902140.00",
                 description = "Successful incoming payments since midnight, server time")
         @JsonProperty("collected_today") BigDecimal collectedToday,
-        @Schema(description = "Utility account balance from the newest payout result; null when unknown")
+        @Schema(description = "Utility balance from the newest Account Balance result or payout result; null when unknown")
         @JsonProperty("float_utility") BigDecimal floatUtility,
         @JsonProperty("float_working") BigDecimal floatWorking,
         @JsonProperty("float_reported_at") LocalDateTime floatReportedAt,
