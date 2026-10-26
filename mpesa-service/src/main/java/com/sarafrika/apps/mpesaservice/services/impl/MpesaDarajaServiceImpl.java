@@ -89,6 +89,12 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             // Get shortcode configuration
             MpesaShortCode shortcode = getShortcodeOrThrow(shortcodeUuid);
 
+            // A suspended (or never activated) shortcode takes no new payments.
+            if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
+                return MpesaApiResponse.error("SHORTCODE_SUSPENDED", "Shortcode " + shortcode.getShortcode()
+                        + " is suspended; STK push is refused", HttpStatus.SERVICE_UNAVAILABLE.value());
+            }
+
             // Validate STK Push capability
             if (!isSTKPushEnabled(shortcode)) {
                 return MpesaApiResponse.error("INVALID_CONFIG",
@@ -156,8 +162,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     // ==================== 2. C2B IMPLEMENTATION ====================
 
     @Override
-    public MpesaApiResponse<C2BRegistrationResponse> registerC2BUrls(UUID shortcodeUuid,
-                                                                     String confirmationUrl, String validationUrl) {
+    public MpesaApiResponse<C2BRegistrationResponse> registerC2BUrls(UUID shortcodeUuid, String confirmationUrl,
+                                                                     String validationUrl, String responseType) {
         log.info("Registering C2B URLs for shortcode: {}", shortcodeUuid);
 
         long startTime = System.currentTimeMillis();
@@ -171,7 +177,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
                         "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
             }
 
-            Map<String, Object> payload = buildC2BRegistrationPayload(shortcode, confirmationUrl, validationUrl);
+            Map<String, Object> payload = buildC2BRegistrationPayload(shortcode, confirmationUrl, validationUrl,
+                    responseType);
 
             MpesaDarajaHttpClient httpClient = getHttpClient(shortcode.getEnvironment());
             C2BRegistrationResponse response = httpClient.registerC2BUrls("Bearer " + accessToken, payload);
@@ -484,6 +491,11 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         }
     }
 
+    @Override
+    public void evictAccessToken(UUID shortcodeUuid) {
+        tokenCache.remove(shortcodeUuid.toString());
+    }
+
     private MpesaShortCode getShortcodeOrThrow(UUID shortcodeUuid) {
         return shortCodeRepository.findByUuid(shortcodeUuid)
                 .orElseThrow(() -> new IllegalArgumentException("Shortcode not found: " + shortcodeUuid));
@@ -615,11 +627,11 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    private Map<String, Object> buildC2BRegistrationPayload(MpesaShortCode shortcode,
-                                                            String confirmationUrl, String validationUrl) {
+    private Map<String, Object> buildC2BRegistrationPayload(MpesaShortCode shortcode, String confirmationUrl,
+                                                            String validationUrl, String responseType) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("ShortCode", shortcode.getShortcode());
-        payload.put("ResponseType", "Completed");
+        payload.put("ResponseType", "Cancelled".equals(responseType) ? "Cancelled" : "Completed");
         payload.put("ConfirmationURL", confirmationUrl);
         payload.put("ValidationURL", validationUrl);
         return payload;
