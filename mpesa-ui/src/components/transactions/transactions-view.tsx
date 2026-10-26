@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeftRight } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
@@ -18,6 +19,7 @@ import { StaleNotice } from "@/components/stale-notice";
 import { Button } from "@/components/ui/button";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
+import { cn } from "@/lib/utils";
 import { DateRangeFilter } from "./date-range-filter";
 import { type PaybillOption, PaybillSelect } from "./paybill-select";
 import { TransactionDetailSheet } from "./transaction-detail-sheet";
@@ -29,7 +31,7 @@ import {
   searchParams,
   TYPE_OPTIONS,
 } from "./transaction-filters";
-import { DEFAULT_SORT, TABLE_COLUMNS, TransactionsTable } from "./transactions-table";
+import { TABLE_COLUMNS, TransactionsTable } from "./transactions-table";
 
 const FILTER_KEYS = ["q", "type", "status", "paybill", "from", "to"] as const;
 
@@ -187,18 +189,27 @@ export function TransactionsView() {
                   <Button variant="outline" onClick={clearFilters}>
                     Clear filters
                   </Button>
-                ) : undefined
+                ) : (
+                  <Button asChild variant="outline">
+                    <Link href="/paybills">Check your paybills</Link>
+                  </Button>
+                )
               }
             />
           ) : (
             <>
-              <TransactionsTable
-                rows={data.items}
-                sort={sort ?? DEFAULT_SORT}
-                onSort={setSort}
-                selected={tx}
-                onSelect={setTx}
-              />
+              <div
+                className={cn("transition-opacity", list.isPlaceholderData && "opacity-60")}
+                aria-busy={list.isPlaceholderData || undefined}
+              >
+                <TransactionsTable
+                  rows={data.items}
+                  sort={sort}
+                  onSort={setSort}
+                  selected={tx}
+                  onSelect={setTx}
+                />
+              </div>
               <DataTablePagination
                 className="px-4"
                 meta={data}

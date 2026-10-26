@@ -24,6 +24,7 @@ import { RoleGate } from "@/components/role-gate";
 import { SearchInput } from "@/components/search-input";
 import { SectionCard } from "@/components/section-card";
 import { StatCardSkeleton, TableSkeleton } from "@/components/skeletons";
+import { SortableHead } from "@/components/sortable-head";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,6 @@ import { cn } from "@/lib/utils";
 import { okData } from "./api";
 import { EnvironmentBadge, InlineHealthChecks, PaybillStatusBadge } from "./paybill-badges";
 import { TYPE_LABELS } from "./paybill-health";
-import { SortableHead } from "./sortable-head";
 
 const TYPE_OPTIONS = [
   { value: "all", label: "All" },

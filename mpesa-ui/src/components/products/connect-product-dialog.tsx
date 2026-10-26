@@ -13,13 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { GrantMatrix, type GrantSelection } from "./grant-matrix";
 import { okData } from "./product-format";
-import { SecretReveal } from "./secret-reveal";
+import { SecretReveal, secretDialogGuards } from "./secret-reveal";
 import { useRefreshProducts } from "./use-refresh-products";
 
 type ConnectForm = {
@@ -86,7 +86,7 @@ export function ConnectProductDialog({ open, onOpenChange }: ConnectProductDialo
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl" {...(secret ? secretDialogGuards : {})}>
         {secret ? (
           <>
             <DialogHeader>
@@ -144,7 +144,7 @@ export function ConnectProductDialog({ open, onOpenChange }: ConnectProductDialo
               </Field>
             </div>
             <Field data-invalid={Boolean(form.formState.errors.grants) || undefined}>
-              <FieldLabel>Paybills and operations</FieldLabel>
+              <FieldTitle id="connect-grants-label">Paybills and operations</FieldTitle>
               <Controller
                 control={form.control}
                 name="grants"
@@ -157,6 +157,7 @@ export function ConnectProductDialog({ open, onOpenChange }: ConnectProductDialo
                     }}
                     disabled={connect.isPending}
                     errorId="connect-grants-error"
+                    labelId="connect-grants-label"
                   />
                 )}
               />

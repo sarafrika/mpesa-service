@@ -3,6 +3,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { ArrowLeftRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ApiError, LatestTransactionDto } from "@/api/generated/model";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -55,6 +56,7 @@ type LatestTransactionsCardProps = {
 
 export function LatestTransactionsCard({ query, now }: LatestTransactionsCardProps) {
   const rows = query.data;
+  const router = useRouter();
   return (
     <SectionCard
       title="Latest transactions"
@@ -101,9 +103,20 @@ export function LatestTransactionsCard({ query, now }: LatestTransactionsCardPro
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow key={`${row.direction}-${row.uuid}`}>
+                <TableRow
+                  key={`${row.direction}-${row.uuid}`}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/transactions?tx=${row.uuid}`)}
+                >
                   <TableCell className="text-muted-foreground tabular-nums">
-                    {when(row.created_at, now ?? Date.parse(row.created_at))}
+                    {/* The row is clickable; this link is its keyboard and screen reader control. */}
+                    <Link
+                      href={`/transactions?tx=${row.uuid}`}
+                      className="rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {when(row.created_at, now ?? Date.parse(row.created_at))}
+                    </Link>
                   </TableCell>
                   <TableCell>{TYPE_LABEL[row.payment_type] ?? row.payment_type}</TableCell>
                   <TableCell title={row.business_name}>{row.shortcode}</TableCell>

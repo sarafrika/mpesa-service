@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { clampPage, PAGE_SIZES, pageRange, pageWindow, readPaging, writePaging } from "./page.ts";
+import {
+  clampPage,
+  PAGE_SIZES,
+  pageRange,
+  pageWindow,
+  pagingKeys,
+  readPaging,
+  writePaging,
+} from "./page.ts";
 
 describe("pageRange", () => {
   it("describes the rows on the page", () => {
@@ -77,5 +85,33 @@ describe("readPaging and writePaging", () => {
       sort: "amount,desc",
     });
     assert.equal(later.toString(), "status=FAILED&page=5&size=50&sort=amount%2Cdesc");
+  });
+});
+
+describe("prefixed paging", () => {
+  it("names the keys after the prefix", () => {
+    assert.deepEqual(pagingKeys(), { page: "page", size: "size", sort: "sort" });
+    assert.deepEqual(pagingKeys("products"), {
+      page: "products_page",
+      size: "products_size",
+      sort: "products_sort",
+    });
+  });
+
+  it("reads only its own keys", () => {
+    const params = new URLSearchParams("page=4&size=50&products_page=2&products_size=10");
+    assert.deepEqual(readPaging(params, {}, "products"), { page: 1, size: 10, sort: undefined });
+    assert.deepEqual(readPaging(params), { page: 3, size: 50, sort: undefined });
+  });
+
+  it("writes its own keys and leaves another list's paging alone", () => {
+    const params = new URLSearchParams("page=4&status=FAILED");
+    const next = writePaging(params, { page: 2, size: 50, sort: "name,desc" }, {}, "products");
+    assert.equal(
+      next.toString(),
+      "page=4&status=FAILED&products_page=3&products_size=50&products_sort=name%2Cdesc",
+    );
+    const reset = writePaging(next, { page: 0, size: 25 }, {}, "products");
+    assert.equal(reset.toString(), "page=4&status=FAILED");
   });
 });

@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
 import { RoleGate } from "@/components/role-gate";
+import { SearchInput } from "@/components/search-input";
 import { SectionCard } from "@/components/section-card";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
@@ -42,7 +43,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
-import { pagedQueryOptions } from "@/hooks/use-paging";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
+import { formatCount } from "@/lib/format";
+import { PAGE_SIZES } from "@/lib/page";
+import { cn } from "@/lib/utils";
 import {
   OPERATION_HINTS,
   OPERATION_LABELS,
@@ -53,8 +58,9 @@ import {
 } from "./product-format";
 import { useRefreshProducts } from "./use-refresh-products";
 
-const PAGE_SIZE = 10;
 const NEW_PRODUCT = "__new__";
+// The service caps a page at 100; past that the picker asks for a search instead of paging.
+const PICKER_LIMIT = 100;
 
 export type ProductAccessProps = { shortcodeUuid: string };
 
@@ -67,15 +73,22 @@ export function ProductAccess({ shortcodeUuid }: ProductAccessProps) {
   );
 }
 
+// Unprefixed URL paging like the other paybill tabs, which clear page, size and sort on a tab switch.
 function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
-  const [page, setPage] = useState(0);
+  const paging = usePaging({ size: 10 });
   const [editing, setEditing] = useState<ProductGrant | null>(null);
   const [granting, setGranting] = useState(false);
   const grants = useListProductGrants(
-    { shortcode_uuid: shortcodeUuid, page, size: PAGE_SIZE, sort: ["display_name,asc"] },
+    {
+      shortcode_uuid: shortcodeUuid,
+      page: paging.page,
+      size: paging.size,
+      sort: ["display_name,asc"],
+    },
     { query: pagedQueryOptions },
   );
   const data = okData(grants.data);
+  useClampPage(data, paging.page, paging.setPage);
 
   return (
     <SectionCard
@@ -118,13 +131,24 @@ function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
         />
       ) : (
         <>
-          <ul className="flex flex-col gap-2">
+          <ul
+            className={cn(
+              "flex flex-col gap-2 transition-opacity",
+              grants.isPlaceholderData && "opacity-60",
+            )}
+            aria-busy={grants.isPlaceholderData || undefined}
+          >
             {data.items.map((grant) => (
               <AccessRow key={grant.uuid} grant={grant} onEdit={() => setEditing(grant)} />
             ))}
           </ul>
-          {data.total_pages > 1 && (
-            <DataTablePagination meta={data} onPageChange={setPage} disabled={grants.isFetching} />
+          {data.total_items > PAGE_SIZES[0] && (
+            <DataTablePagination
+              meta={data}
+              onPageChange={paging.setPage}
+              onPageSizeChange={paging.setSize}
+              disabled={grants.isPlaceholderData}
+            />
           )}
         </>
       )}
@@ -325,10 +349,17 @@ function GrantProductDialog({
   taken: string[];
   onClose: () => void;
 }) {
-  const products = useListProducts({ size: 100, sort: ["name,asc"] });
-  const choices = (okData(products.data)?.items ?? []).filter(
+  const [search, setSearch] = useState("");
+  const query = useDebouncedValue(search.trim(), 300);
+  const products = useListProducts(
+    { size: PICKER_LIMIT, sort: ["name,asc"], ...(query ? { search: query } : {}) },
+    { query: pagedQueryOptions },
+  );
+  const productPage = okData(products.data);
+  const choices = (productPage?.items ?? []).filter(
     (product) => !taken.includes(product.client_id),
   );
+  const searchable = Boolean(query) || (productPage?.total_items ?? 0) > PICKER_LIMIT;
   const [choice, setChoice] = useState<string>("");
   const [clientId, setClientId] = useState("");
   const [name, setName] = useState("");
@@ -371,6 +402,19 @@ function GrantProductDialog({
             Choose a connected product, or name a new Keycloak client.
           </DialogDescription>
         </DialogHeader>
+        {searchable && (
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search products by name or client id"
+          />
+        )}
+        {productPage && productPage.total_items > productPage.items.length && (
+          <p className="text-muted-foreground text-xs" aria-live="polite">
+            Showing the first {formatCount(productPage.items.length)} of{" "}
+            {formatCount(productPage.total_items)} products; search to find the others.
+          </p>
+        )}
         {products.isPending ? (
           <Skeleton className="h-9 w-full" />
         ) : (

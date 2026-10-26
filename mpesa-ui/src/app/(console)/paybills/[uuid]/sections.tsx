@@ -7,6 +7,7 @@ import { FloatSection } from "@/components/paybills/sections/float-section";
 import { OverviewSection } from "@/components/paybills/sections/overview-section";
 import type { PaybillSectionProps } from "@/components/paybills/sections/types";
 import { ProductAccess } from "@/components/products/product-access";
+import { PaybillTransactions } from "@/components/transactions/paybill-transactions";
 
 export type { PaybillSectionProps };
 
@@ -22,6 +23,10 @@ export type PaybillSection = {
 
 function ValidationRulesSection({ shortcode }: PaybillSectionProps) {
   return <ValidationRulesEditor shortcodeUuid={shortcode.uuid} />;
+}
+
+function TransactionsSection({ shortcode }: PaybillSectionProps) {
+  return <PaybillTransactions shortcodeUuid={shortcode.uuid} />;
 }
 
 function ProductAccessSection({ shortcode }: PaybillSectionProps) {
@@ -46,4 +51,5 @@ export const PAYBILL_SECTIONS: readonly PaybillSection[] = [
   { id: "products", label: "Product access", Component: ProductAccessSection },
   { id: "credentials", label: "Credentials", Component: CredentialsSection },
   { id: "float", label: "Float", Component: FloatSection },
+  { id: "transactions", label: "Transactions", Component: TransactionsSection },
 ];

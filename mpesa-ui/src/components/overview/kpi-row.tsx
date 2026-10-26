@@ -30,7 +30,12 @@ export function KpiRow({ query, period }: KpiRowProps) {
     if (query.isError) {
       return (
         <Card className="px-5">
-          <ErrorState error={query.error} onRetry={() => query.refetch()} className="py-6" />
+          <ErrorState
+            error={query.error}
+            onRetry={() => query.refetch()}
+            retrying={query.isFetching}
+            className="py-6"
+          />
         </Card>
       );
     }

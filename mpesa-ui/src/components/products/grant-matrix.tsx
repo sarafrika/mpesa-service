@@ -2,13 +2,18 @@
 
 import { CreditCard } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { SearchInput } from "@/components/search-input";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { pagedQueryOptions } from "@/hooks/use-paging";
+import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   OPERATION_HINTS,
@@ -27,11 +32,60 @@ type GrantMatrixProps = {
   disabled?: boolean;
   /** id of the element describing a validation problem, for aria-describedby. */
   errorId?: string;
+  /** id of the visible heading that names the list, for aria-labelledby. */
+  labelId?: string;
 };
 
+// The service caps a page at 100; past that the matrix asks for a search instead of paging.
+const LIMIT = 100;
+
+function useShortcodePage(q: string) {
+  return useListShortcodes(
+    { size: LIMIT, sort: ["shortcode,asc"], ...(q ? { q } : {}) },
+    { query: pagedQueryOptions },
+  );
+}
+
 /** Every paybill and till as a row, with a checkbox per operation the product may use on it. */
-export function GrantMatrix({ value, onChange, disabled, errorId }: GrantMatrixProps) {
-  const shortcodes = useListShortcodes({ size: 100, sort: ["shortcode,asc"] });
+export function GrantMatrix(props: GrantMatrixProps) {
+  const [search, setSearch] = useState("");
+  const q = useDebouncedValue(search.trim(), 300);
+  const shortcodes = useShortcodePage(q);
+  const page = okData(shortcodes.data);
+  const searchable = Boolean(q) || (page?.total_items ?? 0) > LIMIT;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {searchable && (
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search paybills by name or number"
+        />
+      )}
+      {page && page.total_items > page.items.length && (
+        <p className="text-muted-foreground text-xs" aria-live="polite">
+          Showing the first {formatCount(page.items.length)} of {formatCount(page.total_items)}{" "}
+          paybills; search to find the others. Ticks on paybills you can't see are kept.
+        </p>
+      )}
+      <MatrixBody {...props} shortcodes={shortcodes} searching={Boolean(q)} />
+    </div>
+  );
+}
+
+function MatrixBody({
+  value,
+  onChange,
+  disabled,
+  errorId,
+  labelId,
+  shortcodes,
+  searching,
+}: GrantMatrixProps & {
+  shortcodes: ReturnType<typeof useShortcodePage>;
+  searching: boolean;
+}) {
   const page = okData(shortcodes.data);
 
   if (shortcodes.isPending) {
@@ -55,6 +109,9 @@ export function GrantMatrix({ value, onChange, disabled, errorId }: GrantMatrixP
     );
   }
   const rows = page?.items ?? [];
+  if (rows.length === 0 && searching) {
+    return <p className="py-4 text-center text-muted-foreground text-sm">No paybill matches.</p>;
+  }
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -82,7 +139,15 @@ export function GrantMatrix({ value, onChange, disabled, errorId }: GrantMatrixP
   }
 
   return (
-    <ul className="flex max-h-80 flex-col gap-2 overflow-y-auto" aria-describedby={errorId}>
+    <ul
+      className={cn(
+        "flex max-h-80 flex-col gap-2 overflow-y-auto transition-opacity",
+        shortcodes.isPlaceholderData && "opacity-60",
+      )}
+      aria-labelledby={labelId}
+      aria-describedby={errorId}
+      aria-busy={shortcodes.isPlaceholderData || undefined}
+    >
       {rows.map((code) => {
         const chosen = value[code.uuid] ?? [];
         return (

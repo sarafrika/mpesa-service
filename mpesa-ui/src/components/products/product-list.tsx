@@ -1,7 +1,6 @@
 "use client";
 
 import { Boxes, Plus } from "lucide-react";
-import { useState } from "react";
 import { useListProducts } from "@/api/generated/endpoints/admin-products/admin-products";
 import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
@@ -11,21 +10,23 @@ import { SectionCard } from "@/components/section-card";
 import { StaleNotice } from "@/components/stale-notice";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { pagedQueryOptions } from "@/hooks/use-paging";
+import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
+import { PAGE_SIZES } from "@/lib/page";
+import { cn } from "@/lib/utils";
 import { ProductCard, ProductCardSkeleton } from "./product-card";
 import { okData } from "./product-format";
 
-const CARDS_PER_PAGE = 24;
 const GRID = "grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr))]";
 
-// Cards page locally, not in the URL: the deliveries table below owns ?page=.
+// Cards page under products_* in the URL; the deliveries table below owns ?page=.
 export function ProductList({ onConnect }: { onConnect: () => void }) {
-  const [page, setPage] = useState(0);
+  const paging = usePaging({ prefix: "products" });
   const products = useListProducts(
-    { page, size: CARDS_PER_PAGE, sort: ["name,asc"] },
+    { page: paging.page, size: paging.size, sort: ["name,asc"] },
     { query: pagedQueryOptions },
   );
   const data = okData(products.data);
+  useClampPage(data, paging.page, paging.setPage);
 
   if (products.isPending) {
     return (
@@ -71,14 +72,22 @@ export function ProductList({ onConnect }: { onConnect: () => void }) {
   return (
     <section aria-label="Products" className="flex flex-col gap-3">
       <StaleNotice query={products} />
-      <div className={GRID}>
+      <div
+        className={cn(GRID, "transition-opacity", products.isPlaceholderData && "opacity-60")}
+        aria-busy={products.isPlaceholderData || undefined}
+      >
         {items.map((product) => (
           <ProductCard key={product.client_id} product={product} />
         ))}
         <NextProductCard onConnect={onConnect} />
       </div>
-      {data && data.total_pages > 1 && (
-        <DataTablePagination meta={data} onPageChange={setPage} disabled={products.isFetching} />
+      {data && data.total_items > PAGE_SIZES[0] && (
+        <DataTablePagination
+          meta={data}
+          onPageChange={paging.setPage}
+          onPageSizeChange={paging.setSize}
+          disabled={products.isPlaceholderData}
+        />
       )}
     </section>
   );

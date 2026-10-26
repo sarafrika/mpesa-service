@@ -8,24 +8,35 @@ import { clampPage, type PageMeta, type Paging, readPaging, writePaging } from "
 /** Pass to a paged query so the current rows stay on screen while the next page loads. */
 export const pagedQueryOptions = { placeholderData: keepPreviousData } as const;
 
+type PagingOptions = Partial<Paging> & {
+  /** Prefixes the URL keys (`products` → `products_page`) when a screen has more than one paged list. */
+  prefix?: string;
+};
+
 // Page, size and sort live in the URL so a table survives refresh and shared links; render inside <Suspense>.
-export function usePaging(defaults: Partial<Paging> = {}) {
+export function usePaging(options: PagingOptions = {}) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { size: defaultSize, sort: defaultSort } = defaults;
+  const { size: defaultSize, sort: defaultSort, prefix } = options;
   const paging = useMemo(
     () =>
-      readPaging(new URLSearchParams(params.toString()), { size: defaultSize, sort: defaultSort }),
-    [params, defaultSize, defaultSort],
+      readPaging(
+        new URLSearchParams(params.toString()),
+        { size: defaultSize, sort: defaultSort },
+        prefix,
+      ),
+    [params, defaultSize, defaultSort, prefix],
   );
 
   const update = useCallback(
     (next: Paging, extra?: Record<string, string | undefined>) => {
-      const query = writePaging(new URLSearchParams(params.toString()), next, {
-        size: defaultSize,
-        sort: defaultSort,
-      });
+      const query = writePaging(
+        new URLSearchParams(params.toString()),
+        next,
+        { size: defaultSize, sort: defaultSort },
+        prefix,
+      );
       for (const [key, value] of Object.entries(extra ?? {})) {
         if (value === undefined || value === "") query.delete(key);
         else query.set(key, value);
@@ -33,7 +44,7 @@ export function usePaging(defaults: Partial<Paging> = {}) {
       const search = query.toString();
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
     },
-    [params, router, pathname, defaultSize, defaultSort],
+    [params, router, pathname, defaultSize, defaultSort, prefix],
   );
 
   return {

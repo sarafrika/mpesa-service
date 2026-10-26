@@ -41,15 +41,26 @@ export function clampPage(page: number, totalPages: number): number {
   return Math.min(Math.max(page, 0), totalPages - 1);
 }
 
+/** URL keys for one list's paging; a prefix (`products` → `products_page`) lets two lists share a URL. */
+export function pagingKeys(prefix?: string) {
+  const key = (name: string) => (prefix ? `${prefix}_${name}` : name);
+  return { page: key("page"), size: key("size"), sort: key("sort") };
+}
+
 /** Reads paging from the URL, where `page` is 1-based for people; the API's page is 0-based. */
-export function readPaging(params: URLSearchParams, defaults: Partial<Paging> = {}): Paging {
+export function readPaging(
+  params: URLSearchParams,
+  defaults: Partial<Paging> = {},
+  prefix?: string,
+): Paging {
+  const keys = pagingKeys(prefix);
   const defaultSize = defaults.size ?? DEFAULT_PAGE_SIZE;
-  const urlPage = Number.parseInt(params.get("page") ?? "", 10);
-  const urlSize = Number.parseInt(params.get("size") ?? "", 10);
+  const urlPage = Number.parseInt(params.get(keys.page) ?? "", 10);
+  const urlSize = Number.parseInt(params.get(keys.size) ?? "", 10);
   return {
     page: Number.isFinite(urlPage) && urlPage > 0 ? urlPage - 1 : 0,
     size: (PAGE_SIZES as readonly number[]).includes(urlSize) ? urlSize : defaultSize,
-    sort: params.get("sort") ?? defaults.sort,
+    sort: params.get(keys.sort) ?? defaults.sort,
   };
 }
 
@@ -58,14 +69,16 @@ export function writePaging(
   params: URLSearchParams,
   paging: Paging,
   defaults: Partial<Paging> = {},
+  prefix?: string,
 ): URLSearchParams {
+  const keys = pagingKeys(prefix);
   const next = new URLSearchParams(params);
   const set = (key: string, value: string | undefined, fallback: string | undefined) => {
     if (value === undefined || value === fallback) next.delete(key);
     else next.set(key, value);
   };
-  set("page", String(paging.page + 1), "1");
-  set("size", String(paging.size), String(defaults.size ?? DEFAULT_PAGE_SIZE));
-  set("sort", paging.sort, defaults.sort);
+  set(keys.page, String(paging.page + 1), "1");
+  set(keys.size, String(paging.size), String(defaults.size ?? DEFAULT_PAGE_SIZE));
+  set(keys.sort, paging.sort, defaults.sort);
   return next;
 }

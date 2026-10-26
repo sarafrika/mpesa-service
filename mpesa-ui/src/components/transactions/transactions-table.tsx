@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { TransactionDto } from "@/api/generated/model";
 import { MaskedPhone } from "@/components/masked-phone";
 import { Money } from "@/components/money";
+import { SortableHead } from "@/components/sortable-head";
 import { StatusBadge } from "@/components/status-badge";
 import {
   Table,
@@ -14,60 +14,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { typeLabel } from "./transaction-filters";
 
-export const DEFAULT_SORT = "created_at,desc";
 export const TABLE_COLUMNS = 7;
 
 type TransactionsTableProps = {
   rows: readonly TransactionDto[];
+  /** `field,dir` from usePaging; undefined is the service's newest-first order. */
   sort?: string;
-  onSort: (sort: string) => void;
+  onSort: (sort: string | undefined) => void;
   selected?: string;
   onSelect: (uuid: string) => void;
 };
 
-function SortHeader({
-  field,
-  label,
-  sort,
-  onSort,
-  className,
-}: {
-  field: string;
-  label: string;
-  sort: string;
-  onSort: (sort: string) => void;
-  className?: string;
-}) {
-  const [current, direction] = sort.split(",");
-  const active = current === field;
-  const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
-  return (
-    <TableHead
-      className={className}
-      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        type="button"
-        className={cn(
-          "inline-flex items-center gap-1 rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
-          className?.includes("text-right") && "flex-row-reverse",
-        )}
-        onClick={() => onSort(`${field},${active && direction === "desc" ? "asc" : "desc"}`)}
-      >
-        {label}
-        <Icon aria-hidden className="size-3.5" />
-      </button>
-    </TableHead>
-  );
-}
-
 /** Feed rows; the whole row opens the side panel, and its first cell is the keyboard control. */
 export function TransactionsTable({
   rows,
-  sort = DEFAULT_SORT,
+  sort,
   onSort,
   selected,
   onSelect,
@@ -77,18 +40,28 @@ export function TransactionsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <SortHeader field="created_at" label="Time" sort={sort} onSort={onSort} />
+            <SortableHead
+              field="created_at"
+              defaultField="created_at"
+              firstDirection="desc"
+              sort={sort}
+              onSort={onSort}
+            >
+              Time
+            </SortableHead>
             <TableHead>Type</TableHead>
             <TableHead>Receipt / id</TableHead>
             <TableHead>Account ref</TableHead>
             <TableHead>Phone</TableHead>
-            <SortHeader
+            <SortableHead
               field="amount"
-              label="Amount (KES)"
+              firstDirection="desc"
+              align="right"
               sort={sort}
               onSort={onSort}
-              className="text-right"
-            />
+            >
+              Amount (KES)
+            </SortableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>

@@ -22,13 +22,13 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { okData } from "./product-format";
-import { SecretReveal } from "./secret-reveal";
+import { SecretReveal, secretDialogGuards } from "./secret-reveal";
 import { useRefreshProducts } from "./use-refresh-products";
 
 function SecretDialog({ secret, onClose }: { secret: string | null; onClose: () => void }) {
   return (
     <Dialog open={secret !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" {...secretDialogGuards}>
         <DialogHeader>
           <DialogTitle>Webhook signing secret</DialogTitle>
           <DialogDescription>Give the product&apos;s team this secret now.</DialogDescription>

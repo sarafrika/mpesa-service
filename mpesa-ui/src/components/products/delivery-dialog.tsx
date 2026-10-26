@@ -21,7 +21,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { useHasRole } from "@/hooks/use-has-role";
 import { formatDateTime } from "@/lib/format";
+import { redactPersonalData } from "@/lib/redact";
 import { deliveryResult, latency, okData } from "./product-format";
 import { useRefreshProducts } from "./use-refresh-products";
 
@@ -30,6 +32,7 @@ export function DeliveryDialog({ uuid, onClose }: { uuid: string | null; onClose
   const query = useGetWebhookDelivery(uuid ?? "", { query: { enabled: uuid !== null } });
   const delivery = okData(query.data);
   const refresh = useRefreshProducts();
+  const canSeePersonal = useHasRole("mpesa-finance");
   const replay = useReplayWebhookDelivery({
     mutation: { meta: { requiredRole: "mpesa-operator" } },
   });
@@ -91,7 +94,13 @@ export function DeliveryDialog({ uuid, onClose }: { uuid: string | null; onClose
             <div className="flex min-w-0 flex-col gap-1.5">
               <span className="font-medium text-sm">Signed body</span>
               <pre className="max-h-64 overflow-auto rounded-lg border bg-muted/50 p-3 font-mono text-xs">
-                {JSON.stringify(delivery.payload ?? {}, null, 2)}
+                {JSON.stringify(
+                  canSeePersonal
+                    ? (delivery.payload ?? {})
+                    : redactPersonalData(delivery.payload ?? {}),
+                  null,
+                  2,
+                )}
               </pre>
             </div>
           </div>
