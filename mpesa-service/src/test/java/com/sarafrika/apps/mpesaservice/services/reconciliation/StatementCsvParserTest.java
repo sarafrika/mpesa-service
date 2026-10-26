@@ -76,6 +76,18 @@ class StatementCsvParserTest {
     }
 
     @Test
+    void refusesAmountsThatAreNotPlainShillingsAndMoneyInShownNegative() {
+        for (String bad : new String[]{"1e9", "1E+999999999", "12.345", "0x10", "1.2.3", "--5", "(-5)", "NaN"}) {
+            assertThatThrownBy(() -> StatementCsvParser.amount("Paid In", bad, true))
+                    .as(bad).isInstanceOf(IllegalArgumentException.class).hasMessageContaining("is not an amount");
+        }
+        assertThatThrownBy(() -> StatementCsvParser.amount("Paid In", "-500.00", false))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("negative");
+        assertThatThrownBy(() -> StatementCsvParser.amount("Paid In", "(500.00)", false))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("negative");
+    }
+
+    @Test
     void enforcesTheRowLimit() throws IOException {
         assertThatThrownBy(() -> StatementCsvParser.parse(fixture("org-statement-utility.csv"), 3))
                 .isInstanceOf(StatementParseException.class).hasMessageContaining("more than 3 lines");
@@ -83,10 +95,11 @@ class StatementCsvParserTest {
 
     @Test
     void readsAmountsAndTimesInTheLayoutsSeenInExports() {
-        assertThat(StatementCsvParser.amount("Paid In", "\"1,131,340.00\"".replace("\"", "")))
+        assertThat(StatementCsvParser.amount("Paid In", "\"1,131,340.00\"".replace("\"", ""), false))
                 .isEqualByComparingTo(new BigDecimal("1131340.00"));
-        assertThat(StatementCsvParser.amount("Withdrawn", "(60.00)")).isEqualByComparingTo("60");
-        assertThat(StatementCsvParser.amount("Withdrawn", "")).isEqualByComparingTo("0");
+        assertThat(StatementCsvParser.amount("Withdrawn", "(60.00)", true)).isEqualByComparingTo("60");
+        assertThat(StatementCsvParser.amount("Withdrawn", "-3,000.00", true)).isEqualByComparingTo("3000");
+        assertThat(StatementCsvParser.amount("Withdrawn", "", true)).isEqualByComparingTo("0");
         assertThat(StatementCsvParser.time("07-04-2025 23:01:41")).isEqualTo(LocalDateTime.of(2025, 4, 7, 23, 1, 41));
         assertThat(StatementCsvParser.time("2025-04-07 23:01:41")).isEqualTo(LocalDateTime.of(2025, 4, 7, 23, 1, 41));
         assertThat(StatementCsvParser.time("7/4/2025 23:01")).isEqualTo(LocalDateTime.of(2025, 4, 7, 23, 1));

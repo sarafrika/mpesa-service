@@ -18,6 +18,8 @@ import java.util.Optional;
  * header row starting "Receipt No.", then one row per line. Columns are found by name, since exports differ. */
 public final class StatementCsvParser {
 
+    private static final java.util.regex.Pattern AMOUNT = java.util.regex.Pattern.compile("^-?\\d{1,13}(\\.\\d{1,2})?$");
+
     // Header names as exported by the M-Pesa org portal (Receipt No., Completion Time, ... A/C No.); seen in
     // workpointltd/presta-ui docs/resources/c2b-import-template.csv and judeokello/microbima mpesa-payments.service.ts.
     enum Column { RECEIPT, COMPLETION_TIME, INITIATION_TIME, DETAILS, STATUS, PAID_IN, WITHDRAWN, REASON_TYPE,
@@ -140,8 +142,8 @@ public final class StatementCsvParser {
         }
         return new StatementLine(lineNumber, receipt.toUpperCase(Locale.ROOT), time(time),
                 blankToNull(cell(row, columns, Column.DETAILS)), blankToNull(cell(row, columns, Column.STATUS)),
-                amount("Paid In", cell(row, columns, Column.PAID_IN)),
-                amount("Withdrawn", cell(row, columns, Column.WITHDRAWN)),
+                amount("Paid In", cell(row, columns, Column.PAID_IN), false),
+                amount("Withdrawn", cell(row, columns, Column.WITHDRAWN), true),
                 blankToNull(cell(row, columns, Column.REASON_TYPE)), blankToNull(cell(row, columns, Column.OTHER_PARTY)),
                 Optional.ofNullable(blankToNull(cell(row, columns, Column.LINKED_TRANSACTION)))
                         .map(v -> v.toUpperCase(Locale.ROOT)).orElse(null),
@@ -162,18 +164,24 @@ public final class StatementCsvParser {
         throw new IllegalArgumentException("Completion Time '" + value + "' is not a date and time");
     }
 
-    /** "1,131,340.00", "-60.00", "(60.00)" and "" (zero) are all read; the sign is dropped. */
-    static BigDecimal amount(String column, String value) {
-        String cleaned = value.replace(",", "").replace("KES", "").replace("Ksh", "").replace(" ", "")
-                .replace("(", "").replace(")", "");
+    /** "1,131,340.00", "-60.00", "(60.00)" and "" (zero) are read as plain shillings and cents, the sign dropped;
+     * anything else (exponents, more than two decimals, text) is a row error, as is money in shown negative. */
+    static BigDecimal amount(String column, String value, boolean negativeAllowed) {
+        String trimmed = value.trim();
+        boolean bracketed = trimmed.startsWith("(") && trimmed.endsWith(")");
+        String cleaned = (bracketed ? trimmed.substring(1, trimmed.length() - 1) : trimmed).replace(",", "")
+                .replace("KES", "").replace("Ksh", "").replace(" ", "");
         if (cleaned.isEmpty() || cleaned.equals("-")) {
             return BigDecimal.ZERO;
         }
-        try {
-            return new BigDecimal(cleaned).abs();
-        } catch (NumberFormatException e) {
+        if (!AMOUNT.matcher(cleaned).matches() || (bracketed && cleaned.startsWith("-"))) {
             throw new IllegalArgumentException(column + " '" + value + "' is not an amount");
         }
+        BigDecimal amount = new BigDecimal(cleaned);
+        if (!negativeAllowed && (bracketed || amount.signum() < 0)) {
+            throw new IllegalArgumentException(column + " '" + value + "' is negative");
+        }
+        return amount.abs();
     }
 
     private static Map<Column, Integer> columns(List<String> header) {
