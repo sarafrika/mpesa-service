@@ -24,6 +24,8 @@ const ACTION: Record<string, string> = {
   PAYBILL_STALE: "Open paybill",
   PAYBILL_FAILING: "Open paybill",
   STK_PENDING: "View",
+  APPROVALS_WAITING: "Review",
+  CALLBACKS_FAILING: "Open inbox",
 };
 
 export function AttentionCard({ query }: { query: UseQueryResult<AttentionItemDto[], ApiError> }) {

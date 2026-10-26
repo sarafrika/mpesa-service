@@ -26,6 +26,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -71,7 +72,16 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
     { active: true, size: 100 },
     { query: { enabled: open } },
   );
-  const options = okData(destinations.data)?.items ?? [];
+  const destinationPage = okData(destinations.data);
+  const loaded = destinationPage?.items ?? [];
+  const [search, setSearch] = useState("");
+  // The list API has no search, so the first 100 active destinations are filtered here.
+  const needle = search.trim().toLowerCase();
+  const options = needle
+    ? loaded.filter(
+        (d) => d.name.toLowerCase().includes(needle) || d.receiver_shortcode.includes(needle),
+      )
+    : loaded;
   const sweep = useRequestB2bSweep({ mutation: { meta: { errorToast: false } } });
   const { errors } = form.formState;
 
@@ -118,6 +128,15 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
         <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-4" noValidate>
           <Field data-invalid={errors.destination_uuid ? true : undefined}>
             <FieldLabel htmlFor={destinationId}>Destination</FieldLabel>
+            {loaded.length > 5 && (
+              <Input
+                type="search"
+                aria-label="Search destinations"
+                placeholder="Search by name or number"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            )}
             <Controller
               control={form.control}
               name="destination_uuid"
@@ -132,7 +151,7 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
                       placeholder={
                         destinations.isPending
                           ? "Loading destinations…"
-                          : options.length === 0
+                          : loaded.length === 0
                             ? "No active destinations"
                             : "Pick a paybill or till"
                       }
@@ -149,10 +168,15 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
                 </Select>
               )}
             />
+            {destinationPage && destinationPage.total_items > loaded.length && (
+              <FieldDescription>
+                Showing the first {loaded.length} of {destinationPage.total_items} destinations.
+              </FieldDescription>
+            )}
             {destinations.isError && (
               <FieldDescription>Destinations could not be loaded; try again.</FieldDescription>
             )}
-            {!destinations.isPending && !destinations.isError && options.length === 0 && (
+            {!destinations.isPending && !destinations.isError && loaded.length === 0 && (
               <FieldDescription>
                 An admin adds destinations under B2B destinations on this tab.
               </FieldDescription>

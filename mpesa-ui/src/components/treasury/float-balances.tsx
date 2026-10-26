@@ -1,7 +1,8 @@
 "use client";
 
 import { Wallet } from "lucide-react";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useGetShortcodeBalance } from "@/api/generated/endpoints/admin-treasury/admin-treasury";
 import type { ShortcodeDetail, ShortcodeFloatStatusDto } from "@/api/generated/model";
@@ -14,6 +15,7 @@ import { SectionCard } from "@/components/section-card";
 import { StatCardSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import { formatDateTime, formatKes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { BalanceHistory } from "./balance-history";
@@ -81,6 +83,22 @@ export function FloatBalances({ shortcode }: { shortcode: ShortcodeDetail }) {
     );
   }
 
+  // What an empty balance or history offers: query now, or add the initiator that Account Balance needs.
+  const nextStep = data.initiator_configured ? (
+    <RoleGate needs="mpesa-operator">
+      <QueryBalanceButton
+        shortcodeUuid={shortcode.uuid}
+        enabled
+        waiting={waitingFor !== null}
+        onSent={setWaitingFor}
+      />
+    </RoleGate>
+  ) : (
+    <Button variant="outline" size="sm" asChild>
+      <Link href="?tab=credentials">Add it under Credentials</Link>
+    </Button>
+  );
+
   return (
     <SectionCard
       title="Float"
@@ -99,11 +117,18 @@ export function FloatBalances({ shortcode }: { shortcode: ShortcodeDetail }) {
       <StaleNotice query={status} />
       {!data.initiator_configured && (
         <p className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-warning text-sm">
-          Account Balance and B2B need this shortcode's initiator. Add it under Credentials.
+          Account Balance and B2B need this shortcode's initiator.{" "}
+          <Link href="?tab=credentials" className="font-medium underline underline-offset-4">
+            Add it under Credentials
+          </Link>
+          .
         </p>
       )}
-      <Balances status={data} />
-      <BalanceHistory shortcodeUuid={shortcode.uuid} />
+      <Balances status={data} action={nextStep} />
+      <BalanceHistory
+        shortcodeUuid={shortcode.uuid}
+        action={data.utility_available == null && !data.latest ? undefined : nextStep}
+      />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-muted-foreground text-sm">
         <span>
           Low-float alert below{" "}
@@ -143,7 +168,7 @@ function describeSource(status: ShortcodeFloatStatusDto): string {
     : `As of ${at}, from Safaricom's Account Balance result.`;
 }
 
-function Balances({ status }: { status: ShortcodeFloatStatusDto }) {
+function Balances({ status, action }: { status: ShortcodeFloatStatusDto; action?: ReactNode }) {
   const latest = status.latest;
   const fromPayout = status.utility_source === "PAYOUT";
   if (status.utility_available == null && !latest) {
@@ -152,6 +177,7 @@ function Balances({ status }: { status: ShortcodeFloatStatusDto }) {
         icon={Wallet}
         title="No balance reported yet"
         description="Query the balance now; payouts that settle also report the utility balance."
+        action={action}
       />
     );
   }

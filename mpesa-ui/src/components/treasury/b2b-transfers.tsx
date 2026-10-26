@@ -1,7 +1,16 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRightLeft, TriangleAlert } from "lucide-react";
-import { useListB2bTransfers } from "@/api/generated/endpoints/admin-treasury/admin-treasury";
+import Link from "next/link";
+import { toast } from "sonner";
+import {
+  getListB2bTransfersQueryKey,
+  useCloseB2bTransferAsFailed,
+  useListB2bTransfers,
+} from "@/api/generated/endpoints/admin-treasury/admin-treasury";
+import type { B2bTransferDto } from "@/api/generated/model";
+import { CloseAsFailedDialog } from "@/components/close-as-failed-dialog";
 import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -12,6 +21,7 @@ import { TableSkeleton } from "@/components/skeletons";
 import { SortableHead } from "@/components/sortable-head";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -20,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useHasRole } from "@/hooks/use-has-role";
 import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -34,6 +45,7 @@ export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
   );
   const data = okData(list.data);
   useClampPage(data, paging.page, paging.setPage);
+  const isFinance = useHasRole("mpesa-finance");
 
   return (
     <SectionCard
@@ -50,6 +62,11 @@ export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
           icon={ArrowRightLeft}
           title="No sweeps sent yet"
           description="Request a sweep above; it shows here once a checker approves it in Approvals."
+          action={
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/approvals?tab=approved">Open approvals</Link>
+            </Button>
+          }
         />
       ) : (
         <>
@@ -84,6 +101,11 @@ export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
                   <TableHead>Status</TableHead>
                   <TableHead>Safaricom said</TableHead>
                   <TableHead>Maker / checker</TableHead>
+                  {isFinance && (
+                    <TableHead>
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -129,6 +151,13 @@ export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
                     <TableCell className="text-muted-foreground text-xs">
                       {transfer.maker ?? "—"} / {transfer.checker ?? "—"}
                     </TableCell>
+                    {isFinance && (
+                      <TableCell className="text-right">
+                        {transfer.status === "PENDING" && transfer.outcome_unknown && (
+                          <CloseTransfer shortcodeUuid={shortcodeUuid} transfer={transfer} />
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -143,5 +172,42 @@ export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
         </>
       )}
     </SectionCard>
+  );
+}
+
+/** Finance closes a sweep whose outcome stayed unknown, once the statement shows no money moved. */
+function CloseTransfer({
+  shortcodeUuid,
+  transfer,
+}: {
+  shortcodeUuid: string;
+  transfer: B2bTransferDto;
+}) {
+  const queryClient = useQueryClient();
+  const close = useCloseB2bTransferAsFailed({
+    mutation: { meta: { requiredRole: "mpesa-finance" } },
+  });
+  return (
+    <CloseAsFailedDialog
+      title={`Close sweep ${transfer.reference} as failed?`}
+      description="Only when the M-Pesa statement shows this money never left. Nothing is sent to Safaricom, and a result that still arrives settles it."
+      pending={close.isPending}
+      trigger={
+        <Button variant="outline" size="sm">
+          Close as failed
+        </Button>
+      }
+      onSubmit={async (note) => {
+        await close.mutateAsync({
+          uuid: shortcodeUuid,
+          transferUuid: transfer.uuid,
+          data: { note },
+        });
+        toast.success("Sweep closed as failed");
+        await queryClient.invalidateQueries({
+          queryKey: getListB2bTransfersQueryKey(shortcodeUuid),
+        });
+      }}
+    />
   );
 }

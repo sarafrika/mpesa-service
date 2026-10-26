@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { redactPersonalData, shortenName } from "./redact.ts";
+import { maskPhoneLike, redactPersonalData, shortenName } from "./redact.ts";
 
 describe("shortenName", () => {
   it("keeps the last name and initials the rest", () => {
@@ -83,8 +83,60 @@ describe("redactPersonalData", () => {
     );
   });
 
+  it("masks reversal result parties", () => {
+    const result = {
+      Result: {
+        ResultCode: 0,
+        TransactionID: "MJ561H6X5O",
+        ResultParameters: {
+          ResultParameter: [
+            { Key: "Amount", Value: "100" },
+            { Key: "OriginalTransactionID", Value: "MIP3XXXX" },
+            { Key: "CreditPartyPublicName", Value: "254708374149 - John Doe" },
+            { Key: "DebitPartyPublicName", Value: "601315 - Safaricom1338" },
+          ],
+        },
+      },
+    };
+    const text = JSON.stringify(redactPersonalData(result));
+    assert.ok(text.includes("2547•••••149 - J. Doe"));
+    assert.ok(!text.includes("254708374149"));
+    assert.ok(!text.includes("John"));
+    assert.ok(text.includes("MIP3XXXX"));
+    assert.ok(text.includes('"601315 - Safaricom1338"'));
+  });
+
+  it("masks Transaction Status debit and credit parties", () => {
+    const result = {
+      Result: {
+        ResultParameters: {
+          ResultParameter: [
+            { Key: "DebitPartyName", Value: "254722000000 - Jane Doe" },
+            { Key: "CreditPartyName", Value: "600000 - Sarafrika Fees" },
+            { Key: "ReceiptNo", Value: "OEI2AK4Q16" },
+          ],
+        },
+      },
+    };
+    const text = JSON.stringify(redactPersonalData(result));
+    assert.ok(text.includes("2547•••••000 - J. Doe"));
+    assert.ok(!text.includes("Jane"));
+    assert.ok(text.includes("OEI2AK4Q16"));
+  });
+
   it("is unchanged by already masked values", () => {
     const masked = { MSISDN: "2547•••••123", FirstName: "J.", customer_name: "J. Wanjiku" };
     assert.deepEqual(redactPersonalData(masked), masked);
+  });
+});
+
+describe("maskPhoneLike", () => {
+  it("masks phone-like numbers and keeps receipts and short ids", () => {
+    assert.equal(
+      maskPhoneLike("RKTQDM7W6S 254712345123 ELM-004512"),
+      "RKTQDM7W6S 2547•••••123 ELM-004512",
+    );
+    assert.equal(maskPhoneLike("AG_20230727_2010400e808f"), "AG_20230727_2010400e808f");
+    assert.equal(maskPhoneLike("ws_CO_191220191020363925"), "ws_CO_191220191020363925");
   });
 });

@@ -41,8 +41,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { describeApiError, isApiError } from "@/lib/api-errors";
 import { formatCount } from "@/lib/format";
+import { previewRows } from "./approval-format";
 import { ToneBadge } from "./tone-badge";
 
 type BulkUploadDialogProps = {
@@ -54,6 +56,9 @@ type BulkUploadDialogProps = {
 
 type Errors = Partial<Record<"shortcode_uuid" | "title" | "reason" | "file" | "root", string>>;
 
+const PICKER_SIZE = 100;
+const VALID_PAGE = 50;
+
 /** Pick a paybill and a CSV, check every row, then send the valid rows for approval. */
 export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDialogProps) {
   const id = useId();
@@ -64,15 +69,26 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
   const [file, setFile] = useState<File>();
   const [preview, setPreview] = useState<BulkPayoutUploadDto>();
   const [errors, setErrors] = useState<Errors>({});
+  const [search, setSearch] = useState("");
+  const q = useDebouncedValue(search.trim());
+  // Bulk payouts are B2C payments, so only active B2C shortcodes can pay them.
   const shortcodes = useListShortcodes(
-    { size: 100, status: "ACTIVE", sort: ["business_name,asc"] },
+    {
+      size: PICKER_SIZE,
+      status: "ACTIVE",
+      type: "B2C",
+      q: q || undefined,
+      sort: ["business_name,asc"],
+    },
     { query: { enabled: open } },
   );
-  const paybills = shortcodes.data?.status === 200 ? shortcodes.data.data.items : [];
+  const page = shortcodes.data?.status === 200 ? shortcodes.data.data : undefined;
+  const paybills = page?.items ?? [];
   const upload = useUploadBulkPayout({ mutation: { meta: { errorToast: false } } });
 
   function reset() {
     setShortcode(undefined);
+    setSearch("");
     setTitle("");
     setReason("");
     setFile(undefined);
@@ -117,13 +133,13 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
     if (Object.keys(problems).length > 0 || !shortcode || !file) return;
     try {
       const response = await upload.mutateAsync({
-        params: {
+        data: {
+          file,
           shortcode_uuid: shortcode,
           title: title.trim(),
           reason: reason.trim() || undefined,
           preview: isPreview,
         },
-        data: { file },
       });
       if (response.status !== 200) return;
       if (isPreview) {
@@ -159,6 +175,13 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
         <div className="grid gap-4 sm:grid-cols-2">
           <Field data-invalid={Boolean(errors.shortcode_uuid) || undefined}>
             <FieldLabel htmlFor={`${id}-paybill`}>Pay from</FieldLabel>
+            <Input
+              type="search"
+              aria-label="Search B2C shortcodes"
+              placeholder="Search by name or number"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
             <Select
               value={shortcode}
               onValueChange={(value) => {
@@ -171,7 +194,13 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
                 aria-invalid={Boolean(errors.shortcode_uuid) || undefined}
               >
                 <SelectValue
-                  placeholder={shortcodes.isPending ? "Loading paybills…" : "Choose a paybill"}
+                  placeholder={
+                    shortcodes.isPending
+                      ? "Loading shortcodes…"
+                      : paybills.length === 0
+                        ? "No active B2C shortcode"
+                        : "Choose a B2C shortcode"
+                  }
                 />
               </SelectTrigger>
               <SelectContent>
@@ -182,6 +211,11 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
                 ))}
               </SelectContent>
             </Select>
+            {page && page.total_items > paybills.length && (
+              <FieldDescription>
+                {`Showing the first ${formatCount(paybills.length)} of ${formatCount(page.total_items)}; search to narrow.`}
+              </FieldDescription>
+            )}
             <FieldError>{errors.shortcode_uuid}</FieldError>
           </Field>
           <Field data-invalid={Boolean(errors.title) || undefined}>
@@ -258,6 +292,8 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
 }
 
 function PreviewTable({ preview }: { preview: BulkPayoutUploadDto }) {
+  const [validLimit, setValidLimit] = useState(VALID_PAGE);
+  const { shown, hiddenValid } = previewRows(preview.rows, validLimit);
   return (
     <section aria-label="File check" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
@@ -290,7 +326,7 @@ function PreviewTable({ preview }: { preview: BulkPayoutUploadDto }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {preview.rows.map((row) => (
+            {shown.map((row) => (
               <TableRow key={row.line}>
                 <TableCell className="tabular-nums">{row.line}</TableCell>
                 <TableCell>
@@ -320,6 +356,22 @@ function PreviewTable({ preview }: { preview: BulkPayoutUploadDto }) {
           </TableBody>
         </Table>
       </div>
+      {hiddenValid > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground text-sm">
+          <span>
+            Left-out rows first; {formatCount(hiddenValid)} more valid{" "}
+            {hiddenValid === 1 ? "row" : "rows"} not shown.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setValidLimit((limit) => limit + VALID_PAGE)}
+          >
+            Show {formatCount(Math.min(VALID_PAGE, hiddenValid))} more
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

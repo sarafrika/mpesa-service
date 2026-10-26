@@ -69,7 +69,7 @@ export function RecentQrCodes({ shortcodeUuid }: { shortcodeUuid: string }) {
                 <span className="text-muted-foreground"> · {code.trx_code}</span>
               </span>
               <span className="text-muted-foreground text-xs">
-                {code.amount != null ? <Money amount={code.amount} /> : "Any amount"} ·{" "}
+                {code.amount != null ? <Money amount={code.amount} /> : "No amount"} ·{" "}
                 {formatDateTime(code.created_at)}
                 {code.created_by ? ` · ${code.created_by}` : ""}
               </span>

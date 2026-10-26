@@ -14,7 +14,7 @@ import {
 import type { QrCodeDto, ShortcodeDetail } from "@/api/generated/model";
 import { Money } from "@/components/money";
 import { toastApiError } from "@/components/paybills/api";
-import { amountText, FormRootError, TextField, toAmount } from "@/components/paybills/form-fields";
+import { FormRootError, TextField } from "@/components/paybills/form-fields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,7 +55,14 @@ const qrSchema = z.object({
     .trim()
     .min(1, "Enter the account or invoice reference")
     .max(100, "Up to 100 characters"),
-  amount: amountText,
+  // Daraja's Dynamic QR request carries the amount to pay; the service takes whole shillings.
+  amount: z
+    .string()
+    .trim()
+    .refine(
+      (value) => /^\d{1,8}$/.test(value) && Number(value) >= 1,
+      "Enter whole shillings, at least 1",
+    ),
   trx_code: z.enum(["PB", "BG"]),
   size: z.enum(SIZES),
 });
@@ -90,7 +97,7 @@ export function QrCodeDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
         data: {
           merchant_name: values.merchant_name,
           ref_no: values.ref_no,
-          amount: toAmount(values.amount),
+          amount: Number(values.amount),
           trx_code: values.trx_code,
           size: Number(values.size),
         },
@@ -128,7 +135,7 @@ export function QrCodeDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
           <DialogTitle>QR code for {shortcode.business_name}</DialogTitle>
           <DialogDescription>
             Safaricom generates a code customers scan in the M-Pesa app to pay {shortcode.shortcode}
-            . Leave the amount empty to let them choose it.
+            .
           </DialogDescription>
         </DialogHeader>
 
@@ -147,8 +154,8 @@ export function QrCodeDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
             />
             <TextField
               label="Amount (KES)"
-              inputMode="decimal"
-              placeholder="Any amount"
+              inputMode="numeric"
+              placeholder="1500"
               error={errors.amount}
               {...form.register("amount")}
             />
@@ -248,7 +255,7 @@ function QrPreview({ code, pending }: { code?: QrCodeDto; pending: boolean }) {
         className="size-44 rounded-lg border bg-white p-2"
       />
       <figcaption className="text-center text-muted-foreground text-xs">
-        {code.ref_no} · {code.amount != null ? <Money amount={code.amount} /> : "any amount"}
+        {code.ref_no} · {code.amount != null ? <Money amount={code.amount} /> : "no amount"}
       </figcaption>
       <Button variant="outline" size="sm" asChild>
         <a href={qrImageHref(code.image_path)} download={`qr-${code.cpi}-${code.ref_no}.png`}>

@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, CircleHelp, Lightbulb, RefreshCw, Undo2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -16,6 +17,7 @@ import { ErrorState } from "@/components/error-state";
 import { type KeyValueItem, KeyValueList } from "@/components/key-value-list";
 import { MaskedPhone } from "@/components/masked-phone";
 import { Money } from "@/components/money";
+import { RoleGate } from "@/components/role-gate";
 import { DetailPanelSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
@@ -35,6 +37,14 @@ import { useHasRole } from "@/hooks/use-has-role";
 import { formatDateTime } from "@/lib/format";
 import { redactPersonalData, shortenName } from "@/lib/redact";
 import { typeLabel } from "./transaction-filters";
+
+const OPEN_REVERSAL = ["WAITING_APPROVAL", "SENDING", "SENT", "OUTCOME_UNKNOWN"];
+
+function reversalWord(status: string): string {
+  if (status === "WAITING_APPROVAL") return "waiting for approval";
+  if (status === "OUTCOME_UNKNOWN") return "outcome unknown";
+  return "in progress";
+}
 
 type TransactionDetailSheetProps = {
   /** The open transaction; undefined closes the panel. */
@@ -97,6 +107,8 @@ function DetailContent({
   const [reversing, setReversing] = useState(false);
   // Daraja's Reversal API reverses money received; the service re-checks everything when asked.
   const receipt = tx.direction === "in" && tx.status === "SUCCESS" ? tx.receipt : undefined;
+  const openReversal =
+    detail.reversal && OPEN_REVERSAL.includes(detail.reversal.status) ? detail.reversal : undefined;
   const statusQuery = useQueryTransactionStatus({
     mutation: {
       meta: { requiredRole: "mpesa-operator" },
@@ -245,10 +257,29 @@ function DetailContent({
               <RefreshCw className={statusQuery.isPending ? "animate-spin" : undefined} />
               {statusQuery.isPending ? "Asking Safaricom…" : "Query status"}
             </Button>
-            {receipt && (
-              <Button variant="outline" size="lg" onClick={() => setReversing(true)}>
-                <Undo2 /> Request reversal
-              </Button>
+            {tx.direction === "in" && (
+              <RoleGate needs="mpesa-operator">
+                {openReversal ? (
+                  <Button variant="outline" size="lg" asChild>
+                    <Link href={`/approvals?request=${openReversal.approval_uuid}`}>
+                      <Undo2 /> Reversal {reversalWord(openReversal.status)} · Open
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    disabled={!detail.can_reverse || !receipt}
+                    title={detail.reverse_blocked_reason ?? undefined}
+                    onClick={() => setReversing(true)}
+                  >
+                    <Undo2 /> Request reversal
+                  </Button>
+                )}
+              </RoleGate>
+            )}
+            {tx.direction === "in" && !openReversal && detail.reverse_blocked_reason && (
+              <p className="text-muted-foreground text-xs">{detail.reverse_blocked_reason}</p>
             )}
             {!detail.can_query_status && (
               <p className="text-muted-foreground text-xs">

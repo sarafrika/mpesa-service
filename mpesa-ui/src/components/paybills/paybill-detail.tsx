@@ -151,8 +151,10 @@ function DetailTabs({
 
   function select(tab: string) {
     const next = new URLSearchParams(params.toString());
-    // Each tab keeps its own paging, so switching starts its lists from the top.
-    for (const key of ["page", "size", "sort"]) next.delete(key);
+    // Each tab keeps its own paging (plain or prefixed, e.g. transfers_page), so lists restart at the top.
+    for (const key of [...next.keys()]) {
+      if (/^(?:[a-z0-9]+_)?(?:page|size|sort)$/.test(key)) next.delete(key);
+    }
     if (tab === visible[0]?.id) next.delete("tab");
     else next.set("tab", tab);
     const search = next.toString();

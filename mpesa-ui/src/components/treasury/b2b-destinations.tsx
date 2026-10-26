@@ -72,6 +72,18 @@ export function B2bDestinations({ shortcodeUuid }: { shortcodeUuid: string }) {
           icon={Landmark}
           title="No destinations yet"
           description="An admin adds the bank paybill or till that sweeps should go to."
+          action={
+            <RoleGate needs="mpesa-admin">
+              <DestinationDialog
+                shortcodeUuid={shortcodeUuid}
+                trigger={
+                  <Button variant="outline" size="sm">
+                    <Plus /> Add destination
+                  </Button>
+                }
+              />
+            </RoleGate>
+          }
         />
       ) : (
         <>
