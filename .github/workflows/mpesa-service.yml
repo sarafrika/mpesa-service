@@ -1,20 +1,56 @@
-name: Build and Publish
+name: mpesa-service
 
 on:
-  # Trigger only when PR is merged to main branch
+  # Tests and the API contract check run on every PR that touches the service
   pull_request:
     branches: [ main ]
-    types: [ closed ]
+    types: [ opened, synchronize, reopened, closed ]
+    paths:
+      - 'mpesa-service/**'
+      - 'mpesa-ui/openapi.json'
+      - '.github/workflows/mpesa-service.yml'
 
   # Allow manual trigger
   workflow_dispatch:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mpesa-service
   JAVA_VERSION: '21'
 
+defaults:
+  run:
+    working-directory: mpesa-service
+
 jobs:
+  test:
+    name: Test and check the API contract
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      # mpesa-ui generates its client from mpesa-ui/openapi.json; a changed API must ship a refreshed spec.
+      - name: Check the UI's copy of the OpenAPI spec is current
+        run: |
+          ./gradlew exportOpenApi --no-daemon
+          git diff --exit-code -- ../mpesa-ui/openapi.json || {
+            echo "::error::mpesa-ui/openapi.json is stale. Run ./gradlew exportOpenApi in mpesa-service and commit it."
+            exit 1
+          }
+
   build:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
@@ -56,29 +92,10 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: mpesa-service
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=mpesa-service
+          cache-to: type=gha,mode=max,scope=mpesa-service
           platforms: linux/amd64,linux/arm64
-
-  notify:
-    name: Notify
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: always()
-
-    steps:
-      - name: Notify on success
-        if: needs.build.result == 'success'
-        run: |
-          echo "✅ Build and publish successful!"
-          # Add notification commands (Slack, email, etc.)
-
-      - name: Notify on failure
-        if: needs.build.result == 'failure'
-        run: |
-          echo "❌ Build failed!"
-          # Add failure notification commands
