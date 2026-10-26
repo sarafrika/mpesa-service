@@ -339,6 +339,24 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         }
     }
 
+    // ==================== FLAGGED PRODUCTS ====================
+
+    @Override
+    public <T> MpesaApiResponse<T> callProduct(MpesaShortCode shortcode, String operation,
+                                               java.util.function.BiFunction<MpesaDarajaHttpClient, String, T> call) {
+        long startTime = System.currentTimeMillis();
+        String accessToken = getAccessToken(shortcode);
+        if (accessToken == null) {
+            return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+        }
+        try {
+            T response = call.apply(getHttpClient(shortcode.getEnvironment()), "Bearer " + accessToken);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
+        } catch (Exception e) {
+            return handleException(e, startTime, operation);
+        }
+    }
+
     // ==================== 5. TRANSACTION STATUS IMPLEMENTATION ====================
 
     @Override

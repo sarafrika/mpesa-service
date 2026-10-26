@@ -632,6 +632,73 @@
         },
         "type" : "object"
       },
+      "B2bCheckoutDto" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "completed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "incoming_payment_uuid" : {
+            "description" : "The incoming payment a successful checkout created",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "outcome_unknown" : {
+            "description" : "Safaricom never confirmed the push; the merchant may still pay. Do not push again.",
+            "type" : "boolean"
+          },
+          "partner_name" : {
+            "type" : "string"
+          },
+          "payer_till" : {
+            "type" : "string"
+          },
+          "payment_ref" : {
+            "type" : "string"
+          },
+          "receiver_short_code" : {
+            "type" : "string"
+          },
+          "request_ref_id" : {
+            "description" : "Our RequestRefID, Safaricom's requestId",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "requested_by" : {
+            "type" : "string"
+          },
+          "result_code" : {
+            "type" : "string"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "transaction_id" : {
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "created_at", "outcome_unknown", "partner_name", "payer_till", "payment_ref", "receiver_short_code", "request_ref_id", "shortcode_uuid", "status", "uuid" ],
+        "type" : "object"
+      },
       "B2bDestinationDto" : {
         "properties" : {
           "account_reference" : {
@@ -1763,7 +1830,7 @@
             "type" : "string"
           },
           "payment_type" : {
-            "enum" : [ "STK_PUSH", "C2B" ],
+            "enum" : [ "STK_PUSH", "C2B", "B2B_EXPRESS_CHECKOUT" ],
             "type" : "string"
           },
           "phone_number" : {
@@ -1910,6 +1977,38 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/AuditEventDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseB2bCheckoutDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/B2bCheckoutDto"
             },
             "type" : "array"
           },
@@ -2134,6 +2233,38 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/ProductGrant"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseProductPayoutDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ProductPayoutDto"
             },
             "type" : "array"
           },
@@ -2831,6 +2962,94 @@
         "required" : [ "operations", "shortcode_uuid" ],
         "type" : "object"
       },
+      "ProductPayoutDto" : {
+        "properties" : {
+          "account_reference" : {
+            "description" : "The KRA PRN for tax; null for Pochi",
+            "type" : "string"
+          },
+          "amount" : {
+            "type" : "number"
+          },
+          "approval_request_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "checker" : {
+            "type" : "string"
+          },
+          "completed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "maker" : {
+            "type" : "string"
+          },
+          "outcome_unknown" : {
+            "description" : "Safaricom never confirmed the request; it may still move. Never resend it.",
+            "type" : "boolean"
+          },
+          "party_b" : {
+            "description" : "572572 (KRA) for tax; the wallet MSISDN for Pochi, masked unless finance or admin",
+            "type" : "string"
+          },
+          "product" : {
+            "enum" : [ "TAX_REMITTANCE", "BUSINESS_TO_POCHI" ],
+            "type" : "string"
+          },
+          "receiver_name" : {
+            "description" : "ReceiverPartyPublicName from the result; masked for Pochi unless finance or admin",
+            "type" : "string"
+          },
+          "remarks" : {
+            "type" : "string"
+          },
+          "result_code" : {
+            "type" : "string"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED" ],
+            "type" : "string"
+          },
+          "timed_out_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "transaction_id" : {
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "approval_request_uuid", "created_at", "outcome_unknown", "party_b", "product", "remarks", "shortcode_uuid", "status", "uuid" ],
+        "type" : "object"
+      },
+      "ProductPayoutSubmittedDto" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "approval_request_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "approval_request_uuid" ],
+        "type" : "object"
+      },
       "ProductStats" : {
         "properties" : {
           "api_calls_7d" : {
@@ -3293,6 +3512,44 @@
         "required" : [ "amount", "destination_uuid", "reason" ],
         "type" : "object"
       },
+      "RequestPochiPayoutRequest" : {
+        "properties" : {
+          "amount" : {
+            "description" : "Whole shillings",
+            "example" : 1500,
+            "maximum" : 250000,
+            "minimum" : 10,
+            "type" : "number"
+          },
+          "occasion" : {
+            "example" : "October stock",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone_number" : {
+            "description" : "The wallet's 12-digit MSISDN, without the plus sign",
+            "example" : 254705912645,
+            "minLength" : 1,
+            "pattern" : "254\\d{9}",
+            "type" : "string"
+          },
+          "reason" : {
+            "example" : "Stock bought from the stall",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "remarks" : {
+            "example" : "Supplier payment",
+            "maxLength" : 100,
+            "minLength" : 2,
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "phone_number", "reason", "remarks" ],
+        "type" : "object"
+      },
       "RequestReversalRequest" : {
         "properties" : {
           "amount" : {
@@ -3313,6 +3570,37 @@
           }
         },
         "required" : [ "reason", "transaction_uuid" ],
+        "type" : "object"
+      },
+      "RequestTaxRemittanceRequest" : {
+        "properties" : {
+          "amount" : {
+            "description" : "Whole shillings",
+            "example" : 3000,
+            "type" : "number"
+          },
+          "prn" : {
+            "description" : "The payment registration number KRA issued; sent as AccountReference",
+            "example" : "PRN1234XN",
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "reason" : {
+            "example" : "October VAT",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "remarks" : {
+            "description" : "Up to 100 characters (Safaricom); defaults to \"Tax <PRN>\"",
+            "example" : "VAT October",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "prn", "reason" ],
         "type" : "object"
       },
       "ResolveReconciliationExceptionRequest" : {
@@ -3572,6 +3860,27 @@
           }
         },
         "required" : [ "business_name", "credentials", "environment", "health", "is_active", "shortcode", "shortcode_type", "status", "uuid" ],
+        "type" : "object"
+      },
+      "ShortcodeFeatureDto" : {
+        "properties" : {
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "feature" : {
+            "enum" : [ "PULL_TRANSACTIONS", "TAX_REMITTANCE", "BUSINESS_TO_POCHI", "B2B_EXPRESS_CHECKOUT", "RATIBA" ],
+            "type" : "string"
+          },
+          "updated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "updated_by" : {
+            "description" : "Who last switched it; null when it was never switched",
+            "type" : "string"
+          }
+        },
+        "required" : [ "enabled", "feature" ],
         "type" : "object"
       },
       "ShortcodeFloatDto" : {
@@ -3882,6 +4191,38 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "StartB2bCheckoutRequest" : {
+        "properties" : {
+          "amount" : {
+            "description" : "Whole shillings",
+            "example" : 100,
+            "type" : "number"
+          },
+          "partner_name" : {
+            "description" : "The name the merchant knows us by; defaults to the business name",
+            "example" : "Sarafrika",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "payer_till" : {
+            "description" : "The paying merchant's till (primaryShortCode); its nominated number gets the prompt",
+            "example" : "000001",
+            "minLength" : 1,
+            "pattern" : "\\d{5,10}",
+            "type" : "string"
+          },
+          "payment_ref" : {
+            "description" : "Shown to the merchant in the prompt; this service stores up to 50 characters",
+            "example" : "INV-2041",
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "payer_till", "payment_ref" ],
         "type" : "object"
       },
       "StatusQueryDto" : {
@@ -4495,6 +4836,15 @@
             "writeOnly" : true
           }
         },
+        "type" : "object"
+      },
+      "UpdateShortcodeFeatureRequest" : {
+        "properties" : {
+          "enabled" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "enabled" ],
         "type" : "object"
       },
       "UpdateShortcodeRequest" : {
@@ -7989,6 +8339,194 @@
         "tags" : [ "Admin: Shortcodes" ]
       }
     },
+    "/api/v1/admin/shortcodes/{uuid}/b2b-checkouts" : {
+      "get" : {
+        "operationId" : "listB2bExpressCheckouts",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseB2bCheckoutDto"
+                }
+              }
+            },
+            "description" : "A page of checkouts"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "B2B Express Checkout pushes, newest first",
+        "tags" : [ "Admin: Daraja products" ]
+      },
+      "post" : {
+        "description" : "Audited. Only the till's nominated number gets the prompt; the callback settles it. Needs the B2B_EXPRESS_CHECKOUT feature on an active paybill.",
+        "operationId" : "startB2bExpressCheckout",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartB2bCheckoutRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/B2bCheckoutDto"
+                }
+              }
+            },
+            "description" : "Safaricom took the push (or never answered: outcome_unknown)"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The feature is off, or the shortcode is inactive or not a paybill"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the push"
+          }
+        },
+        "summary" : "Push a USSD prompt asking a merchant's till to pay this paybill",
+        "tags" : [ "Admin: Daraja products" ]
+      }
+    },
     "/api/v1/admin/shortcodes/{uuid}/b2b-destinations" : {
       "get" : {
         "operationId" : "listB2bDestinations",
@@ -8966,6 +9504,145 @@
         "tags" : [ "Admin: Shortcodes" ]
       }
     },
+    "/api/v1/admin/shortcodes/{uuid}/features" : {
+      "get" : {
+        "description" : "All products are listed in a fixed order; one never switched on reads enabled false.",
+        "operationId" : "listShortcodeFeatures",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ShortcodeFeatureDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The shortcode's feature switches"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Every flagged Daraja product and whether it is on",
+        "tags" : [ "Admin: Features" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/features/{feature}" : {
+      "put" : {
+        "description" : "Audited. Switch a product on only after Safaricom has enabled it on the shortcode's app.",
+        "operationId" : "updateShortcodeFeature",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "feature",
+          "required" : true,
+          "schema" : {
+            "enum" : [ "PULL_TRANSACTIONS", "TAX_REMITTANCE", "BUSINESS_TO_POCHI", "B2B_EXPRESS_CHECKOUT", "RATIBA" ],
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateShortcodeFeatureRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeFeatureDto"
+                }
+              }
+            },
+            "description" : "The feature as it now stands"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Switch a flagged Daraja product on or off",
+        "tags" : [ "Admin: Features" ]
+      }
+    },
     "/api/v1/admin/shortcodes/{uuid}/float-threshold" : {
       "patch" : {
         "operationId" : "updateShortcodeFloatThreshold",
@@ -9032,6 +9709,195 @@
         },
         "summary" : "Set the shortcode's low-float threshold; null goes back to the service default",
         "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/pochi-payouts" : {
+      "get" : {
+        "description" : "Wallet numbers and names are masked unless the caller has mpesa-finance or mpesa-admin.",
+        "operationId" : "listPochiPayouts",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseProductPayoutDto"
+                }
+              }
+            },
+            "description" : "A page of Pochi payments"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Approved Pochi payments sent to Safaricom, newest first",
+        "tags" : [ "Admin: Daraja products" ]
+      },
+      "post" : {
+        "description" : "Nothing is sent until a checker (finance or admin, not the maker) approves it. Needs the BUSINESS_TO_POCHI feature and an active shortcode with an initiator. KES 10 to 250,000.",
+        "operationId" : "requestPochiPayout",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RequestPochiPayoutRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductPayoutSubmittedDto"
+                }
+              }
+            },
+            "description" : "Submitted for approval"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The feature is off, or the shortcode is inactive or has no initiator"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Approvals are not available"
+          }
+        },
+        "summary" : "Ask to pay a Pochi la Biashara wallet; it waits in Approvals",
+        "tags" : [ "Admin: Daraja products" ]
       }
     },
     "/api/v1/admin/shortcodes/{uuid}/qr-codes" : {
@@ -9437,6 +10303,194 @@
         },
         "summary" : "Refuse STK pushes and payouts on the shortcode",
         "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/tax-remittances" : {
+      "get" : {
+        "operationId" : "listTaxRemittances",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseProductPayoutDto"
+                }
+              }
+            },
+            "description" : "A page of tax remittances"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Approved tax remittances sent to Safaricom, newest first",
+        "tags" : [ "Admin: Daraja products" ]
+      },
+      "post" : {
+        "description" : "Nothing is sent until a checker (finance or admin, not the maker) approves it. Needs the TAX_REMITTANCE feature, an active shortcode with an initiator, and a PRN issued by KRA.",
+        "operationId" : "requestTaxRemittance",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RequestTaxRemittanceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductPayoutSubmittedDto"
+                }
+              }
+            },
+            "description" : "Submitted for approval"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The feature is off, or the shortcode is inactive or has no initiator"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Approvals are not available"
+          }
+        },
+        "summary" : "Ask to remit tax to KRA; it waits in Approvals",
+        "tags" : [ "Admin: Daraja products" ]
       }
     },
     "/api/v1/admin/shortcodes/{uuid}/test-connection" : {
@@ -11266,10 +12320,16 @@
     "description" : "Every request Safaricom sent to a callback URL, and replaying failures",
     "name" : "Admin: Inbox"
   }, {
+    "description" : "Per-shortcode switches for Daraja products Safaricom enables separately",
+    "name" : "Admin: Features"
+  }, {
     "description" : "Figures for the console Overview",
     "name" : "Admin: Metrics"
   }, {
     "description" : "Paybills, tills and B2C shortcodes: onboarding, health and lifecycle",
     "name" : "Admin: Shortcodes"
+  }, {
+    "description" : "Flagged Daraja products: Tax Remittance, Business to Pochi and B2B Express Checkout",
+    "name" : "Admin: Daraja products"
   } ]
 }

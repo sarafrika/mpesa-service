@@ -124,6 +124,11 @@ mpesa:
       base-url: ${MPESA_DARAJA_PRODUCTION_BASE_URL:https://api.safaricom.co.ke}
     connect-timeout: ${MPESA_DARAJA_CONNECT_TIMEOUT:30s}
     read-timeout: ${MPESA_DARAJA_READ_TIMEOUT:60s}
+    # Safaricom's portal shows only the sandbox URL of these two products; confirm the production path with
+    # Safaricom before switching either feature on for a production shortcode.
+    products:
+      tax-remittance-production-path: ${MPESA_TAX_REMITTANCE_PRODUCTION_PATH:/mpesa/b2b/v1/remittax}
+      b2b-express-checkout-production-path: ${MPESA_B2B_EXPRESS_CHECKOUT_PRODUCTION_PATH:/v1/ussdpush/get-msisdn}
 
   # Webhook and C2B account lookup URLs must be https to a public address. true also allows
   # http://localhost for local development; never in production.
