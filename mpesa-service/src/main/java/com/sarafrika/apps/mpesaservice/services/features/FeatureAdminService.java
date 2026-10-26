@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services.features;
 
 import com.sarafrika.apps.mpesaservice.dtos.admin.features.ShortcodeFeatureDto;
+import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.models.ShortcodeFeature;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class FeatureAdminService {
 
     static final String AUDIT_ACTION = "SHORTCODE_FEATURE_UPDATED";
+    static final String RATIBA_UNAVAILABLE = "Not available yet: Safaricom's API details for Ratiba are unconfirmed";
 
     private final MpesaShortCodeRepository shortcodes;
     private final ShortcodeFeatureRepository repository;
@@ -42,6 +44,10 @@ public class FeatureAdminService {
     @Transactional
     public ShortcodeFeatureDto update(UUID shortcodeUuid, DarajaFeature feature, boolean enabled) {
         requireShortcode(shortcodeUuid);
+        // Safaricom's Ratiba pages disagree on fields and codes, so it cannot be switched on yet (off stays allowed).
+        if (feature == DarajaFeature.RATIBA && enabled) {
+            throw new ConflictException(RATIBA_UNAVAILABLE);
+        }
         boolean before = features.isEnabled(shortcodeUuid, feature);
         features.set(shortcodeUuid, feature, enabled, CurrentActor.name());
         ShortcodeFeature row = repository.findByShortcodeUuidAndFeature(shortcodeUuid, feature).orElseThrow();

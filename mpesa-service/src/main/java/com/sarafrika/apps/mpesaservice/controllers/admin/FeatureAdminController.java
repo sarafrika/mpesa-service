@@ -50,6 +50,8 @@ public class FeatureAdminController {
     @Operation(operationId = "updateShortcodeFeature", summary = "Switch a flagged Daraja product on or off",
             description = "Audited. Switch a product on only after Safaricom has enabled it on the shortcode's app.")
     @ApiResponse(responseCode = "200", description = "The feature as it now stands")
+    @ApiResponse(responseCode = "409", description = "RATIBA cannot be switched on: Safaricom's API details are "
+            + "unconfirmed", content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ShortcodeFeatureDto updateShortcodeFeature(@PathVariable UUID uuid, @PathVariable DarajaFeature feature,
                                                       @Valid @RequestBody UpdateShortcodeFeatureRequest request) {
         return features.update(uuid, feature, request.enabled());
