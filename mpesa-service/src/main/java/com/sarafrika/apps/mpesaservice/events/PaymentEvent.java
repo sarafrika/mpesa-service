@@ -3,10 +3,8 @@ package com.sarafrika.apps.mpesaservice.events;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Raised with Spring's ApplicationEventPublisher when money moves or a payment settles; listeners
- * (webhooks, metrics) react after commit. {@code clientId} is the product's azp when one owns the payment.
- */
+// Published via ApplicationEventPublisher when a payment settles; listeners such as webhooks react after commit.
+// clientId is the owning product's azp, when there is one.
 public record PaymentEvent(String type, UUID shortcodeUuid, UUID paymentUuid, String clientId, Map<String, Object> data) {
 
     public static final String C2B_CONFIRMED = "c2b.confirmed";
