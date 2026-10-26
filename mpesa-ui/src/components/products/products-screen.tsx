@@ -4,9 +4,9 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { SectionBoundary } from "@/components/error-boundary";
 import { PageHeader } from "@/components/page-header";
+import { RoleGate } from "@/components/role-gate";
 import { Button } from "@/components/ui/button";
 import { ConnectProductDialog } from "./connect-product-dialog";
-import { IfRole } from "./if-role";
 import { ProductList } from "./product-list";
 import { RecentDeliveries } from "./recent-deliveries";
 
@@ -21,11 +21,11 @@ export function ProductsScreen() {
         title="Products & integrations"
         description="Sarafrika products that move money through this gateway. Each is a Keycloak client limited to the paybills and operations granted here."
         actions={
-          <IfRole need="mpesa-admin">
+          <RoleGate needs="mpesa-admin">
             <Button onClick={connect}>
               <Plus /> Connect a product
             </Button>
-          </IfRole>
+          </RoleGate>
         }
       />
       <SectionBoundary title="Products">

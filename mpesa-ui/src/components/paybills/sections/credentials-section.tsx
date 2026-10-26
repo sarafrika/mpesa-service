@@ -2,9 +2,9 @@
 
 import { TriangleAlert } from "lucide-react";
 import { KeyValueList } from "@/components/key-value-list";
+import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { formatDateTime } from "@/lib/format";
-import { IfRole } from "../if-role";
 import { RotateCredentialsDialog } from "../rotate-credentials-dialog";
 import type { PaybillSectionProps } from "./types";
 
@@ -17,9 +17,9 @@ export function CredentialsSection({ shortcode }: PaybillSectionProps) {
       title="Daraja credentials"
       description="Write-only. Stored encrypted; only the last four characters are ever shown. Rotation needs mpesa-admin and is audited."
       actions={
-        <IfRole needs="mpesa-admin">
+        <RoleGate needs="mpesa-admin">
           <RotateCredentialsDialog shortcode={shortcode} />
-        </IfRole>
+        </RoleGate>
       }
     >
       <KeyValueList

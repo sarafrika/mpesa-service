@@ -16,6 +16,7 @@ import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
+import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
@@ -42,7 +43,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { pagedQueryOptions } from "@/hooks/use-paging";
-import { IfRole } from "./if-role";
 import {
   OPERATION_HINTS,
   OPERATION_LABELS,
@@ -82,11 +82,11 @@ function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
       title="Product access"
       description="Which Sarafrika products may call the machine API with this paybill, and for which operations."
       actions={
-        <IfRole need="mpesa-admin">
+        <RoleGate needs="mpesa-admin">
           <Button variant="outline" size="sm" onClick={() => setGranting(true)}>
             <Plus /> Grant a product
           </Button>
-        </IfRole>
+        </RoleGate>
       }
     >
       <StaleNotice query={grants} />
@@ -109,11 +109,11 @@ function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
           title="No product may use this paybill"
           description="Products are refused on the machine API until they are granted operations here."
           action={
-            <IfRole need="mpesa-admin">
+            <RoleGate needs="mpesa-admin">
               <Button size="sm" onClick={() => setGranting(true)}>
                 <Plus /> Grant a product
               </Button>
-            </IfRole>
+            </RoleGate>
           }
         />
       ) : (
@@ -171,7 +171,7 @@ function AccessRow({ grant, onEdit }: { grant: ProductGrant; onEdit: () => void 
       <span className="text-muted-foreground text-sm">
         {grant.webhook_health ? `Webhook ${webhook.text.toLowerCase()}` : "No webhook"}
       </span>
-      <IfRole need="mpesa-admin">
+      <RoleGate needs="mpesa-admin">
         <Button
           variant="ghost"
           size="sm"
@@ -180,7 +180,7 @@ function AccessRow({ grant, onEdit }: { grant: ProductGrant; onEdit: () => void 
         >
           <Pencil /> Edit
         </Button>
-      </IfRole>
+      </RoleGate>
     </li>
   );
 }

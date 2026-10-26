@@ -6,12 +6,12 @@ import { useListProducts } from "@/api/generated/endpoints/admin-products/admin-
 import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { StaleNotice } from "@/components/stale-notice";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { pagedQueryOptions } from "@/hooks/use-paging";
-import { IfRole } from "./if-role";
 import { ProductCard, ProductCardSkeleton } from "./product-card";
 import { okData } from "./product-format";
 
@@ -57,11 +57,11 @@ export function ProductList({ onConnect }: { onConnect: () => void }) {
           title="No products connected yet"
           description="Connect a Sarafrika product to let its Keycloak client use your paybills."
           action={
-            <IfRole need="mpesa-admin">
+            <RoleGate needs="mpesa-admin">
               <Button onClick={onConnect}>
                 <Plus /> Connect a product
               </Button>
-            </IfRole>
+            </RoleGate>
           }
         />
       </SectionCard>
@@ -109,11 +109,11 @@ function NextProductCard({ onConnect }: { onConnect: () => void }) {
           <strong>Share the API docs</strong> and run a sandbox payment end to end.
         </li>
       </ol>
-      <IfRole need="mpesa-admin">
+      <RoleGate needs="mpesa-admin">
         <Button className="self-start" onClick={onConnect}>
           Start
         </Button>
-      </IfRole>
+      </RoleGate>
     </Card>
   );
 }

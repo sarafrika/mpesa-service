@@ -20,6 +20,7 @@ import { ErrorState } from "@/components/error-state";
 import { FilterChips } from "@/components/filter-chips";
 import { Money } from "@/components/money";
 import { PageHeader } from "@/components/page-header";
+import { RoleGate } from "@/components/role-gate";
 import { SearchInput } from "@/components/search-input";
 import { SectionCard } from "@/components/section-card";
 import { StatCardSkeleton, TableSkeleton } from "@/components/skeletons";
@@ -47,7 +48,6 @@ import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { okData } from "./api";
-import { IfRole } from "./if-role";
 import { EnvironmentBadge, InlineHealthChecks, PaybillStatusBadge } from "./paybill-badges";
 import { TYPE_LABELS } from "./paybill-health";
 import { SortableHead } from "./sortable-head";
@@ -105,13 +105,13 @@ function PaybillsHeader() {
       title="Paybills & tills"
       description={description}
       actions={
-        <IfRole needs="mpesa-operator">
+        <RoleGate needs="mpesa-operator">
           <Button asChild>
             <Link href="/paybills/new">
               <Plus /> Add paybill
             </Link>
           </Button>
-        </IfRole>
+        </RoleGate>
       }
     />
   );
@@ -319,13 +319,13 @@ function PaybillTable() {
             title="No paybills yet"
             description="Add Sarafrika's first paybill or till to start collecting through the console."
             action={
-              <IfRole needs="mpesa-operator">
+              <RoleGate needs="mpesa-operator">
                 <Button size="sm" asChild>
                   <Link href="/paybills/new">
                     <Plus /> Add paybill
                   </Link>
                 </Button>
-              </IfRole>
+              </RoleGate>
             }
           />
         )

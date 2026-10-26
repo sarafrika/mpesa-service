@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSendWebhookTestEvent } from "@/api/generated/endpoints/admin-webhooks/admin-webhooks";
 import type { Product } from "@/api/generated/model";
+import { RoleGate } from "@/components/role-gate";
 import { StatusBadge, type Tone } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +15,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { EditGrantsDialog } from "./edit-grants-dialog";
-import { IfRole } from "./if-role";
 import {
   compactAmount,
   initials,
@@ -148,7 +148,7 @@ export function ProductCard({ product }: { product: Product }) {
       </dl>
 
       <div className="flex flex-wrap gap-2 border-t pt-3.5">
-        <IfRole need="mpesa-admin">
+        <RoleGate needs="mpesa-admin">
           <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
             <Pencil /> Edit grants
           </Button>
@@ -161,9 +161,9 @@ export function ProductCard({ product }: { product: Product }) {
               <Plus /> Add webhook
             </Button>
           )}
-        </IfRole>
+        </RoleGate>
         {webhook && (
-          <IfRole need="mpesa-operator">
+          <RoleGate needs="mpesa-operator">
             <Button
               variant="outline"
               size="sm"
@@ -173,7 +173,7 @@ export function ProductCard({ product }: { product: Product }) {
             >
               {sendTest.isPending ? <Spinner /> : <Send />} Send test event
             </Button>
-          </IfRole>
+          </RoleGate>
         )}
       </div>
 

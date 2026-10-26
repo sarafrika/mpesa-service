@@ -6,6 +6,7 @@ import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { KeyValueList } from "@/components/key-value-list";
+import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { TableSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
@@ -23,7 +24,6 @@ import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { okData } from "../api";
 import { RegisterC2bButton, SimulateC2bDialog } from "../c2b-actions";
-import { IfRole } from "../if-role";
 import type { PaybillSectionProps } from "./types";
 
 const STATE = {
@@ -51,13 +51,13 @@ export function C2bSection({ shortcode }: PaybillSectionProps) {
         title="C2B registration"
         description="Where Safaricom sends validations and confirmations for payments to this shortcode."
         actions={
-          <IfRole needs="mpesa-operator">
+          <RoleGate needs="mpesa-operator">
             {shortcode.environment === "SANDBOX" && <SimulateC2bDialog shortcode={shortcode} />}
             <RegisterC2bButton
               shortcode={shortcode}
               initial={latest?.response_type ?? "Cancelled"}
             />
-          </IfRole>
+          </RoleGate>
         }
       >
         <KeyValueList

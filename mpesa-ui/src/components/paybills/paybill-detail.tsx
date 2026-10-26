@@ -8,6 +8,7 @@ import type { ShortcodeDetail } from "@/api/generated/model";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
 import { PageHeader } from "@/components/page-header";
+import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { DetailPanelSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
@@ -16,7 +17,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isApiError } from "@/lib/api-errors";
 import { cn } from "@/lib/utils";
 import { okData } from "./api";
-import { IfRole } from "./if-role";
 import { LifecycleButton, SendTestStkDialog } from "./lifecycle-actions";
 import { EnvironmentBadge, PaybillStatusBadge } from "./paybill-badges";
 import { initials, TYPE_LABELS } from "./paybill-health";
@@ -116,13 +116,13 @@ function DetailHeader({ shortcode }: { shortcode: ShortcodeDetail }) {
       actions={
         <>
           {shortcode.shortcode_type !== "B2C" && (
-            <IfRole needs="mpesa-operator">
+            <RoleGate needs="mpesa-operator">
               <SendTestStkDialog shortcode={shortcode} disabled={!canPush} />
-            </IfRole>
+            </RoleGate>
           )}
-          <IfRole needs="mpesa-admin">
+          <RoleGate needs="mpesa-admin">
             <LifecycleButton shortcode={shortcode} />
-          </IfRole>
+          </RoleGate>
         </>
       }
     />

@@ -8,6 +8,7 @@ import {
 } from "@/api/generated/endpoints/admin-webhooks/admin-webhooks";
 import { ErrorState } from "@/components/error-state";
 import { KeyValueList } from "@/components/key-value-list";
+import { RoleGate } from "@/components/role-gate";
 import { DetailPanelSkeleton } from "@/components/skeletons";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime } from "@/lib/format";
-import { IfRole } from "./if-role";
 import { deliveryResult, latency, okData } from "./product-format";
 import { useRefreshProducts } from "./use-refresh-products";
 
@@ -97,13 +97,13 @@ export function DeliveryDialog({ uuid, onClose }: { uuid: string | null; onClose
           </div>
         ) : null}
         <DialogFooter>
-          <IfRole need="mpesa-operator">
+          <RoleGate needs="mpesa-operator">
             {delivery && delivery.attempt > 0 && (
               <Button variant="outline" onClick={resend} disabled={replay.isPending}>
                 {replay.isPending ? <Spinner /> : <RotateCw />} Replay
               </Button>
             )}
-          </IfRole>
+          </RoleGate>
           <Button onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>

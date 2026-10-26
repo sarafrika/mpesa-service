@@ -6,13 +6,13 @@ import { toast } from "sonner";
 import { useTestShortcodeConnection } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { KeyValueList } from "@/components/key-value-list";
 import { Money } from "@/components/money";
+import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime, formatKes } from "@/lib/format";
 import { okData, useInvalidateShortcodes } from "../api";
-import { IfRole } from "../if-role";
 import { HealthCheckCard } from "../paybill-badges";
 import { healthChecks, TYPE_LABELS } from "../paybill-health";
 import { EditProfileDialog } from "../profile-dialog";
@@ -42,7 +42,7 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
       <SectionCard
         title="Health checks"
         actions={
-          <IfRole needs="mpesa-operator">
+          <RoleGate needs="mpesa-operator">
             <Button
               variant="outline"
               size="sm"
@@ -52,7 +52,7 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
               {test.isPending ? <Spinner /> : <RotateCw />}
               Run checks
             </Button>
-          </IfRole>
+          </RoleGate>
         }
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -78,9 +78,9 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
         title="Profile"
         description="Limits and defaults apply to STK pushes and payouts on this shortcode."
         actions={
-          <IfRole needs="mpesa-operator">
+          <RoleGate needs="mpesa-operator">
             <EditProfileDialog shortcode={shortcode} />
-          </IfRole>
+          </RoleGate>
         }
       >
         <KeyValueList
