@@ -50,7 +50,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class B2bCheckoutService {
 
-    public static final String EVENT_COMPLETED = "b2b_checkout.completed";
+    public static final String EVENT_COMPLETED = PaymentEvent.B2B_CHECKOUT_COMPLETED;
     static final String AUDIT_STARTED = "B2B_EXPRESS_CHECKOUT_STARTED";
     static final String RESULT_PATH = "/b2b-checkout/result";
     static final String CANCELLED_CODE = "4001";

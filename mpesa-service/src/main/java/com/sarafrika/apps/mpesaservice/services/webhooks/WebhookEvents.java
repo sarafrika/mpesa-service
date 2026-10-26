@@ -17,10 +17,10 @@ public final class WebhookEvents {
     public static final List<String> SUBSCRIBABLE = List.of(
             PaymentEvent.C2B_CONFIRMED, PaymentEvent.STK_COMPLETED, PaymentEvent.STK_FAILED,
             PaymentEvent.STK_CANCELLED, PaymentEvent.B2C_COMPLETED, PaymentEvent.B2C_FAILED,
-            PaymentEvent.REVERSAL_COMPLETED, PaymentEvent.REVERSAL_FAILED);
+            PaymentEvent.REVERSAL_COMPLETED, PaymentEvent.REVERSAL_FAILED, PaymentEvent.B2B_CHECKOUT_COMPLETED);
 
     private static final List<String> REFERENCE_KEYS = List.of(
-            "transaction_id", "mpesa_receipt_number", "checkout_request_id", "client_reference",
+            "transaction_id", "trans_id", "mpesa_receipt_number", "checkout_request_id", "client_reference",
             "originator_conversation_id", "bill_ref_number", "account_reference");
 
     private WebhookEvents() {
@@ -50,6 +50,11 @@ public final class WebhookEvents {
 
     public static boolean isReversal(String type) {
         return type != null && type.startsWith("reversal.");
+    }
+
+    /** b2b_checkout.* is money into a paybill, so it goes to products collecting there (C2B_FEED or STK_PUSH). */
+    public static boolean isB2bCheckout(String type) {
+        return type != null && type.startsWith("b2b_checkout.");
     }
 
     public static boolean isPayout(String type) {

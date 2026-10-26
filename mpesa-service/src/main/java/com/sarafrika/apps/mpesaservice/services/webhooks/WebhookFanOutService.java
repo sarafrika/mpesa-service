@@ -68,6 +68,9 @@ public class WebhookFanOutService {
         if (WebhookEvents.isPayout(event.type())) {
             return event.clientId() == null ? Set.of() : Set.of(event.clientId());
         }
+        if (WebhookEvents.isB2bCheckout(event.type())) {
+            return event.shortcodeUuid() == null ? Set.of() : collecting(event.shortcodeUuid());
+        }
         Optional<GrantOperation> required = WebhookEvents.isReversal(event.type())
                 ? Optional.of(event.clientId() != null ? GrantOperation.STK_PUSH : GrantOperation.C2B_FEED)
                 : WebhookEvents.requiredGrant(event.type());
@@ -83,6 +86,13 @@ public class WebhookFanOutService {
             return entitled.contains(event.clientId()) ? Set.of(event.clientId()) : Set.of();
         }
         return entitled;
+    }
+
+    private Set<String> collecting(UUID shortcodeUuid) {
+        return grants.findByShortcodeUuidAndActiveTrue(shortcodeUuid).stream()
+                .filter(grant -> grant.allows(GrantOperation.C2B_FEED) || grant.allows(GrantOperation.STK_PUSH))
+                .map(ClientShortcodeGrant::getClientId)
+                .collect(Collectors.toSet());
     }
 
     private String body(UUID eventId, String type, UUID shortcodeUuid, UUID paymentUuid, Map<String, Object> data) {

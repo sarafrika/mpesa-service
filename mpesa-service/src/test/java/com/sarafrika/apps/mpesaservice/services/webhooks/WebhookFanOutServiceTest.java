@@ -85,6 +85,14 @@ class WebhookFanOutServiceTest {
     }
 
     @Test
+    void aB2bCheckoutGoesToEveryProductCollectingOnThePaybill() {
+        assertThat(fanOut.recipients(event(PaymentEvent.B2B_CHECKOUT_COMPLETED, null)))
+                .containsExactlyInAnyOrder("elimika-backend", "shop-api");
+        assertThat(WebhookEvents.SUBSCRIBABLE).contains("b2b_checkout.completed");
+        assertThat(WebhookEvents.isSubscribable("b2b_checkout.completed")).isTrue();
+    }
+
+    @Test
     void unknownEventsGoNowhere() {
         assertThat(fanOut.enqueue(event("balance.updated", "elimika-backend"))).isEmpty();
         verify(deliveries, never()).saveAll(any());
