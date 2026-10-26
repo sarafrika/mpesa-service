@@ -36,11 +36,14 @@ Then run the two apps on your machine:
 # mpesa-service on :8080
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/mpesa SPRING_DATASOURCE_USERNAME=mpesa \
 SPRING_DATASOURCE_PASSWORD=mpesa KEYCLOAK_ISSUER_URI=http://localhost:8081/realms/sarafrika \
-KEYCLOAK_AUDIENCE=mpesa-service CALLBACK_IP_WHITELIST_ENABLED=false ./gradlew bootRun
+KEYCLOAK_AUDIENCE=mpesa-service CALLBACK_IP_WHITELIST_ENABLED=false \
+MPESA_ENCRYPTION_KEY=ZGV2LW9ubHktbXBlc2EtZW5jcnlwdGlvbi1rZXktMzI= ./gradlew bootRun
 
 # mpesa-ui on :3000, after copying .env.example to .env.local
 pnpm install && pnpm dev
 ```
+
+`MPESA_ENCRYPTION_KEY` encrypts the Daraja credentials stored for each shortcode, and the service won't start without it. That key is for local use only; production gets its own from `openssl rand -base64 32`.
 
 To run everything in containers instead, use `docker compose --profile apps up --build`. Inside Docker the apps reach Keycloak as `keycloak:8080` while tokens keep the `localhost:8081` issuer, which is why `KEYCLOAK_JWK_SET_URI` and `KEYCLOAK_INTERNAL_ISSUER` exist.
 

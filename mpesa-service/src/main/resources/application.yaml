@@ -41,6 +41,9 @@ mpesa:
     # Only when the Keycloak issuer URL is not reachable from this service (docker-compose); tokens must
     # still carry the issuer. Blank fetches keys from <issuer>/protocol/openid-connect/certs.
     jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:}
+    # Base64 of 32 random bytes (`openssl rand -base64 32`); encrypts shortcode secrets with AES-256-GCM.
+    # Required: the service refuses to start without it. Never reuse the development key in production.
+    encryption-key: ${MPESA_ENCRYPTION_KEY:}
 
   # Safaricom's public certificates (PEM text or a file path) used to encrypt a shortcode's B2C
   # initiator password into its SecurityCredential. Not needed for a shortcode whose
