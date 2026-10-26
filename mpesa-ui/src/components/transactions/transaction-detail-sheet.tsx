@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { useHasRole } from "@/hooks/use-has-role";
 import { formatDateTime } from "@/lib/format";
+import { redactPersonalData, shortenName } from "@/lib/redact";
 import { typeLabel } from "./transaction-filters";
 
 type TransactionDetailSheetProps = {
@@ -88,6 +89,8 @@ function DetailContent({
   const tx = detail.transaction;
   const queryClient = useQueryClient();
   const canQuery = useHasRole("mpesa-operator");
+  // The service masks these for viewers too; this keeps the panel safe if a field slips through.
+  const canSeePersonal = useHasRole("mpesa-finance");
   const statusQuery = useQueryTransactionStatus({
     mutation: {
       meta: { requiredRole: "mpesa-operator" },
@@ -107,9 +110,10 @@ function DetailContent({
       },
     },
   });
-  const customer = [detail.first_name, detail.middle_name, detail.last_name]
-    .filter(Boolean)
-    .join(" ");
+  const fullName =
+    [detail.first_name, detail.middle_name, detail.last_name].filter(Boolean).join(" ") ||
+    tx.customer_name;
+  const customer = fullName && !canSeePersonal ? shortenName(fullName) : fullName;
 
   const candidates: (KeyValueItem | false | undefined | "")[] = [
     { label: "Receipt", value: tx.receipt, mono: true },
@@ -123,7 +127,7 @@ function DetailContent({
       label: tx.direction === "in" ? "Customer" : "Recipient",
       value: (
         <span className="flex flex-wrap gap-x-2">
-          {(customer || tx.customer_name) && <span>{customer || tx.customer_name}</span>}
+          {customer && <span>{customer}</span>}
           <MaskedPhone phone={tx.phone} />
         </span>
       ),
@@ -195,7 +199,11 @@ function DetailContent({
           <CollapsibleContent>
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all border-t px-3 py-2.5 font-mono text-muted-foreground text-xs">
               {detail.raw_callback
-                ? JSON.stringify(detail.raw_callback, null, 2)
+                ? JSON.stringify(
+                    canSeePersonal ? detail.raw_callback : redactPersonalData(detail.raw_callback),
+                    null,
+                    2,
+                  )
                 : "No callback has arrived for this transaction yet."}
             </pre>
           </CollapsibleContent>
