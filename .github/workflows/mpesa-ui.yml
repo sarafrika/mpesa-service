@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   check:
-    name: Generate client, lint and build
+    name: Generate client, lint, test and build
     runs-on: ubuntu-latest
     if: github.event.action != 'closed'
 
@@ -49,6 +49,9 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
 
       - name: Build
         run: pnpm build
