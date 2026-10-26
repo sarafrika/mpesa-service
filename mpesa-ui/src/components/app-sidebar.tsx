@@ -36,7 +36,7 @@ const NAV: { label: string; items: NavItem[] }[] = [
     label: "Monitor",
     items: [
       { title: "Overview", href: "/", icon: LayoutDashboard, ready: true },
-      { title: "Transactions", href: "/transactions", icon: ArrowLeftRight },
+      { title: "Transactions", href: "/transactions", icon: ArrowLeftRight, ready: true },
       { title: "Reconciliation", href: "/reconciliation", icon: SquareCheckBig },
     ],
   },
