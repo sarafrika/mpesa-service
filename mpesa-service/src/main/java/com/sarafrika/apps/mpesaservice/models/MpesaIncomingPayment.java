@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.models;
 
 import com.sarafrika.apps.mpesaservice.utils.converters.IncomingPaymentStatusConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.IncomingPaymentTypeConverter;
+import com.sarafrika.apps.mpesaservice.utils.enums.C2BChannel;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import jakarta.persistence.*;
@@ -83,4 +84,23 @@ public class MpesaIncomingPayment extends BaseEntity {
 
     @Column(name = "processed_at")
     private LocalDateTime processedAt;
+
+    /** BusinessShortCode exactly as Safaricom sent it; kept when no configured shortcode matches. */
+    @Column(name = "business_short_code")
+    private String businessShortCode;
+
+    /** For C2B: whether the customer paid through Pay Bill or Buy Goods. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "c2b_channel")
+    private C2BChannel c2bChannel;
+
+    @Column(name = "invoice_number")
+    private String invoiceNumber;
+
+    @Column(name = "org_account_balance")
+    private BigDecimal orgAccountBalance;
+
+    /** The Keycloak client (azp) that requested an STK push. */
+    @Column(name = "client_id")
+    private String clientId;
 }
