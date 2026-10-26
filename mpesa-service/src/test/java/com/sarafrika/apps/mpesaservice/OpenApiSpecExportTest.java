@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,11 @@ class OpenApiSpecExportTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) spec).remove("servers");
         assertThat(spec.path("paths").has("/api/v1/mpesa/stk-push")).isTrue();
 
+        // Springdoc's property order varies between runs; sorted keys keep the committed spec stable for CI.
+        Object sorted = objectMapper.convertValue(spec, Object.class);
+        String json = objectMapper.copy().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+                .writerWithDefaultPrettyPrinter().writeValueAsString(sorted);
         Files.createDirectories(SPEC.getParent());
-        Files.writeString(SPEC, objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(spec) + "\n");
+        Files.writeString(SPEC, json + "\n");
     }
 }
