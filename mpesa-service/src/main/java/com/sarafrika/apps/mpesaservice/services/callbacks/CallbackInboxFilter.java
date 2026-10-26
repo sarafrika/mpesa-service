@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.services.callbacks;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sarafrika.apps.mpesaservice.config.CallbackTokenFilter;
 import com.sarafrika.apps.mpesaservice.config.ClientIpResolver;
 import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackAcks.Processing;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackKind;
@@ -65,7 +66,8 @@ public class CallbackInboxFilter extends OncePerRequestFilter {
         }
         String endpoint = request.getRequestURI();
         byte[] body = request.getInputStream().readAllBytes();
-        UUID entry = record(() -> inbox.received(endpoint, sourceIp(request), headers(request), body));
+        UUID owner = request.getAttribute(CallbackTokenFilter.SHORTCODE_UUID) instanceof UUID uuid ? uuid : null;
+        UUID entry = record(() -> inbox.received(endpoint, sourceIp(request), headers(request), body, owner));
 
         ContentCachingResponseWrapper cached = new ContentCachingResponseWrapper(response);
         Throwable thrown = null;

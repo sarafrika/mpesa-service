@@ -59,7 +59,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Import({MetricsConfig.class, MetricsQueries.class, MetricsService.class, PaybillHealthService.class,
         AttentionService.class, PaybillAttentionSource.class, PendingStkAttentionSource.class,
         UnlinkedDepositsAttentionSource.class, PossibleStkDuplicatesAttentionSource.class,
-        SecretCipher.class, MetricsIntegrationTest.FixedClock.class})
+        SecretCipher.class, com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts.class,
+        MetricsIntegrationTest.FixedClock.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class MetricsIntegrationTest {
 
@@ -260,6 +261,11 @@ class MetricsIntegrationTest {
         outgoing(lowFloat, "SUCCESS", "412.00", "38420.00", NOW.minus(Duration.ofMinutes(3)));
         incoming(stale, "C2B", "SUCCESS", "93.00", NOW.minus(Duration.ofHours(7)));
         incoming(sandbox, "C2B", "SUCCESS", "1.00", NOW.minus(Duration.ofDays(3)));
+        UUID failing = shortcode("Elimika Results", "PRODUCTION", true);
+        UUID linked = incoming(failing, "C2B", "SUCCESS", "10.00", NOW.minus(Duration.ofMinutes(2)));
+        jdbc.update("INSERT INTO callback_inbox (endpoint, kind, status, attempts, received_at, payment_uuid) "
+                + "VALUES ('/api/v1/callbacks/c2b/confirmation', 'C2B_CONFIRMATION', 'FAILED', 1, ?, ?)",
+                java.sql.Timestamp.from(NOW.minus(Duration.ofHours(1))), linked);
 
         Map<UUID, PaybillHealthDto> byUuid = health.health(null).stream()
                 .collect(Collectors.toMap(PaybillHealthDto::shortcodeUuid, Function.identity()));
@@ -275,6 +281,7 @@ class MetricsIntegrationTest {
         assertThat(byUuid.get(sandbox).state()).isEqualTo(PaybillState.SANDBOX);
         assertThat(byUuid.get(suspended).state()).isEqualTo(PaybillState.SUSPENDED);
         assertThat(byUuid.get(draft).state()).isEqualTo(PaybillState.DRAFT);
+        assertThat(byUuid.get(failing).state()).isEqualTo(PaybillState.CALLBACKS_FAILING);
         assertThat(health.health(Environment.SANDBOX)).extracting(PaybillHealthDto::shortcodeUuid)
                 .containsExactly(sandbox);
     }

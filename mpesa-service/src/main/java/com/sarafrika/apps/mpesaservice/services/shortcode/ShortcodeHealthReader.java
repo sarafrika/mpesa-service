@@ -8,6 +8,7 @@ import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.BalanceSnapshotRepository;
 import com.sarafrika.apps.mpesaservice.repositories.C2bRegistrationRepository;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
@@ -35,6 +36,7 @@ public class ShortcodeHealthReader {
     private final EntityManager entityManager;
     private final C2bRegistrationRepository registrations;
     private final BalanceSnapshotRepository balanceSnapshots;
+    private final CallbackFailureCounts callbackFailures;
     private Clock clock = Clock.systemDefaultZone();
 
     void setClock(Clock clock) {
@@ -47,13 +49,15 @@ public class ShortcodeHealthReader {
             return Map.of();
         }
         List<UUID> ids = codes.stream().map(MpesaShortCode::getUuid).toList();
+        Map<UUID, Long> failures = callbackFailures.since(clock.instant().minus(CallbackFailureCounts.WINDOW));
         Map<UUID, LocalDateTime> lastPayment = pairs(entityManager.createQuery("""
                 SELECT p.shortcodeUuid, MAX(p.createdAt) FROM MpesaIncomingPayment p
                 WHERE p.shortcodeUuid IN :ids GROUP BY p.shortcodeUuid""", Object[].class)
                 .setParameter("ids", ids).getResultList(), LocalDateTime.class);
         Map<UUID, BigDecimal> today = pairs(entityManager.createQuery("""
                 SELECT p.shortcodeUuid, SUM(p.amount) FROM MpesaIncomingPayment p
-                WHERE p.shortcodeUuid IN :ids AND p.status = :status AND p.createdAt >= :start
+                WHERE p.shortcodeUuid IN :ids AND p.status = :status
+                  AND COALESCE(p.transactionDate, p.createdAt) >= :start
                 GROUP BY p.shortcodeUuid""", Object[].class)
                 .setParameter("ids", ids).setParameter("status", IncomingPaymentStatus.SUCCESS)
                 .setParameter("start", LocalDate.now(clock).atStartOfDay()).getResultList(), BigDecimal.class);
@@ -102,7 +106,8 @@ public class ShortcodeHealthReader {
                     useBalance ? balance.getWorkingAvailable()
                             : latestFloat != null ? latestFloat.getWorkingAccountAvailableFunds() : null,
                     useBalance ? balance.getReceivedAt() : latestFloat != null ? latestFloat.getProcessedAt() : null,
-                    paidOut.getOrDefault(id, BigDecimal.ZERO), DarajaHints.forPayout(lastResult.get(id))));
+                    paidOut.getOrDefault(id, BigDecimal.ZERO), DarajaHints.forPayout(lastResult.get(id)),
+                    failures.getOrDefault(id, 0L)));
         }
         return result;
     }

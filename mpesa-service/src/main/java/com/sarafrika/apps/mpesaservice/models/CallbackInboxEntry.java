@@ -81,6 +81,10 @@ public class CallbackInboxEntry {
     @Column(name = "payment_uuid")
     private UUID paymentUuid;
 
+    /** Set when the callback came in on a shortcode's own token URL. */
+    @Column(name = "shortcode_uuid")
+    private UUID shortcodeUuid;
+
     @Column(name = "received_at", nullable = false)
     private Instant receivedAt;
 }

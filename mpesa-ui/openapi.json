@@ -2714,7 +2714,7 @@
             "type" : "string"
           },
           "state" : {
-            "enum" : [ "DRAFT", "SUSPENDED", "SANDBOX", "LOW_FLOAT", "STALE", "HEALTHY" ],
+            "enum" : [ "DRAFT", "SUSPENDED", "SANDBOX", "LOW_FLOAT", "STALE", "CALLBACKS_FAILING", "HEALTHY" ],
             "type" : "string"
           }
         },
@@ -3973,6 +3973,13 @@
           "min_amount" : {
             "type" : "number"
           },
+          "products" : {
+            "description" : "Sarafrika products with an active grant on this shortcode",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeProductRef"
+            },
+            "type" : "array"
+          },
           "shortcode" : {
             "example" : 600100,
             "type" : "string"
@@ -4006,7 +4013,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "credentials", "environment", "health", "is_active", "shortcode", "shortcode_type", "status", "uuid" ],
+        "required" : [ "business_name", "credentials", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "uuid" ],
         "type" : "object"
       },
       "ShortcodeFeatureDto" : {
@@ -4126,8 +4133,14 @@
           "c2b_state" : {
             "$ref" : "#/components/schemas/C2bRegistrationState"
           },
+          "callback_failures_24h" : {
+            "description" : "Callbacks that failed in the last 24 h on this shortcode's token URL or linked payments",
+            "example" : 0,
+            "format" : "int64",
+            "type" : "integer"
+          },
           "collected_today" : {
-            "description" : "Successful incoming payments since midnight, server time",
+            "description" : "Successful incoming payments since midnight, server time, by when the money arrived (transaction time, else when it was stored)",
             "example" : 902140.0,
             "type" : "number"
           },
@@ -4172,7 +4185,7 @@
             "type" : "boolean"
           }
         },
-        "required" : [ "c2b_state", "collected_today", "paid_out_today" ],
+        "required" : [ "c2b_state", "callback_failures_24h", "collected_today", "paid_out_today" ],
         "type" : "object"
       },
       "ShortcodeProductRef" : {

@@ -19,6 +19,7 @@ const STATE_TONE: Record<PaybillHealthDtoState, Tone> = {
   HEALTHY: "success",
   LOW_FLOAT: "warning",
   STALE: "warning",
+  CALLBACKS_FAILING: "danger",
   SANDBOX: "info",
   DRAFT: "info",
   SUSPENDED: "neutral",

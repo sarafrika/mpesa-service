@@ -21,7 +21,8 @@ public record ShortcodeHealthDto(
         @Schema(description = "Newest incoming payment (STK or C2B) on this shortcode")
         @JsonProperty("last_payment_at") LocalDateTime lastPaymentAt,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "902140.00",
-                description = "Successful incoming payments since midnight, server time")
+                description = "Successful incoming payments since midnight, server time, by when the money "
+                        + "arrived (transaction time, else when it was stored)")
         @JsonProperty("collected_today") BigDecimal collectedToday,
         @Schema(description = "Utility balance from the newest Account Balance result or payout result; null when unknown")
         @JsonProperty("float_utility") BigDecimal floatUtility,
@@ -30,5 +31,8 @@ public record ShortcodeHealthDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Successful B2C payouts since midnight")
         @JsonProperty("paid_out_today") BigDecimal paidOutToday,
         @Schema(description = "Set when the newest payout result says the credentials are wrong (B2C ResultCode 2001)")
-        @JsonProperty("credentials_hint") String credentialsHint) {
+        @JsonProperty("credentials_hint") String credentialsHint,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "0",
+                description = "Callbacks that failed in the last 24 h on this shortcode's token URL or linked payments")
+        @JsonProperty("callback_failures_24h") long callbackFailures24h) {
 }

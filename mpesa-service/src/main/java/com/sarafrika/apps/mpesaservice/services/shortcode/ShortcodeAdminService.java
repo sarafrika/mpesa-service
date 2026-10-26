@@ -342,7 +342,8 @@ public class ShortcodeAdminService {
 
     private ShortcodeDetailDto detail(MpesaShortCode code) {
         ShortcodeHealthDto health = healthReader.healthOf(List.of(code)).get(code.getUuid());
-        return ShortcodeViews.detail(code, health, callbackUrls.stk(code));
+        return ShortcodeViews.detail(code, health, callbackUrls.stk(code),
+                productsOf(List.of(code)).getOrDefault(code.getUuid(), List.of()));
     }
 
     // A URL sent back exactly as the detail showed it (token masked) is no change.

@@ -385,7 +385,7 @@ class ShortcodeAdminControllerTest {
     private static ShortcodeHealthDto health() {
         return new ShortcodeHealthDto(true, LocalDateTime.now(), 312, null, C2bRegistrationState.REGISTERED,
                 LocalDateTime.now(), LocalDateTime.now(), new BigDecimal("902140.00"), new BigDecimal("1640210.00"),
-                BigDecimal.ZERO, LocalDateTime.now(), BigDecimal.ZERO, null);
+                BigDecimal.ZERO, LocalDateTime.now(), BigDecimal.ZERO, null, 0);
     }
 
     private static ShortcodeSummaryDto summary() {
@@ -399,6 +399,6 @@ class ShortcodeAdminControllerTest {
                 ShortcodeStatus.DRAFT, false, "ELIMIKA", "Elimika fees", BigDecimal.ONE, new BigDecimal("150000"),
                 "https://x/stk", null, null, null, null, null, null, LocalDateTime.now(), LocalDateTime.now(),
                 "jane.doe", "jane.doe", new ShortcodeCredentialsDto("••••Qx7d", "••••9KfA", null, null, false, false,
-                LocalDateTime.now()), health());
+                LocalDateTime.now()), health(), List.of());
     }
 }

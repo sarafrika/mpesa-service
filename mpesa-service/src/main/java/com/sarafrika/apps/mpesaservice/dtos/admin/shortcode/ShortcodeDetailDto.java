@@ -45,5 +45,8 @@ public record ShortcodeDetailDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("credentials") ShortcodeCredentialsDto credentials,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-        @JsonProperty("health") ShortcodeHealthDto health) {
+        @JsonProperty("health") ShortcodeHealthDto health,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "Sarafrika products with an active grant on this shortcode")
+        @JsonProperty("products") java.util.List<ShortcodeSummaryDto.ProductRef> products) {
 }

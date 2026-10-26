@@ -6,7 +6,13 @@ import { displayStatus, healthChecks, initials, shortAge } from "./paybill-healt
 const NOW = Date.parse("2026-10-27T09:00:00Z");
 
 function health(overrides: Partial<ShortcodeHealth> = {}): ShortcodeHealth {
-  return { c2b_state: "REGISTERED", collected_today: 0, paid_out_today: 0, ...overrides };
+  return {
+    c2b_state: "REGISTERED",
+    collected_today: 0,
+    paid_out_today: 0,
+    callback_failures_24h: 0,
+    ...overrides,
+  };
 }
 
 describe("shortAge", () => {
@@ -33,7 +39,7 @@ describe("healthChecks", () => {
     );
     assert.deepEqual(
       checks.map((check) => check.state),
-      ["ok", "ok", "ok"],
+      ["ok", "ok", "ok", "ok"],
     );
     assert.match(checks[0].detail, /312 ms/);
     assert.equal(checks[2].short, "8 s");
@@ -51,7 +57,7 @@ describe("healthChecks", () => {
     );
     assert.deepEqual(
       checks.map((check) => check.state),
-      ["fail", "fail", "warn"],
+      ["fail", "fail", "warn", "ok"],
     );
     assert.equal(checks[0].detail, "Daraja refused these credentials (400 BAD_REQUEST)");
   });
@@ -60,9 +66,16 @@ describe("healthChecks", () => {
     const checks = healthChecks(health({ c2b_state: "NOT_APPLICABLE" }), NOW);
     assert.deepEqual(
       checks.map((check) => check.state),
-      ["unknown", "na", "unknown"],
+      ["unknown", "na", "unknown", "ok"],
     );
     assert.equal(healthChecks(health({ c2b_state: "NOT_REGISTERED" }), NOW)[1].state, "warn");
+  });
+
+  it("fails a shortcode whose callbacks failed in the last day", () => {
+    const callbacks = healthChecks(health({ callback_failures_24h: 2 }), NOW)[3];
+    assert.equal(callbacks.state, "fail");
+    assert.equal(callbacks.short, "2 failed");
+    assert.match(callbacks.detail, /callback inbox/);
   });
 });
 

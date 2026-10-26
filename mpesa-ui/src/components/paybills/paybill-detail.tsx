@@ -110,6 +110,8 @@ function DetailHeader({ shortcode }: { shortcode: ShortcodeDetail }) {
             <strong className="font-semibold text-foreground tabular-nums">
               {shortcode.shortcode}
             </strong>
+            {shortcode.products.length > 0 &&
+              ` · Product: ${shortcode.products.map((product) => product.display_name ?? product.client_id).join(", ")}`}
             {onboarded && ` · Onboarded ${onboarded}`}
           </span>
         </span>

@@ -53,7 +53,8 @@ final class ShortcodeViews {
     }
 
     /** stkCallbackUrl is the URL STK requests are sent with; every URL is shown with its token masked. */
-    static ShortcodeDetailDto detail(MpesaShortCode code, ShortcodeHealthDto health, String stkCallbackUrl) {
+    static ShortcodeDetailDto detail(MpesaShortCode code, ShortcodeHealthDto health, String stkCallbackUrl,
+                                     List<ShortcodeSummaryDto.ProductRef> products) {
         return new ShortcodeDetailDto(code.getUuid(), code.getShortcode(), code.getBusinessName(),
                 code.getShortcodeType(), code.getEnvironment(), status(code), Boolean.TRUE.equals(code.getIsActive()),
                 code.getAccountReference(), code.getTransactionDesc(), code.getMinAmount(), code.getMaxAmount(),
@@ -61,7 +62,7 @@ final class ShortcodeViews {
                 CallbackUrls.masked(code.getValidationUrl()), CallbackUrls.masked(code.getB2cResultUrl()),
                 CallbackUrls.masked(code.getB2cTimeoutUrl()), code.getActivatedAt(), code.getSuspendedAt(), code.getCreatedAt(),
                 code.getUpdatedAt(), code.getCreatedBy(), code.getUpdatedBy(),
-                credentials(code), health);
+                credentials(code), health, products);
     }
 
     /** The non-secret fields an audit entry shows before and after a change. */

@@ -75,6 +75,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ShortcodeAdminService.class, ShortcodeC2bService.class, ShortcodeHealthReader.class, CallbackUrls.class,
+        com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts.class,
         AuditService.class, SecretCipher.class, ShortcodeAdminIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ShortcodeAdminIntegrationTest {
@@ -191,7 +192,13 @@ class ShortcodeAdminIntegrationTest {
         payment(fees.uuid(), "SUCCESS", "250.50", LocalDateTime.now());
         payment(fees.uuid(), "PENDING", "999.00", LocalDateTime.now());
         payment(fees.uuid(), "SUCCESS", "777.00", LocalDateTime.now().minusDays(2));
+        // Backfilled today for money that arrived two days ago, and the other way round.
+        payment(fees.uuid(), "SUCCESS", "40.00", LocalDateTime.now(), LocalDateTime.now().minusDays(2));
+        payment(fees.uuid(), "SUCCESS", "60.00", LocalDateTime.now().minusDays(2), LocalDateTime.now());
         payout(fees.uuid(), "98500.00");
+        failedCallback(fees.uuid(), "FAILED", 1);
+        failedCallback(fees.uuid(), "FAILED", 30);
+        failedCallback(fees.uuid(), "PROCESSED", 1);
         registration(fees.uuid(), false);
         registration(fees.uuid(), true);
 
@@ -203,7 +210,9 @@ class ShortcodeAdminIntegrationTest {
 
         assertThat(all.getContent()).extracting(ShortcodeSummaryDto::uuid).containsExactly(fees.uuid(), shop.uuid());
         ShortcodeSummaryDto row = all.getContent().getFirst();
-        assertThat(row.health().collectedToday()).isEqualByComparingTo("1750.50");
+        assertThat(row.health().collectedToday()).isEqualByComparingTo("1810.50");
+        assertThat(row.health().callbackFailures24h()).isEqualTo(1);
+        assertThat(all.getContent().get(1).health().callbackFailures24h()).isZero();
         assertThat(row.health().lastPaymentAt()).isNotNull();
         assertThat(row.health().floatUtility()).isEqualByComparingTo("98500.00");
         assertThat(row.health().c2bState()).isEqualTo(C2bRegistrationState.REGISTERED);
@@ -430,6 +439,20 @@ class ShortcodeAdminIntegrationTest {
 
     private static ShortcodeAdminService.ShortcodeQuery query(ShortcodeStatus status, String q) {
         return new ShortcodeAdminService.ShortcodeQuery(null, null, null, status, q);
+    }
+
+    private void payment(UUID shortcode, String status, String amount, LocalDateTime createdAt,
+                         LocalDateTime transactionDate) {
+        jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
+                + "amount, status, created_at, transaction_date) VALUES (?, 'C2B', ?, '254712345678', ?, ?, ?, ?)",
+                shortcode, "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(amount), status,
+                createdAt, transactionDate);
+    }
+
+    private void failedCallback(UUID shortcode, String status, int hoursAgo) {
+        jdbc.update("INSERT INTO callback_inbox (endpoint, kind, body_size, body_truncated, status, attempts, "
+                + "received_at, shortcode_uuid) VALUES ('/api/v1/callbacks/b2b/result', 'B2B_RESULT', 0, false, ?, 1, "
+                + "NOW() - make_interval(hours => ?), ?)", status, hoursAgo, shortcode);
     }
 
     private void payment(UUID shortcode, String status, String amount, LocalDateTime at) {

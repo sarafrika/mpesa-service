@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.services.metrics;
 
 import com.sarafrika.apps.mpesaservice.dtos.admin.metrics.PaybillHealthDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.metrics.PaybillState;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts;
 import com.sarafrika.apps.mpesaservice.services.metrics.MetricsQueries.Direction;
 import com.sarafrika.apps.mpesaservice.services.metrics.MetricsQueries.Filter;
 import com.sarafrika.apps.mpesaservice.services.metrics.MetricsQueries.LatestFloat;
@@ -34,10 +35,14 @@ public class PaybillHealthService {
     private final AlertProperties alerts;
     private final Clock clock;
 
-    public PaybillHealthService(MetricsQueries queries, AlertProperties alerts, ObjectProvider<Clock> clock) {
+    private final ObjectProvider<CallbackFailureCounts> callbackFailures;
+
+    public PaybillHealthService(MetricsQueries queries, AlertProperties alerts, ObjectProvider<Clock> clock,
+                                ObjectProvider<CallbackFailureCounts> callbackFailures) {
         this.queries = queries;
         this.alerts = alerts;
         this.clock = clock.getIfUnique(Clock::systemDefaultZone);
+        this.callbackFailures = callbackFailures;
     }
 
     public AlertProperties alerts() {
@@ -51,6 +56,9 @@ public class PaybillHealthService {
         Instant recentStart = now.minus(RECENT);
         Map<UUID, ShortcodeWindow> in = byShortcode(queries.shortcodeWindows(Direction.IN, todayStart, recentStart));
         Map<UUID, ShortcodeWindow> out = byShortcode(queries.shortcodeWindows(Direction.OUT, todayStart, recentStart));
+        CallbackFailureCounts failureCounts = callbackFailures.getIfAvailable();
+        Map<UUID, Long> failures = failureCounts == null ? Map.of()
+                : failureCounts.since(now.minus(CallbackFailureCounts.WINDOW));
         Map<UUID, LatestFloat> floats = queries.latestFloats(new Filter(null, environment)).stream()
                 .collect(Collectors.toMap(LatestFloat::shortcodeUuid, Function.identity()));
 
@@ -59,7 +67,7 @@ public class PaybillHealthService {
             ShortcodeWindow paid = out.get(row.uuid());
             LatestFloat latestFloat = row.active() ? floats.get(row.uuid()) : null;
             return new PaybillHealthDto(row.uuid(), row.shortcode(), row.businessName(), row.shortcodeType(),
-                    row.environment(), row.active(), state(row, latestFloat, now),
+                    row.environment(), row.active(), state(row, latestFloat, failures.getOrDefault(row.uuid(), 0L), now),
                     collected == null ? BigDecimal.ZERO : collected.todayAmount(),
                     collected == null ? 0 : collected.todayCount(),
                     paid == null ? BigDecimal.ZERO : paid.todayAmount(),
@@ -74,7 +82,7 @@ public class PaybillHealthService {
     }
 
     // A shortcode that never had traffic counts its quiet time from when it was added.
-    PaybillState state(ShortcodeRow row, LatestFloat latestFloat, Instant now) {
+    PaybillState state(ShortcodeRow row, LatestFloat latestFloat, long callbackFailures, Instant now) {
         if (!row.active()) {
             return row.draft() ? PaybillState.DRAFT : PaybillState.SUSPENDED;
         }
@@ -87,6 +95,9 @@ public class PaybillHealthService {
         Instant lastSeen = row.lastActivityAt() != null ? row.lastActivityAt() : row.createdAt();
         if (lastSeen != null && lastSeen.isBefore(now.minus(alerts.staleAfter()))) {
             return PaybillState.STALE;
+        }
+        if (callbackFailures > 0) {
+            return PaybillState.CALLBACKS_FAILING;
         }
         return PaybillState.HEALTHY;
     }

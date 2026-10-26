@@ -43,8 +43,15 @@ public class CallbackInboxRecorder {
 
     /** Stores the request as RECEIVED and returns its uuid, or null when it could not be stored. */
     public UUID received(String endpoint, String sourceIp, Map<String, String> headers, byte[] body) {
+        return received(endpoint, sourceIp, headers, body, null);
+    }
+
+    /** shortcodeUuid is the owner of the token URL the callback used, or null on a shared path. */
+    public UUID received(String endpoint, String sourceIp, Map<String, String> headers, byte[] body,
+                         UUID shortcodeUuid) {
         try {
             CallbackInboxEntry entry = new CallbackInboxEntry();
+            entry.setShortcodeUuid(shortcodeUuid);
             entry.setEndpoint(truncate(endpoint, 200));
             entry.setKind(CallbackKind.fromPath(endpoint));
             entry.setSourceIp(truncate(sourceIp, 64));

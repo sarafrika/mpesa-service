@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,7 +56,7 @@ class CallbackInboxFilterTest {
 
     @Test
     void theBodyIsRecordedBeforeTheHandlerRunsAndMarkedProcessedAfter() throws Exception {
-        when(recorder.received(any(), any(), anyMap(), any())).thenReturn(ENTRY);
+        when(recorder.received(any(), any(), anyMap(), any(), any())).thenReturn(ENTRY);
 
         mockMvc.perform(post(CONFIRMATION).contentType(MediaType.APPLICATION_JSON).header("User-Agent", "Safaricom")
                         .header("Authorization", "Bearer secret").content(BODY))
@@ -66,7 +67,7 @@ class CallbackInboxFilterTest {
         ArgumentCaptor<byte[]> body = ArgumentCaptor.forClass(byte[].class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> headers = ArgumentCaptor.forClass(Map.class);
-        order.verify(recorder).received(eq(CONFIRMATION), eq("127.0.0.1"), headers.capture(), body.capture());
+        order.verify(recorder).received(eq(CONFIRMATION), eq("127.0.0.1"), headers.capture(), body.capture(), isNull());
         order.verify(confirmationService).confirm(any(), anyMap());
         order.verify(recorder).finished(ENTRY, Processing.success());
         assertThat(new String(body.getValue(), StandardCharsets.UTF_8)).isEqualTo(BODY);
@@ -75,7 +76,7 @@ class CallbackInboxFilterTest {
 
     @Test
     void aHandlerFailureIsAckedToSafaricomButMarkedFailedWithItsReason() throws Exception {
-        when(recorder.received(any(), any(), anyMap(), any())).thenReturn(ENTRY);
+        when(recorder.received(any(), any(), anyMap(), any(), any())).thenReturn(ENTRY);
         when(confirmationService.confirm(any(), anyMap())).thenThrow(new IllegalStateException("database is down"));
 
         mockMvc.perform(post(CONFIRMATION).contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -90,7 +91,7 @@ class CallbackInboxFilterTest {
 
     @Test
     void anInboxThatCannotRecordNeverStopsTheAck() throws Exception {
-        when(recorder.received(any(), any(), anyMap(), any())).thenThrow(new IllegalStateException("inbox down"));
+        when(recorder.received(any(), any(), anyMap(), any(), any())).thenThrow(new IllegalStateException("inbox down"));
 
         mockMvc.perform(post(CONFIRMATION).contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isOk())
@@ -102,7 +103,7 @@ class CallbackInboxFilterTest {
 
     @Test
     void aFailingOutcomeWriteStillAcks() throws Exception {
-        when(recorder.received(any(), any(), anyMap(), any())).thenReturn(ENTRY);
+        when(recorder.received(any(), any(), anyMap(), any(), any())).thenReturn(ENTRY);
         org.mockito.Mockito.doThrow(new IllegalStateException("inbox down")).when(recorder).finished(any(), any());
 
         mockMvc.perform(post(CONFIRMATION).contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -112,7 +113,7 @@ class CallbackInboxFilterTest {
 
     @Test
     void aValidationRejectionIsADecisionButAValidationErrorIsAFailure() throws Exception {
-        when(recorder.received(any(), any(), anyMap(), any())).thenReturn(ENTRY);
+        when(recorder.received(any(), any(), anyMap(), any(), any())).thenReturn(ENTRY);
         when(validationService.validate(any()))
                 .thenReturn(ValidationDecision.reject(C2BResultCodes.INVALID_ACCOUNT, "no match"));
         mockMvc.perform(post("/api/v1/callbacks/c2b/validation").contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -127,12 +128,13 @@ class CallbackInboxFilterTest {
 
     @Test
     void anUnreadableBodyIsStillRecordedAndMarkedFailed() throws Exception {
-        when(recorder.received(any(), any(), anyMap(), any())).thenReturn(ENTRY);
+        when(recorder.received(any(), any(), anyMap(), any(), any())).thenReturn(ENTRY);
 
         mockMvc.perform(post(CONFIRMATION).contentType(MediaType.APPLICATION_JSON).content("{not json"))
                 .andExpect(status().isOk());
 
-        verify(recorder).received(eq(CONFIRMATION), any(), anyMap(), eq("{not json".getBytes(StandardCharsets.UTF_8)));
+        verify(recorder).received(eq(CONFIRMATION), any(), anyMap(), eq("{not json".getBytes(StandardCharsets.UTF_8)),
+                any());
         ArgumentCaptor<Processing> processing = ArgumentCaptor.forClass(Processing.class);
         verify(recorder).finished(eq(ENTRY), processing.capture());
         assertThat(processing.getValue().ok()).isFalse();

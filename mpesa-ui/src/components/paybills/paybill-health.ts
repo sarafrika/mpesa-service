@@ -9,7 +9,7 @@ import type {
 export type CheckState = "ok" | "warn" | "fail" | "na" | "unknown";
 
 export type HealthCheck = {
-  key: "token" | "c2b" | "payments";
+  key: "token" | "c2b" | "payments" | "callbacks";
   label: string;
   /** Two or three words for the table cell, e.g. "Token" or "8 min". */
   short: string;
@@ -45,7 +45,7 @@ export function shortAge(value: string | number | Date | null | undefined, now: 
   return `${Math.floor(seconds / 86_400)} d`;
 }
 
-/** The three checks the console shows per shortcode: Daraja token, C2B URLs, recent payments. */
+/** The checks the console shows per shortcode: Daraja token, C2B URLs, recent payments, failed callbacks. */
 export function healthChecks(health: ShortcodeHealth, now: number): HealthCheck[] {
   const token: HealthCheck =
     health.token_ok === true
@@ -109,7 +109,25 @@ export function healthChecks(health: ShortcodeHealth, now: number): HealthCheck[
         detail: `Newest STK or C2B payment ${shortAge(last, now)} ago`,
       };
 
-  return [token, c2b, payments];
+  const failures = health.callback_failures_24h ?? 0;
+  const callbacks: HealthCheck =
+    failures === 0
+      ? {
+          key: "callbacks",
+          label: "Callback failures (24 h)",
+          short: "Callbacks",
+          state: "ok",
+          detail: "No callback for this shortcode failed in the last 24 hours",
+        }
+      : {
+          key: "callbacks",
+          label: "Callback failures (24 h)",
+          short: `${failures} failed`,
+          state: "fail",
+          detail: `${failures} callback${failures === 1 ? "" : "s"} failed in the last 24 hours; replay them from the callback inbox`,
+        };
+
+  return [token, c2b, payments, callbacks];
 }
 
 /** Status as a word and a tone: an active shortcode with a failing check reads "Attention". */
