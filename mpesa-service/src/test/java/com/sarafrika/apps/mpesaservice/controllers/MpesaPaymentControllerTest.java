@@ -165,6 +165,32 @@ class MpesaPaymentControllerTest {
     }
 
     @Test
+    void productsSharingAPaybillSeeOnlyTheirOwnStkRequestsButEveryC2bPayment() throws Exception {
+        ClientShortcodeGrant events = grant("events-app", PAYBILL, GrantOperation.STATUS_LOOKUP);
+        when(grants.findByClientIdAndShortcodeUuid("events-app", PAYBILL)).thenReturn(Optional.of(events));
+        when(grants.findByClientIdAndActiveTrue("events-app")).thenReturn(List.of(events));
+        MpesaIncomingPayment stk = payment(PAYBILL);
+        stk.setClientId("elimika-backend");
+        MpesaIncomingPayment c2b = payment(PAYBILL);
+        c2b.setPaymentType(IncomingPaymentType.C2B);
+        c2b.setTransactionId("TJQ4K2L9XC");
+        when(incomingPaymentService.findByAccountReference("INV-001")).thenReturn(List.of(stk, c2b));
+        when(incomingPaymentService.findByCheckoutRequestId(CHECKOUT)).thenReturn(Optional.of(stk));
+
+        mockMvc.perform(get("/api/v1/mpesa/payments").param("account_reference", "INV-001")
+                        .with(product("events-app")))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].transaction_id").value("TJQ4K2L9XC"));
+        mockMvc.perform(get("/api/v1/mpesa/payments").param("account_reference", "INV-001")
+                        .with(product("elimika-backend")))
+                .andExpect(jsonPath("$.length()").value(2));
+        mockMvc.perform(get("/api/v1/mpesa/payments/by-checkout/{id}", CHECKOUT).with(product("events-app")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/mpesa/payments/by-checkout/{id}", CHECKOUT).with(console("mpesa-viewer")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void callersWithoutATokenAreTurnedAway() throws Exception {
         mockMvc.perform(get("/api/v1/mpesa/payments").param("account_reference", "INV-001"))
                 .andExpect(status().is4xxClientError());

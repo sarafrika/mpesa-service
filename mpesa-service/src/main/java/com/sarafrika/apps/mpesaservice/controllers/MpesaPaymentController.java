@@ -9,6 +9,8 @@ import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import com.sarafrika.apps.mpesaservice.services.products.ProductGrantGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
+import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
+import com.sarafrika.apps.mpesaservice.services.products.CallerIdentity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -86,6 +88,7 @@ public class MpesaPaymentController {
                     grantGuard.requireRead(authentication, payment.getShortcodeUuid(), GrantOperation.STATUS_LOOKUP);
                     return payment;
                 })
+                .filter(payment -> ownedOrShared(authentication, payment))
                 .map(MpesaIncomingPaymentDto::from)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -111,7 +114,8 @@ public class MpesaPaymentController {
             List<MpesaIncomingPayment> visible = grantGuard.visible(authentication,
                     payment.map(List::of).orElseGet(List::of), MpesaIncomingPayment::getShortcodeUuid,
                     GrantOperation.STATUS_LOOKUP);
-            return ResponseEntity.ok(visible.stream().map(MpesaIncomingPaymentDto::from).toList());
+            return ResponseEntity.ok(visible.stream().filter(p -> ownedOrShared(authentication, p))
+                    .map(MpesaIncomingPaymentDto::from).toList());
         }
 
         if (accountReference == null || accountReference.isBlank()) {
@@ -121,9 +125,20 @@ public class MpesaPaymentController {
         List<MpesaIncomingPaymentDto> results = grantGuard.visible(authentication,
                         incomingPaymentService.findByAccountReference(accountReference),
                         MpesaIncomingPayment::getShortcodeUuid, GrantOperation.STATUS_LOOKUP).stream()
+                .filter(p -> ownedOrShared(authentication, p))
                 .map(MpesaIncomingPaymentDto::from)
                 .toList();
 
         return ResponseEntity.ok(results);
+    }
+
+    /** Products sharing a shortcode each see only their own STK requests; C2B payments belong to the
+     * shortcode, and STK rows from before attribution (no client_id) stay visible. */
+    static boolean ownedOrShared(Authentication authentication, MpesaIncomingPayment payment) {
+        if (payment.getPaymentType() != IncomingPaymentType.STK_PUSH || payment.getClientId() == null
+                || CallerIdentity.isConsoleUser(authentication)) {
+            return true;
+        }
+        return payment.getClientId().equals(CallerIdentity.clientId(authentication));
     }
 }
