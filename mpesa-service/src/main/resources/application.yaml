@@ -57,6 +57,25 @@ mpesa:
   grants:
     enforce: ${MPESA_GRANTS_ENFORCE:true}
 
+  # Shortcode credentials older than this many days show "rotation due" in the console.
+  credentials:
+    rotation-days: ${MPESA_CREDENTIALS_ROTATION_DAYS:90}
+
+  # Overview attention list: production float (KES) below low-float shows LOW_FLOAT; a shortcode
+  # with no traffic for stale-after shows STALE.
+  alerts:
+    low-float: ${MPESA_ALERTS_LOW_FLOAT:50000}
+    stale-after: ${MPESA_ALERTS_STALE_AFTER:6h}
+
+  # Daraja base URLs and HTTP timeouts.
+  daraja:
+    sandbox:
+      base-url: ${MPESA_DARAJA_SANDBOX_BASE_URL:https://sandbox.safaricom.co.ke}
+    production:
+      base-url: ${MPESA_DARAJA_PRODUCTION_BASE_URL:https://api.safaricom.co.ke}
+    connect-timeout: ${MPESA_DARAJA_CONNECT_TIMEOUT:30s}
+    read-timeout: ${MPESA_DARAJA_READ_TIMEOUT:60s}
+
   # Signed payment events to products. Retries at 10 s, 1 min, 10 min and 1 h, then FAILED.
   webhooks:
     connect-timeout: ${MPESA_WEBHOOKS_CONNECT_TIMEOUT:3s}
