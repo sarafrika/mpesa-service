@@ -483,6 +483,9 @@ class CollectionsIntegrationTest {
         assertThat(incomingRepository.findByUuid(c2b)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM webhook_deliveries WHERE payment_uuid = ?", Long.class,
                 uuid)).isEqualTo(1);
+        assertThat(events.stream(PaymentEvent.class).filter(e -> e.type().equals(PaymentEvent.STK_COMPLETED)))
+                .singleElement().satisfies(e -> assertThat(e.data()).containsEntry("trans_id", receipt)
+                        .containsEntry("c2b_receipt_announced", true));
     }
 
     @Test
@@ -605,14 +608,139 @@ class CollectionsIntegrationTest {
                 .extracting(PaymentEvent::type).containsExactly(PaymentEvent.C2B_CONFIRMED);
     }
 
-    /** An STK payment whose callback was lost, settled by the STK query (whose reply has no receipt). */
-    private UUID settledByQuery(String amount, LocalDateTime requestedAt) {
-        UUID uuid = stk(amount, requestedAt);
+    // ---------- a C2B confirmation while the STK request is pending, then the STK query ----------
+
+    @Test
+    void anStkPaymentSettledByTheQueryAbsorbsTheOneC2bConfirmationThatCameFirst() {
+        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        String receipt = unique("TC");
+        UUID c2b = confirmationService.confirm(liveConfirmation(receipt, "4500.00", "2547 ***** 333"),
+                Map.of("TransID", receipt, "FirstName", "JANE")).payment().getUuid();
+        assertThat(events.stream(PaymentEvent.class)).extracting(PaymentEvent::type)
+                .containsExactly(PaymentEvent.C2B_CONFIRMED);
+        jdbc.update("INSERT INTO webhook_subscriptions (uuid, client_id, url, secret) VALUES (?, 'x', 'https://x', 's')",
+                UUID.randomUUID());
+        UUID subscription = jdbc.queryForObject("SELECT uuid FROM webhook_subscriptions ORDER BY id DESC LIMIT 1",
+                UUID.class);
+        jdbc.update("INSERT INTO webhook_deliveries (subscription_uuid, client_id, event_id, event_type, payload, "
+                + "payment_uuid) VALUES (?, 'x', ?, 'c2b.confirmed', '{}', ?)", subscription, UUID.randomUUID(), c2b);
+
+        settleByQuery(uuid);
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM mpesa_incoming_payments WHERE shortcode_uuid = ?",
+                Long.class, shortcode.getUuid())).isEqualTo(1);
+        assertThat(incomingRepository.findByUuid(c2b)).isEmpty();
+        MpesaIncomingPayment stored = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(IncomingPaymentStatus.SUCCESS);
+        assertThat(stored.getTransactionId()).isEqualTo(receipt);
+        assertThat(stored.getFirstName()).isEqualTo("JANE");
+        assertThat(stored.getPossibleStkDuplicates()).isNull();
+        assertThat(stored.getRawCallbackData()).containsKey("C2BConfirmation")
+                .containsEntry("MergedC2BPaymentUuid", c2b.toString()).containsEntry("Source", "STK push query");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM webhook_deliveries WHERE payment_uuid = ?", Long.class,
+                uuid)).isEqualTo(1);
+        assertThat(events.stream(PaymentEvent.class)).extracting(PaymentEvent::type)
+                .containsExactly(PaymentEvent.C2B_CONFIRMED, PaymentEvent.STK_COMPLETED);
+        PaymentEvent completed = events.stream(PaymentEvent.class)
+                .filter(e -> e.type().equals(PaymentEvent.STK_COMPLETED)).findFirst().orElseThrow();
+        assertThat(completed.paymentUuid()).isEqualTo(uuid);
+        assertThat(completed.data()).containsEntry("receipt", receipt).containsEntry("trans_id", receipt)
+                .containsEntry("c2b_receipt_announced", true);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void anStkPaymentSeveralEarlierC2bConfirmationsFitIsSettledWithoutAReceiptAndFlagged() {
+        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        String first = unique("TD");
+        String second = unique("TE");
+        confirmationService.confirm(liveConfirmation(first, "4500.00", "254722000333"), Map.of("TransID", first));
+        confirmationService.confirm(liveConfirmation(second, "4500.00", "2547 ***** 333"), Map.of("TransID", second));
+
+        settleByQuery(uuid);
+
+        MpesaIncomingPayment stored = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(IncomingPaymentStatus.SUCCESS);
+        assertThat(stored.getTransactionId()).isEqualTo(stored.getCheckoutRequestId());
+        assertThat(stored.getPossibleStkDuplicates()).isEqualTo(2);
+        assertThat((List<Object>) stored.getRawCallbackData().get("PossibleC2BPayments"))
+                .containsExactlyInAnyOrder(first, second);
+        assertThat(incomingRepository.findByTransactionId(first)).isPresent();
+        assertThat(incomingRepository.findByTransactionId(second)).isPresent();
+        PaymentEvent completed = events.stream(PaymentEvent.class)
+                .filter(e -> e.type().equals(PaymentEvent.STK_COMPLETED)).findFirst().orElseThrow();
+        assertThat(completed.data()).containsEntry("receipt", null).containsEntry("c2b_receipt_announced", false);
+    }
+
+    @Test
+    void aC2bConfirmationAnotherReceiptlessStkPaymentAlsoFitsIsNotMerged() {
+        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID other = stk("4500.00", LocalDateTime.now().minusMinutes(3));
+        String receipt = unique("TF");
+        confirmationService.confirm(liveConfirmation(receipt, "4500.00", "2547 ***** 333"), Map.of("TransID", receipt));
+        jdbc.update("UPDATE mpesa_incoming_payments SET status = 'SUCCESS', result_code = 0 WHERE uuid = ?", other);
+
+        settleByQuery(uuid);
+
+        MpesaIncomingPayment stored = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(stored.getTransactionId()).isEqualTo(stored.getCheckoutRequestId());
+        assertThat(stored.getPossibleStkDuplicates()).isEqualTo(1);
+        assertThat(stored.getRawCallbackData()).containsEntry("PossibleC2BPayments", List.of(receipt));
+        assertThat(incomingRepository.findByTransactionId(receipt).orElseThrow().getPaymentType())
+                .isEqualTo(IncomingPaymentType.C2B);
+    }
+
+    @Test
+    void anStkPaymentSettledByTheQueryWithNoC2bTwinIsSettledAsBefore() {
+        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        String otherAmount = unique("TG");
+        String otherPhone = unique("TH");
+        confirmationService.confirm(liveConfirmation(otherAmount, "4400.00", "254722000333"), null);
+        confirmationService.confirm(liveConfirmation(otherPhone, "4500.00", "254711000999"), null);
+
+        settleByQuery(uuid);
+
+        MpesaIncomingPayment stored = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo(IncomingPaymentStatus.SUCCESS);
+        assertThat(stored.getTransactionId()).isEqualTo(stored.getCheckoutRequestId());
+        assertThat(stored.getPossibleStkDuplicates()).isNull();
+        assertThat(stored.getRawCallbackData()).doesNotContainKeys("C2BConfirmation", "PossibleC2BPayments");
+        assertThat(incomingRepository.findByTransactionId(otherAmount)).isPresent();
+        assertThat(incomingRepository.findByTransactionId(otherPhone)).isPresent();
+        PaymentEvent completed = events.stream(PaymentEvent.class)
+                .filter(e -> e.type().equals(PaymentEvent.STK_COMPLETED)).findFirst().orElseThrow();
+        assertThat(completed.data()).containsEntry("receipt", null).containsEntry("trans_id", null)
+                .containsEntry("c2b_receipt_announced", false);
+    }
+
+    @Test
+    void stkCompletedCarriesTheReceiptAnStkCallbackBrings() {
+        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
+        String receipt = unique("TK");
+
+        incomingService.processStkPushCallback(checkout, stkSuccess(checkout, receipt));
+
+        PaymentEvent completed = events.stream(PaymentEvent.class)
+                .filter(e -> e.type().equals(PaymentEvent.STK_COMPLETED)).findFirst().orElseThrow();
+        assertThat(completed.data()).containsEntry("receipt", receipt).containsEntry("trans_id", receipt)
+                .containsEntry("c2b_receipt_announced", false);
+    }
+
+    /** Safaricom's STK query answers success (with no receipt, as documented) and the console asks it. */
+    private void settleByQuery(UUID uuid) {
         String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
         when(darajaService.queryStkPushStatus(eq(shortcode.getUuid()), eq(checkout)))
                 .thenReturn(MpesaApiResponse.success(new StkStatusResponse("m-1", checkout, 0,
                         "The service request is processed successfully.", null, null, null, null), 200));
         statusService.request(uuid);
+    }
+
+    /** An STK payment whose callback was lost, settled by the STK query (whose reply has no receipt). */
+    private UUID settledByQuery(String amount, LocalDateTime requestedAt) {
+        UUID uuid = stk(amount, requestedAt);
+        String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
+        settleByQuery(uuid);
         MpesaIncomingPayment settled = incomingRepository.findByUuid(uuid).orElseThrow();
         assertThat(settled.getStatus()).isEqualTo(IncomingPaymentStatus.SUCCESS);
         assertThat(settled.getTransactionId()).isEqualTo(checkout);

@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
+import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService.C2bTwins;
+import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger.C2bCandidate;
 import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger.StkCandidate;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +32,20 @@ public class StkCandidates {
         }
         return ledger.stkCandidates(shortcodeUuid, amount, at, properties.stkMatchWindow()).stream()
                 .filter(c -> phoneFits(otherParty, c.phoneNumber())).toList();
+    }
+
+    /** The reverse match, for an STK payment settling without a receipt: C2B deposits stored on their own that fit
+     * it. One deposit is contested when another receiptless STK payment fits that deposit too. */
+    public C2bTwins c2bTwins(UUID shortcodeUuid, UUID stkUuid, LocalDateTime requestedAt, String phone,
+                             BigDecimal amount) {
+        if (requestedAt == null) {
+            return C2bTwins.NONE;
+        }
+        List<C2bCandidate> fits = ledger.c2bCandidates(shortcodeUuid, amount, requestedAt, properties.stkMatchWindow())
+                .stream().filter(c -> phoneFits(c.msisdn(), phone)).toList();
+        boolean contested = fits.size() == 1 && find(shortcodeUuid, fits.getFirst().seenAt(), fits.getFirst().msisdn(),
+                amount).stream().anyMatch(other -> !other.uuid().equals(stkUuid));
+        return new C2bTwins(fits.stream().map(C2bCandidate::transId).toList(), contested);
     }
 
     /** False only when both numbers are known and the digits Safaricom shows differ from ours. */

@@ -200,9 +200,20 @@ public class MetricsQueries {
 
     /** C2B confirmations since a time that several receiptless STK payments may also be. */
     public PendingStk possibleStkDuplicates(Instant since, Filter filter) {
-        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.toStorage(since));
+        return flaggedTwins("C2B", since, filter);
+    }
+
+    /** Receiptless STK payments since a time that C2B deposits stored on their own may also be. */
+    public PendingStk possibleC2bDuplicates(Instant since, Filter filter) {
+        return flaggedTwins("STK_PUSH", since, filter);
+    }
+
+    private PendingStk flaggedTwins(String paymentType, Instant since, Filter filter) {
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.toStorage(since))
+                .addValue("type", paymentType);
         String sql = "SELECT COUNT(*) AS n, MIN(p.created_at) AS oldest " + from(Direction.IN)
-                + " AND p.possible_stk_duplicates IS NOT NULL AND p.created_at >= :since" + scope(filter, params);
+                + " AND p.payment_type = :type AND p.possible_stk_duplicates IS NOT NULL AND p.created_at >= :since"
+                + scope(filter, params);
         return jdbc.queryForObject(sql, params, (rs, i) -> new PendingStk(rs.getLong("n"),
                 MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
     }

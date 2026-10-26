@@ -112,6 +112,19 @@ public interface MpesaIncomingPaymentService {
      */
     MpesaIncomingPayment processStkPushCallback(String checkoutRequestId, Object callbackData);
 
+    /** C2B deposits stored on their own that a receiptless STK payment may be (StkCandidates#c2bTwins). */
+    record C2bTwins(List<String> transIds, boolean contested) {
+        public static final C2bTwins NONE = new C2bTwins(List.of(), false);
+
+        public boolean single() {
+            return transIds.size() == 1 && !contested;
+        }
+    }
+
+    /** An STK answer that may carry no receipt (the STK query): when it succeeds without one, a single uncontested
+     * C2B twin is merged in as its receipt and any other twins only flag the payment for reconciliation. */
+    MpesaIncomingPayment processStkPushCallback(String checkoutRequestId, Object callbackData, C2bTwins twins);
+
     /**
      * Process C2B callback
      */

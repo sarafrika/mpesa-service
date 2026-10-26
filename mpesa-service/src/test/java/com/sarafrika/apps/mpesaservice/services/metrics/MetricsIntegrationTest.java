@@ -373,6 +373,21 @@ class MetricsIntegrationTest {
     }
 
     @Test
+    void aReceiptlessStkPaymentSeveralC2bDepositsMayBeNeedsItsOwnAttentionItem() {
+        UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
+        UUID flagged = incoming(fees, "STK_PUSH", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(1)));
+        jdbc.update("UPDATE mpesa_incoming_payments SET possible_stk_duplicates = 2 WHERE uuid = ?", flagged);
+
+        List<AttentionItemDto> items = attention.items(new AttentionScope(fees, null));
+        assertThat(items).extracting(AttentionItemDto::kind).contains("POSSIBLE_C2B_DUPLICATES")
+                .doesNotContain("POSSIBLE_STK_DUPLICATES");
+        AttentionItemDto item = items.stream().filter(i -> i.kind().equals("POSSIBLE_C2B_DUPLICATES")).findFirst()
+                .orElseThrow();
+        assertThat(item.title()).isEqualTo("1 STK payment may repeat a C2B deposit");
+        assertThat(item.href()).isEqualTo("/transactions?type=STK_PUSH&paybill=" + fees);
+    }
+
+    @Test
     void latestMergesBothTablesNewestFirst() {
         UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
         incoming(fees, "C2B", "SUCCESS", "4500.00", NOW.minus(Duration.ofSeconds(10)));

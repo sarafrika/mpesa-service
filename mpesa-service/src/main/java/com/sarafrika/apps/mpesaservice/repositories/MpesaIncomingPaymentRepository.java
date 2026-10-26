@@ -91,6 +91,10 @@ public interface MpesaIncomingPaymentRepository extends JpaRepository<MpesaIncom
     @Query("SELECT p FROM MpesaIncomingPayment p WHERE p.checkoutRequestId = :id")
     Optional<MpesaIncomingPayment> lockByCheckoutRequestId(@Param("id") String checkoutRequestId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM MpesaIncomingPayment p WHERE p.transactionId = :id")
+    Optional<MpesaIncomingPayment> lockByTransactionId(@Param("id") String transactionId);
+
     /** Removes a C2B row merged into its STK twin; a soft delete would keep holding the receipt. */
     @Modifying(flushAutomatically = true)
     @Query(value = "DELETE FROM mpesa_incoming_payments WHERE id = :id", nativeQuery = true)

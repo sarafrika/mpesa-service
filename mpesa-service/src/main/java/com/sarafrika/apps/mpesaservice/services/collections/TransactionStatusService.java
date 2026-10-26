@@ -24,7 +24,9 @@ import com.sarafrika.apps.mpesaservice.repositories.TransactionStatusQueryReposi
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService.C2bTwins;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+import com.sarafrika.apps.mpesaservice.services.reconciliation.StkCandidates;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
@@ -66,6 +68,7 @@ public class TransactionStatusService {
     private final MpesaIncomingPaymentService incomingPaymentService;
     private final MpesaPayoutService payoutService;
     private final AuditService auditService;
+    private final StkCandidates stkCandidates;
 
     /** From the console: an STK request without a receipt gets an STK query, anything else Transaction Status. */
     @Transactional
@@ -132,7 +135,11 @@ public class TransactionStatusService {
                 callback.put("CallbackMetadata", Map.of("Item", List.of(
                         Map.of("Name", "MpesaReceiptNumber", "Value", data.mpesaReceiptNumber()))));
             }
-            incomingPaymentService.processStkPushCallback(payment.getCheckoutRequestId(), callback);
+            // Its C2B confirmation may have come first and been stored on its own: find it to merge or flag.
+            C2bTwins twins = data.resultCode() != 0 || data.mpesaReceiptNumber() != null ? C2bTwins.NONE
+                    : stkCandidates.c2bTwins(payment.getShortcodeUuid(), payment.getUuid(), payment.getCreatedAt(),
+                            payment.getPhoneNumber(), payment.getAmount());
+            incomingPaymentService.processStkPushCallback(payment.getCheckoutRequestId(), callback, twins);
         }
         return Optional.of(saved);
     }

@@ -170,6 +170,12 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
 
     @Override
     public MpesaIncomingPayment processStkPushCallback(String checkoutRequestId, Object callbackData) {
+        return processStkPushCallback(checkoutRequestId, callbackData, C2bTwins.NONE);
+    }
+
+    @Override
+    public MpesaIncomingPayment processStkPushCallback(String checkoutRequestId, Object callbackData,
+                                                       C2bTwins twins) {
         log.info("Processing STK Push callback for checkoutRequestId: {}", checkoutRequestId);
 
         // Locked, and settled only from PENDING: a retried callback, the status job and a console query
@@ -189,11 +195,13 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         payment.setResultCode(resultCode);
         payment.setResultDesc(readString(raw.get("ResultDesc")));
 
+        boolean merged = false;
+        String receipt = null;
         Map<String, Object> metadata = extractStkMetadata(raw);
         if (metadata != null) {
-            String receipt = readString(metadata.get("MpesaReceiptNumber"));
+            receipt = readString(metadata.get("MpesaReceiptNumber"));
             if (receipt != null) {
-                absorbC2bTwin(payment, receipt, raw);
+                merged = absorbC2bTwin(payment, receipt, raw, false);
                 payment.setTransactionId(receipt);
             }
             BigDecimal amount = readBigDecimal(metadata.get("Amount"));
@@ -211,22 +219,36 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         }
 
         payment.setStatus(resolveStatus(resultCode));
+        if (payment.getStatus() == IncomingPaymentStatus.SUCCESS && receipt == null && twins != null) {
+            if (twins.single() && absorbC2bTwin(payment, twins.transIds().getFirst(), raw, true)) {
+                merged = true;
+                payment.setTransactionId(twins.transIds().getFirst());
+            } else if (!twins.single() && !twins.transIds().isEmpty()) {
+                log.warn("STK request {} settled without a receipt may be any of C2B deposits {}; flagging it",
+                        checkoutRequestId, twins.transIds());
+                payment.setPossibleStkDuplicates(twins.transIds().size());
+                raw.put("PossibleC2BPayments", twins.transIds());
+            }
+        }
         payment.setProcessedAt(LocalDateTime.now());
 
         MpesaIncomingPayment saved = repository.save(payment);
         log.info("STK Push callback processed for checkoutRequestId: {} -> status: {}",
                 checkoutRequestId, saved.getStatus());
-        eventPublisher.publishEvent(stkEvent(saved));
+        eventPublisher.publishEvent(stkEvent(saved, merged));
         return saved;
     }
 
     /** On a paybill the C2B confirmation of an STK payment may arrive first and hold the receipt. The STK
-     * row (which the product knows) keeps the payment; the confirmation's details move onto it. */
-    private void absorbC2bTwin(MpesaIncomingPayment payment, String receipt, Map<String, Object> raw) {
-        Optional<MpesaIncomingPayment> twin = repository.findByTransactionId(receipt)
-                .filter(other -> !other.getId().equals(payment.getId()));
+     * row (which the product knows) keeps the payment; the confirmation's details move onto it. requireFit
+     * (a twin found by amount and time, not by receipt) re-checks under the lock that it is still such a deposit. */
+    private boolean absorbC2bTwin(MpesaIncomingPayment payment, String receipt, Map<String, Object> raw,
+                                  boolean requireFit) {
+        Optional<MpesaIncomingPayment> twin = repository.lockByTransactionId(receipt)
+                .filter(other -> !other.getId().equals(payment.getId()))
+                .filter(other -> !requireFit || fitsAsTwin(other, payment));
         if (twin.isEmpty()) {
-            return;
+            return false;
         }
         MpesaIncomingPayment c2b = twin.get();
         log.info("STK request {} and C2B confirmation {} are one payment; merging", payment.getCheckoutRequestId(),
@@ -236,6 +258,13 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         raw.put("MergedC2BPaymentUuid", String.valueOf(c2b.getUuid()));
         repository.repointWebhookDeliveries(c2b.getUuid(), payment.getUuid());
         repository.hardDelete(c2b.getId());
+        return true;
+    }
+
+    private static boolean fitsAsTwin(MpesaIncomingPayment c2b, MpesaIncomingPayment stk) {
+        return c2b.getPaymentType() == IncomingPaymentType.C2B && c2b.getStatus() == IncomingPaymentStatus.SUCCESS
+                && Objects.equals(c2b.getShortcodeUuid(), stk.getShortcodeUuid())
+                && c2b.getAmount() != null && stk.getAmount() != null && c2b.getAmount().compareTo(stk.getAmount()) == 0;
     }
 
     /** Names, channel and balance a C2B confirmation carries that an STK callback does not. */
@@ -256,7 +285,9 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         }
     }
 
-    private PaymentEvent stkEvent(MpesaIncomingPayment payment) {
+    /** trans_id repeats the receipt under c2b.confirmed's name, so products dedupe both events by it;
+     * c2b_receipt_announced says a c2b.confirmed for that receipt went out before this payment absorbed it. */
+    private PaymentEvent stkEvent(MpesaIncomingPayment payment, boolean c2bAnnounced) {
         String type = switch (payment.getStatus()) {
             case SUCCESS -> PaymentEvent.STK_COMPLETED;
             case CANCELLED -> PaymentEvent.STK_CANCELLED;
@@ -265,8 +296,11 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         Map<String, Object> data = new java.util.LinkedHashMap<>();
         data.put("checkout_request_id", payment.getCheckoutRequestId());
         data.put("merchant_request_id", payment.getMerchantRequestId());
-        data.put("receipt", Objects.equals(payment.getTransactionId(), payment.getCheckoutRequestId())
-                ? null : payment.getTransactionId());
+        String receipt = Objects.equals(payment.getTransactionId(), payment.getCheckoutRequestId())
+                ? null : payment.getTransactionId();
+        data.put("receipt", receipt);
+        data.put("trans_id", receipt);
+        data.put("c2b_receipt_announced", c2bAnnounced);
         data.put("amount", payment.getAmount());
         data.put("phone_number", payment.getPhoneNumber());
         data.put("account_reference", payment.getAccountReference());

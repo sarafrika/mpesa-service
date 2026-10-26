@@ -56,6 +56,13 @@ public class ReconciliationLedger {
               AND transaction_id = checkout_request_id AND shortcode_uuid = :shortcode AND amount = :amount
               AND created_at >= :from AND created_at <= :to
             ORDER BY created_at, id""";
+    private static final String C2B_CANDIDATES = """
+            SELECT uuid, transaction_id, phone_number, COALESCE(transaction_date, created_at) AS seen_at
+            FROM mpesa_incoming_payments
+            WHERE payment_type = 'C2B' AND status = 'SUCCESS' AND deleted_at IS NULL AND transaction_id IS NOT NULL
+              AND shortcode_uuid = :shortcode AND amount = :amount
+              AND COALESCE(transaction_date, created_at) >= :from AND COALESCE(transaction_date, created_at) <= :to
+            ORDER BY seen_at, id""";
     private static final String BY_RECEIPT = " AND upper(trim(transaction_id)) IN (:receipts)";
     private static final String IN_PERIOD = " AND status = 'SUCCESS'"
             + " AND COALESCE(transaction_date, created_at) >= :start AND COALESCE(transaction_date, created_at) < :end";
@@ -114,6 +121,22 @@ public class ReconciliationLedger {
                 rs.getString("checkout_request_id"), rs.getBigDecimal("amount"), rs.getString("phone_number"),
                 rs.getString("account_reference"), rs.getString("client_id"), local(rs.getTimestamp("created_at")),
                 local(rs.getTimestamp("processed_at"))));
+    }
+
+    /** A C2B deposit stored on its own that a receiptless STK payment may be. */
+    public record C2bCandidate(UUID uuid, String transId, String msisdn, LocalDateTime seenAt) {
+    }
+
+    /** C2B deposits of this amount seen (TransTime, else stored time) within window of the STK request time. */
+    public List<C2bCandidate> c2bCandidates(UUID shortcodeUuid, BigDecimal amount, LocalDateTime at, Duration window) {
+        if (shortcodeUuid == null || amount == null || at == null) {
+            return List.of();
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("shortcode", shortcodeUuid)
+                .addValue("amount", amount).addValue("from", Timestamp.valueOf(at.minus(window)))
+                .addValue("to", Timestamp.valueOf(at.plus(window)));
+        return jdbc.query(C2B_CANDIDATES, params, (rs, row) -> new C2bCandidate(rs.getObject("uuid", UUID.class),
+                rs.getString("transaction_id"), rs.getString("phone_number"), local(rs.getTimestamp("seen_at"))));
     }
 
     /** Soft-deletes one duplicate deposit or payout row; nothing else about it changes. */
