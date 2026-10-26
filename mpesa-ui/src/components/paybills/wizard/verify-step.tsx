@@ -271,6 +271,12 @@ export function VerifyStep({
           </li>
         ))}
       </ul>
+      {!live && !b2c && (
+        <p className="text-muted-foreground text-sm">
+          A test STK push is offered here once the paybill is live: this service refuses pushes on a
+          draft.
+        </p>
+      )}
       {live && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg bg-success-soft p-3.5 text-sm text-success">
           <CircleCheck className="size-4 shrink-0" aria-hidden />
