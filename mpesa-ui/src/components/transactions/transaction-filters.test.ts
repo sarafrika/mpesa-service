@@ -7,6 +7,7 @@ import {
   fromDateParam,
   searchParams,
   toDateParam,
+  typeLabel,
 } from "./transaction-filters.ts";
 
 describe("searchParams", () => {
@@ -45,8 +46,13 @@ describe("date params", () => {
 describe("chip values", () => {
   it("falls back to all and any for unknown URL values", () => {
     assert.equal(asTypeFilter("B2C"), "B2C");
+    assert.equal(asTypeFilter("B2B_EXPRESS_CHECKOUT"), "B2B_EXPRESS_CHECKOUT");
     assert.equal(asTypeFilter("REVERSAL"), "all");
     assert.equal(asStatusFilter(null), "any");
     assert.equal(asStatusFilter("FAILED"), "FAILED");
+  });
+
+  it("labels B2B Express Checkout payments", () => {
+    assert.equal(typeLabel("B2B_EXPRESS_CHECKOUT"), "B2B Express Checkout");
   });
 });

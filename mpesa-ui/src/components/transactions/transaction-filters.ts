@@ -4,6 +4,7 @@ export const TYPE_OPTIONS = [
   { value: "all", label: "All" },
   { value: "C2B", label: "C2B deposit" },
   { value: "STK_PUSH", label: "STK push" },
+  { value: "B2B_EXPRESS_CHECKOUT", label: "B2B checkout" },
   { value: "B2C", label: "B2C payout" },
   { value: "B2B", label: "B2B" },
 ] as const;
@@ -22,6 +23,7 @@ export type StatusFilter = (typeof STATUS_OPTIONS)[number]["value"];
 const TYPE_LABELS: Record<string, string> = {
   C2B: "C2B deposit",
   STK_PUSH: "STK push",
+  B2B_EXPRESS_CHECKOUT: "B2B Express Checkout",
   B2C: "B2C payout",
   B2B: "B2B",
 };

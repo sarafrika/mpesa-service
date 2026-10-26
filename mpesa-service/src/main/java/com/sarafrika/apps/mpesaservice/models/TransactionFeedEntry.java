@@ -30,7 +30,7 @@ public class TransactionFeedEntry {
     @Column(name = "direction")
     private String direction;
 
-    /** C2B, STK_PUSH, B2C or B2B. */
+    /** C2B, STK_PUSH, B2B_EXPRESS_CHECKOUT, B2C or B2B. */
     @Column(name = "type")
     private String type;
 

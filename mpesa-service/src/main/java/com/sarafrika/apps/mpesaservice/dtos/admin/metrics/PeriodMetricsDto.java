@@ -14,7 +14,7 @@ public record PeriodMetricsDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "3412")
         @JsonProperty("collected_count") long collectedCount,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                description = "Successful incoming payments per payment type (STK_PUSH, C2B), zero when none")
+                description = "Successful incoming payments per payment type (STK_PUSH, C2B, B2B_EXPRESS_CHECKOUT), zero when none")
         @JsonProperty("collected_by_type") List<TypeTotalDto> collectedByType,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "412900.00",
                 description = "Sum of successful outgoing payments")

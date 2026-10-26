@@ -55,6 +55,7 @@ export function KpiRow({ query, period }: KpiRowProps) {
   const byType = Object.fromEntries(
     current.collected_by_type.map((t) => [t.payment_type, t.count]),
   );
+  const checkouts = byType.B2B_EXPRESS_CHECKOUT ?? 0;
   const collected = percentDelta(current.collected_amount, previous.collected_amount);
   const deposits = percentDelta(current.collected_count, previous.collected_count);
   const payouts = percentDelta(current.payouts_amount, previous.payouts_amount);
@@ -80,11 +81,11 @@ export function KpiRow({ query, period }: KpiRowProps) {
           noteTone={collected?.tone}
         />
         <StatCard
-          label="Deposits (C2B + STK)"
+          label={checkouts > 0 ? "Deposits (C2B + STK + B2B)" : "Deposits (C2B + STK)"}
           value={formatCount(current.collected_count)}
           note={`${formatCount(byType.C2B ?? 0)} C2B · ${formatCount(byType.STK_PUSH ?? 0)} STK${
-            deposits ? ` · ${deposits.text}` : ""
-          }`}
+            checkouts > 0 ? ` · ${formatCount(checkouts)} B2B checkout` : ""
+          }${deposits ? ` · ${deposits.text}` : ""}`}
         />
         <StatCard
           label={`Payouts ${scope}`}

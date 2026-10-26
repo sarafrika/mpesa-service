@@ -38,7 +38,7 @@ public class MetricsService {
     public static final Duration MAX_RANGE = Duration.ofDays(400);
     public static final Duration MAX_HOURLY_RANGE = Duration.ofDays(31);
     public static final int MAX_LATEST = 20;
-    static final List<String> INCOMING_TYPES = List.of("STK_PUSH", "C2B");
+    static final List<String> INCOMING_TYPES = List.of("STK_PUSH", "C2B", "B2B_EXPRESS_CHECKOUT");
 
     private final MetricsQueries queries;
 

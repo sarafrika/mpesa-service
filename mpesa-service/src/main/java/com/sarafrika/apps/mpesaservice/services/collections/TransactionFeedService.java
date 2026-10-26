@@ -53,7 +53,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class TransactionFeedService {
 
-    static final Set<String> TYPES = Set.of("C2B", "STK_PUSH", "B2C", "B2B");
+    static final Set<String> TYPES = Set.of("C2B", "STK_PUSH", "B2B_EXPRESS_CHECKOUT", "B2C", "B2B");
     static final Set<String> STATUSES = Set.of("PENDING", "SUCCESS", "FAILED", "CANCELLED");
 
     private final TransactionFeedRepository feedRepository;
@@ -147,6 +147,11 @@ public class TransactionFeedService {
             events.add(event("confirmation_received", "Confirmation received from Safaricom",
                     p.getShortcodeUuid() == null ? "Shortcode " + p.getBusinessShortCode() + " is not configured here"
                             : null, p.getCreatedAt(), p.getShortcodeUuid() == null ? "warning" : "success"));
+            return events;
+        }
+        if (p.getPaymentType() == IncomingPaymentType.B2B_EXPRESS_CHECKOUT) {
+            events.add(event("result_received", "Paid by B2B Express Checkout", p.getTransactionDesc(),
+                    p.getCreatedAt(), "success"));
             return events;
         }
         events.add(event("created", "STK push sent to the customer's phone",

@@ -314,6 +314,25 @@ class CollectionsIntegrationTest {
     }
 
     @Test
+    void theFeedFiltersB2bExpressCheckoutPaymentsAndTellsTheirStory() {
+        MpesaIncomingPayment payment = new MpesaIncomingPayment();
+        payment.setShortcodeUuid(shortcode.getUuid());
+        payment.setPaymentType(IncomingPaymentType.B2B_EXPRESS_CHECKOUT);
+        payment.setTransactionId(unique("TKB"));
+        payment.setAmount(new BigDecimal("750"));
+        payment.setAccountReference("INV-88");
+        payment.setTransactionDesc("B2B Express Checkout from till 000001");
+        payment.setStatus(IncomingPaymentStatus.SUCCESS);
+        UUID checkout = incomingRepository.saveAndFlush(payment).getUuid();
+        c2b("100", LocalDateTime.of(2026, 3, 1, 9, 0));
+
+        assertThat(ids(filter(null, "b2b_express_checkout", null, null, null))).containsExactly(checkout);
+        TransactionDetailDto detail = feedService.detail(checkout);
+        assertThat(detail.transaction().type()).isEqualTo("B2B_EXPRESS_CHECKOUT");
+        assertThat(detail.timeline()).extracting(TimelineEventDto::title).containsExactly("Paid by B2B Express Checkout");
+    }
+
+    @Test
     void aPayoutsDetailHasItsProductTimelineAndRawCallback() {
         UUID uuid = payout("1500", LocalDateTime.of(2026, 3, 1, 8, 0), OutgoingPaymentStatus.SUCCESS);
         jdbc.update("update mpesa_outgoing_payments set raw_callback_data = '{\"Result\":{\"ResultCode\":0}}'::jsonb, "

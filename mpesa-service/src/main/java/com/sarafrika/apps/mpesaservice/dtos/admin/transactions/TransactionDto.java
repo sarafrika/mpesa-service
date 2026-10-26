@@ -7,14 +7,15 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-/** One row of the transactions feed: money in (C2B, STK push) or money out (B2C, B2B). */
+/** One row of the transactions feed: money in (C2B, STK push, B2B Express Checkout) or money out (B2C, B2B). */
 @Schema(name = "TransactionDto")
 public record TransactionDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("uuid") UUID uuid,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"in", "out"})
         @JsonProperty("direction") String direction,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"C2B", "STK_PUSH", "B2C", "B2B"})
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                allowableValues = {"C2B", "STK_PUSH", "B2B_EXPRESS_CHECKOUT", "B2C", "B2B"})
         @JsonProperty("type") String type,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                 allowableValues = {"PENDING", "SUCCESS", "FAILED", "CANCELLED"})

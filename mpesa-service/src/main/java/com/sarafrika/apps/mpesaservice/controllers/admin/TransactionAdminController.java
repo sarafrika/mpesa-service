@@ -65,7 +65,7 @@ public class TransactionAdminController {
             @RequestParam(name = "sort", required = false) List<String> sort,
             @Parameter(description = "Money in or money out", schema = @Schema(allowableValues = {"in", "out"}))
             @RequestParam(name = "direction", required = false) String direction,
-            @Parameter(schema = @Schema(allowableValues = {"C2B", "STK_PUSH", "B2C", "B2B"}))
+            @Parameter(schema = @Schema(allowableValues = {"C2B", "STK_PUSH", "B2B_EXPRESS_CHECKOUT", "B2C", "B2B"}))
             @RequestParam(name = "type", required = false) String type,
             @Parameter(schema = @Schema(allowableValues = {"PENDING", "SUCCESS", "FAILED", "CANCELLED"}))
             @RequestParam(name = "status", required = false) String status,

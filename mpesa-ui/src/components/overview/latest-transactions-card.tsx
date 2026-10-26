@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 const TYPE_LABEL: Record<string, string> = {
   C2B: "C2B deposit",
   STK_PUSH: "STK push",
+  B2B_EXPRESS_CHECKOUT: "B2B Express Checkout",
   B2C: "B2C payout",
   B2B: "B2B transfer",
 };

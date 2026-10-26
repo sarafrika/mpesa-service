@@ -104,7 +104,7 @@ class MetricsIntegrationTest {
         assertThat(summary.current().collectedAmount()).isEqualByComparingTo("0");
         assertThat(summary.current().successRate()).isNull();
         assertThat(summary.current().collectedByType()).extracting(TypeTotalDto::paymentType)
-                .containsExactly("C2B", "STK_PUSH");
+                .containsExactly("B2B_EXPRESS_CHECKOUT", "C2B", "STK_PUSH");
         assertThat(summary.floatSummary().totalAmount()).isNull();
         assertThat(summary.floatSummary().lowest()).isNull();
         assertThat(metrics.timeseries(WEEK_FROM, WEEK_TO, "day", Filter.ALL).points()).hasSize(7)
@@ -137,7 +137,8 @@ class MetricsIntegrationTest {
         assertThat(summary.current().collectedAmount()).isEqualByComparingTo("1500.00");
         assertThat(summary.current().collectedCount()).isEqualTo(2);
         assertThat(summary.current().collectedByType())
-                .containsExactly(new TypeTotalDto("C2B", new BigDecimal("1000.00"), 1),
+                .containsExactly(new TypeTotalDto("B2B_EXPRESS_CHECKOUT", BigDecimal.ZERO, 0),
+                        new TypeTotalDto("C2B", new BigDecimal("1000.00"), 1),
                         new TypeTotalDto("STK_PUSH", new BigDecimal("500.00"), 1));
         assertThat(summary.current().payoutsAmount()).isEqualByComparingTo("300.00");
         assertThat(summary.current().payoutsCount()).isEqualTo(1);
@@ -152,6 +153,19 @@ class MetricsIntegrationTest {
 
         assertThat(metrics.summary(WEEK_FROM, WEEK_TO, new Filter(sandbox, null)).current().collectedAmount())
                 .isEqualByComparingTo("70.00");
+    }
+
+    @Test
+    void b2bExpressCheckoutPaymentsAreCollectionsWithTheirOwnSplit() {
+        UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
+        incoming(fees, "B2B_EXPRESS_CHECKOUT", "SUCCESS", "250.00", NOW.minus(Duration.ofHours(1)));
+        incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(2)));
+
+        MetricsSummaryDto summary = metrics.summary(WEEK_FROM, WEEK_TO, Filter.ALL);
+
+        assertThat(summary.current().collectedAmount()).isEqualByComparingTo("350.00");
+        assertThat(summary.current().collectedByType()).first()
+                .isEqualTo(new TypeTotalDto("B2B_EXPRESS_CHECKOUT", new BigDecimal("250.00"), 1));
     }
 
     @Test

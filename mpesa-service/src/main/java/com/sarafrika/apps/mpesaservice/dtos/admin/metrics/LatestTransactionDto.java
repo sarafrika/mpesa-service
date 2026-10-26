@@ -14,7 +14,7 @@ public record LatestTransactionDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"IN", "OUT"})
         @JsonProperty("direction") String direction,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "C2B",
-                description = "STK_PUSH or C2B for money in; B2C or B2B for money out")
+                description = "STK_PUSH, C2B or B2B_EXPRESS_CHECKOUT for money in; B2C or B2B for money out")
         @JsonProperty("payment_type") String paymentType,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "SUCCESS")
         @JsonProperty("status") String status,
