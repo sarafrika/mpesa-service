@@ -45,7 +45,7 @@ const NAV: { label: string; items: NavItem[] }[] = [
     label: "Manage",
     items: [
       { title: "Paybills & tills", href: "/paybills", icon: CreditCard, ready: true },
-      { title: "Products", href: "/products", icon: Boxes },
+      { title: "Products", href: "/products", icon: Boxes, ready: true },
       { title: "Approvals", href: "/approvals", icon: ShieldCheck },
     ],
   },

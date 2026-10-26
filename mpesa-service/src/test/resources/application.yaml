@@ -23,6 +23,10 @@ mpesa:
     encryption-key: ZGV2LW9ubHktbXBlc2EtZW5jcnlwdGlvbi1rZXktMzI=
   stk:
     status-query-enabled: false
+  webhooks:
+    # Tests drive the dispatcher directly; its claim query is Postgres-only.
+    dispatcher:
+      enabled: false
   callback:
     ip-whitelist:
       enabled: false

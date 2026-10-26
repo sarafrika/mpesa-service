@@ -7,6 +7,7 @@ import com.sarafrika.apps.mpesaservice.dtos.B2CResultParameters;
 import com.sarafrika.apps.mpesaservice.dtos.B2CTimeoutCallback;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.PayoutFloatDto;
+import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentRepository;
@@ -18,11 +19,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +52,7 @@ public class MpesaPayoutService {
     private final MpesaShortCodeRepository shortCodeRepository;
     private final MpesaDarajaService darajaService;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher events;
 
     /** Starts a payout, or returns the one already started for this client and reference. */
     public MpesaOutgoingPayment initiate(String clientId, B2CPayoutRequest request) {
@@ -123,7 +128,28 @@ public class MpesaPayoutService {
         } else {
             payment.setStatus(OutgoingPaymentStatus.FAILED);
         }
-        return Optional.of(paymentRepository.save(payment));
+        MpesaOutgoingPayment saved = paymentRepository.save(payment);
+        events.publishEvent(settledEvent(saved));
+        return Optional.of(saved);
+    }
+
+    /** b2c.completed or b2c.failed for the paying client; webhooks go out after this transaction commits. */
+    static PaymentEvent settledEvent(MpesaOutgoingPayment payment) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("payout_uuid", payment.getUuid());
+        data.put("client_reference", payment.getClientReference());
+        data.put("status", payment.getStatus().name());
+        data.put("amount", payment.getAmount());
+        data.put("phone_number", payment.getRecipientPhoneNumber());
+        data.put("transaction_id", payment.getTransactionId());
+        data.put("recipient_name", payment.getRecipientName());
+        data.put("charges_paid", payment.getChargesPaid());
+        data.put("result_code", payment.getResultCode());
+        data.put("result_desc", payment.getResultDesc());
+        data.put("transaction_date", payment.getTransactionDate() == null ? null : payment.getTransactionDate().toString());
+        String type = payment.getStatus() == OutgoingPaymentStatus.SUCCESS ? PaymentEvent.B2C_COMPLETED
+                : PaymentEvent.B2C_FAILED;
+        return new PaymentEvent(type, payment.getShortcodeUuid(), payment.getUuid(), payment.getClientId(), data);
     }
 
     /** A queue timeout leaves the outcome unknown, so the payout stays PENDING and is flagged. */

@@ -52,6 +52,21 @@ mpesa:
     sandbox: ${MPESA_SANDBOX_CERTIFICATE:}
     production: ${MPESA_PRODUCTION_CERTIFICATE:}
 
+  # Products (Keycloak clients) may use only the shortcodes and operations granted in the console.
+  # Console users still read without grants. false switches every grant check off.
+  grants:
+    enforce: ${MPESA_GRANTS_ENFORCE:true}
+
+  # Signed payment events to products. Retries at 10 s, 1 min, 10 min and 1 h, then FAILED.
+  webhooks:
+    connect-timeout: ${MPESA_WEBHOOKS_CONNECT_TIMEOUT:3s}
+    request-timeout: ${MPESA_WEBHOOKS_REQUEST_TIMEOUT:5s}
+    dispatcher:
+      enabled: ${MPESA_WEBHOOKS_DISPATCHER_ENABLED:true}
+      poll-interval: ${MPESA_WEBHOOKS_POLL_INTERVAL:5s}
+      batch-size: 20
+      lease: 2m
+
   callback:
     # Safaricom's known IP addresses for callback requests
     # These are the ONLY IPs that should be allowed to send callbacks

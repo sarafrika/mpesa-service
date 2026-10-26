@@ -6,6 +6,9 @@ import com.sarafrika.apps.mpesaservice.dtos.MpesaPayoutDto;
 import com.sarafrika.apps.mpesaservice.dtos.PayoutFloatDto;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+import com.sarafrika.apps.mpesaservice.services.products.CallerIdentity;
+import com.sarafrika.apps.mpesaservice.services.products.ProductGrantGuard;
+import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,15 +38,16 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "M-Pesa Payouts", description = "Send B2C payouts and poll their outcome")
 public class MpesaPayoutController {
 
-    private static final String ANONYMOUS_CLIENT = "anonymous";
-
     private final MpesaPayoutService payoutService;
+    private final ProductGrantGuard grantGuard;
 
     @PostMapping("/b2c")
     @Operation(operationId = "sendB2cPayout", summary = "Send a B2C payout",
-            description = "202 while Safaricom processes it; the same client_reference returns the first payout.")
+            description = "202 while Safaricom processes it; the same client_reference returns the first payout. "
+                    + "403 GRANT_REQUIRED unless the calling client holds B2C_PAYOUT on the shortcode.")
     public ResponseEntity<MpesaApiResponse<MpesaPayoutDto>> payout(@Valid @RequestBody B2CPayoutRequest request,
                                                                    Authentication authentication) {
+        grantGuard.require(authentication, request.shortcodeUuid(), GrantOperation.B2C_PAYOUT);
         try {
             MpesaOutgoingPayment payment = payoutService.initiate(clientId(authentication), request);
             HttpStatus status = payment.getStatus() == OutgoingPaymentStatus.FAILED ? HttpStatus.BAD_GATEWAY
@@ -81,23 +84,15 @@ public class MpesaPayoutController {
 
     @GetMapping("/shortcodes/{uuid}/float")
     @Operation(operationId = "getShortcodeFloat",
-            summary = "A shortcode's float as last reported on a payout result")
-    public ResponseEntity<PayoutFloatDto> payoutFloat(@PathVariable UUID uuid) {
+            summary = "A shortcode's float as last reported on a payout result",
+            description = "Products need B2C_PAYOUT or STATUS_LOOKUP on the shortcode.")
+    public ResponseEntity<PayoutFloatDto> payoutFloat(@PathVariable UUID uuid, Authentication authentication) {
+        grantGuard.requireRead(authentication, uuid, GrantOperation.B2C_PAYOUT, GrantOperation.STATUS_LOOKUP);
         return ResponseEntity.ok(payoutService.latestFloat(uuid));
     }
 
     /** The calling Keycloak client (its azp), so one system never sees another's payouts. */
     static String clientId(Authentication authentication) {
-        if (authentication instanceof JwtAuthenticationToken jwt) {
-            String azp = jwt.getToken().getClaimAsString("azp");
-            if (azp != null && !azp.isBlank()) {
-                return azp;
-            }
-            String clientId = jwt.getToken().getClaimAsString("client_id");
-            if (clientId != null && !clientId.isBlank()) {
-                return clientId;
-            }
-        }
-        return authentication == null || authentication.getName() == null ? ANONYMOUS_CLIENT : authentication.getName();
+        return CallerIdentity.clientId(authentication);
     }
 }
