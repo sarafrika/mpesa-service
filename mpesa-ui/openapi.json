@@ -776,6 +776,35 @@
         "required" : [ "client_id", "url" ],
         "type" : "object"
       },
+      "GrantableShortcode" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "environment" : {
+            "example" : "PRODUCTION",
+            "type" : "string"
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "type" : "string"
+          },
+          "shortcode_type" : {
+            "example" : "PAYBILL",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "business_name", "environment", "shortcode", "shortcode_type", "uuid" ],
+        "type" : "object"
+      },
       "MpesaApiResponse" : {
         "description" : "Generic M-Pesa API response wrapper",
         "properties" : {
@@ -916,6 +945,38 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/AuditEventDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseGrantableShortcode" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GrantableShortcode"
             },
             "type" : "array"
           },
@@ -2010,6 +2071,81 @@
           }
         },
         "summary" : "List grants, e.g. which products may use one shortcode and for what",
+        "tags" : [ "Admin: Products" ]
+      }
+    },
+    "/api/v1/admin/product-grants/shortcodes" : {
+      "get" : {
+        "operationId" : "listGrantableShortcodes",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: shortcode, business_name. Default shortcode,asc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "shortcode,asc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseGrantableShortcode"
+                }
+              }
+            },
+            "description" : "A page of shortcodes"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Negative page, size below 1 or an unknown sort field"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "Paybills and tills a product can be granted, without credentials",
         "tags" : [ "Admin: Products" ]
       }
     },

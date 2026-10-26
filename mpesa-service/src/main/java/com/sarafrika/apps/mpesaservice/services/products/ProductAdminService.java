@@ -3,6 +3,7 @@ package com.sarafrika.apps.mpesaservice.services.products;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.CreateWebhookSubscriptionRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.products.GrantableShortcodeDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductGrantDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.UpsertProductGrantRequest;
@@ -16,6 +17,7 @@ import com.sarafrika.apps.mpesaservice.models.ClientShortcodeGrant;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.models.WebhookSubscription;
 import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantRepository;
+import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookAdminService;
@@ -68,6 +70,7 @@ public class ProductAdminService {
 
     private final ClientShortcodeGrantRepository grants;
     private final WebhookSubscriptionRepository subscriptions;
+    private final MpesaShortCodeRepository shortCodes;
     private final WebhookAdminService webhooks;
     private final AuditService auditService;
     private final EntityManager entityManager;
@@ -200,6 +203,11 @@ public class ProductAdminService {
         page.getContent().stream().map(ClientShortcodeGrant::getClientId).distinct()
                 .forEach(client -> health.put(client, primaryHealth(client)));
         return page.map(grant -> toDto(grant, codes, health.get(grant.getClientId())));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<GrantableShortcodeDto> listGrantableShortcodes(Pageable pageable) {
+        return shortCodes.findAll(pageable).map(GrantableShortcodeDto::from);
     }
 
     private List<ProductDto> build(String onlyClient) {
