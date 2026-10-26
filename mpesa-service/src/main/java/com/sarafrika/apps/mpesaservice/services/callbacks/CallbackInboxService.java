@@ -37,6 +37,10 @@ import org.springframework.util.StringUtils;
 @Service
 public class CallbackInboxService {
 
+    /** Results finance can attach by hand; a B2B Express Checkout callback is matched on our own requestId. */
+    static final java.util.Set<CallbackKind> ATTACHABLE_KINDS = java.util.EnumSet.of(CallbackKind.B2B_RESULT,
+            CallbackKind.REVERSAL_RESULT, CallbackKind.TAX_REMITTANCE_RESULT, CallbackKind.POCHI_RESULT);
+
     static final Duration SUMMARY_WINDOW = Duration.ofHours(24);
 
     private final CallbackInboxRepository repository;
@@ -124,7 +128,7 @@ public class CallbackInboxService {
     /** A failed B2B or reversal result with a JSON body: finance may attach it to what it settles. */
     static boolean attachable(CallbackInboxEntry entry) {
         return entry.getStatus() == CallbackStatus.FAILED
-                && (entry.getKind() == CallbackKind.B2B_RESULT || entry.getKind() == CallbackKind.REVERSAL_RESULT)
+                && ATTACHABLE_KINDS.contains(entry.getKind())
                 && entry.getBody() != null && !entry.isBodyTruncated()
                 && !entry.getBody().contains("\"" + CallbackInboxRecorder.UNPARSED + "\"");
     }

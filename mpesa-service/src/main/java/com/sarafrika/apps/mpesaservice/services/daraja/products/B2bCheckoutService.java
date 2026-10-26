@@ -20,6 +20,7 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.services.features.FeatureGate;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bCheckoutStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
@@ -54,6 +55,8 @@ public class B2bCheckoutService {
     static final String AUDIT_STARTED = "B2B_EXPRESS_CHECKOUT_STARTED";
     static final String RESULT_PATH = "/b2b-checkout/result";
     static final String CANCELLED_CODE = "4001";
+    static final String NO_MATCH = "No B2B Express Checkout push here has this requestId, so nothing was recorded. "
+            + "Check the requestId, and replay it if its push turns up.";
     static final String UNKNOWN_OUTCOME = "Safaricom did not confirm the push was sent, so the merchant may still "
             + "be prompted. Wait for the callback; do not push again.";
 
@@ -168,6 +171,7 @@ public class B2bCheckoutService {
                 : checkouts.lockByRequestRefId(requestId);
         if (match.isEmpty()) {
             log.warn("B2B Express Checkout callback for an unknown request {}", DarajaReplies.text(body, "requestId"));
+            CallbackOutcome.failed(NO_MATCH);
             return Optional.empty();
         }
         B2bCheckoutRequest checkout = match.get();

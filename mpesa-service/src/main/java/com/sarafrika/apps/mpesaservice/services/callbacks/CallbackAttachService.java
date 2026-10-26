@@ -9,14 +9,18 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.AttachCandidateDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.callbacks.CallbackDetailDto;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.models.CallbackInboxEntry;
+import com.sarafrika.apps.mpesaservice.models.ProductPayout;
 import com.sarafrika.apps.mpesaservice.models.ReversalRequest;
 import com.sarafrika.apps.mpesaservice.repositories.CallbackInboxRepository;
 import com.sarafrika.apps.mpesaservice.services.approvals.reversal.ReversalCallbackService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.daraja.products.ProductPayoutService;
+import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
 import com.sarafrika.apps.mpesaservice.services.treasury.B2bTransferService;
 import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackKind;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackStatus;
+import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -26,20 +30,22 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** Finance attaches a B2B or reversal result nothing matched (Safaricom never gave us its ids, or the result
- * beat them) to the transfer or reversal it belongs to, after checking the statement. Nothing is resent. */
+/** Finance attaches a B2B, reversal, Tax Remittance or Pochi result nothing matched (Safaricom never gave us
+ * its ids, or the result beat them) to the record it belongs to, after checking the statement. Nothing is resent. */
 @Service
 @RequiredArgsConstructor
 public class CallbackAttachService {
 
     static final String AUDIT_ACTION = "CALLBACK_ATTACHED";
-    static final String NOT_ATTACHABLE = "Only a failed B2B or reversal result with a stored body can be attached.";
+    static final String NOT_ATTACHABLE = "Only a failed B2B, reversal, Tax Remittance or Pochi result with a stored "
+            + "body can be attached.";
 
     private final CallbackInboxRepository repository;
     private final CallbackInboxService inbox;
     private final CallbackInboxRecorder recorder;
     private final B2bTransferService transfers;
     private final ReversalCallbackService reversals;
+    private final ProductPayoutService productPayouts;
     private final AuditService audit;
     private final ObjectMapper objectMapper;
 
@@ -56,6 +62,17 @@ public class CallbackAttachService {
                             "Sweep " + t.getReference() + " to " + t.getReceiverShortcode(), t.getAmount(),
                             t.getStatus().name(), t.isOutcomeUnknown(), transfers.fits(t, result),
                             Times.offset(t.getCreatedAt())))
+                    .sorted(Comparator.comparing(AttachCandidateDto::fits).reversed())
+                    .toList();
+        }
+        DarajaFeature product = product(entry.getKind());
+        if (product != null) {
+            JsonNode body = tree(entry);
+            boolean visible = PersonalData.visible();
+            return productPayouts.attachable(product).stream()
+                    .map(p -> new AttachCandidateDto(p.getUuid(), product.name(), productLabel(p, visible),
+                            p.getAmount(), p.getStatus().name(), p.isOutcomeUnknown(),
+                            ProductPayoutService.fits(p, body), Times.offset(p.getCreatedAt())))
                     .sorted(Comparator.comparing(AttachCandidateDto::fits).reversed())
                     .toList();
         }
@@ -81,10 +98,13 @@ public class CallbackAttachService {
         }
         UUID paymentUuid = null;
         try {
+            DarajaFeature product = product(entry.getKind());
             if (entry.getKind() == CallbackKind.B2B_RESULT) {
                 transfers.attachResult(request.targetUuid(), b2b(entry), entry.getBody());
+            } else if (product != null) {
+                productPayouts.attachResult(product, request.targetUuid(), tree(entry), entry.getBody());
             } else {
-                ReversalRequest reversal = reversals.attachResult(request.targetUuid(), reversalTree(entry),
+                ReversalRequest reversal = reversals.attachResult(request.targetUuid(), tree(entry),
                         entry.getBody());
                 paymentUuid = reversal.getPaymentUuid();
             }
@@ -127,7 +147,22 @@ public class CallbackAttachService {
         }
     }
 
-    private JsonNode reversalTree(CallbackInboxEntry entry) {
+    private static DarajaFeature product(CallbackKind kind) {
+        return switch (kind) {
+            case TAX_REMITTANCE_RESULT -> DarajaFeature.TAX_REMITTANCE;
+            case POCHI_RESULT -> DarajaFeature.BUSINESS_TO_POCHI;
+            default -> null;
+        };
+    }
+
+    private static String productLabel(ProductPayout payout, boolean visible) {
+        if (payout.getProduct() == DarajaFeature.TAX_REMITTANCE) {
+            return "Tax remittance PRN " + payout.getAccountReference();
+        }
+        return "Pochi payment to " + (visible ? payout.getPartyB() : PersonalData.maskPhone(payout.getPartyB()));
+    }
+
+    private JsonNode tree(CallbackInboxEntry entry) {
         try {
             return objectMapper.readTree(entry.getBody());
         } catch (Exception ex) {
@@ -136,7 +171,7 @@ public class CallbackAttachService {
     }
 
     private JsonNode reversalResult(CallbackInboxEntry entry) {
-        JsonNode body = reversalTree(entry);
+        JsonNode body = tree(entry);
         return body.has("Result") ? body.get("Result") : body;
     }
 }

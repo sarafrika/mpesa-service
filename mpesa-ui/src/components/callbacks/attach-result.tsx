@@ -26,8 +26,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { isApiError } from "@/lib/api-errors";
 import { formatDateTime } from "@/lib/format";
+import { attachTarget } from "./callback-filters";
 
-/** Finance attaches a failed B2B or reversal result nothing matched to the record it belongs to. The stored
+/** Finance attaches a failed B2B, reversal, tax or Pochi result nothing matched to its record. The stored
  * body settles that record; nothing is sent to Safaricom. */
 export function AttachResult({ detail }: { detail: CallbackDetailDto }) {
   const uuid = detail.callback.uuid;
@@ -39,7 +40,7 @@ export function AttachResult({ detail }: { detail: CallbackDetailDto }) {
   const candidates = useListCallbackAttachCandidates(uuid);
   const attach = useAttachCallbackResult({ mutation: { meta: { requiredRole: "mpesa-finance" } } });
   const list = candidates.data?.status === 200 ? candidates.data.data : undefined;
-  const what = detail.callback.kind === "REVERSAL_RESULT" ? "reversal" : "B2B transfer";
+  const what = attachTarget(detail.callback.kind);
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border p-3" aria-labelledby="attach-result">

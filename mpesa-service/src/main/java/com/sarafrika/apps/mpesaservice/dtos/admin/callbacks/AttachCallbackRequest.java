@@ -10,7 +10,8 @@ import java.util.UUID;
 @Schema(name = "AttachCallbackRequest")
 public record AttachCallbackRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                description = "The B2B transfer or reversal (uuid from the candidates list) the result belongs to")
+                description = "The B2B transfer, reversal or product payment (uuid from the candidates list) the "
+                        + "result belongs to")
         @NotNull(message = "is required")
         @JsonProperty("target_uuid") UUID targetUuid,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "Statement shows the 27 Oct sweep to 522522",

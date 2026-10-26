@@ -23,6 +23,11 @@ const KIND_LABELS: Record<string, string> = {
   ACCOUNT_BALANCE_TIMEOUT: "Balance timeout",
   REVERSAL_RESULT: "Reversal result",
   REVERSAL_TIMEOUT: "Reversal timeout",
+  TAX_REMITTANCE_RESULT: "Tax remittance result",
+  TAX_REMITTANCE_TIMEOUT: "Tax remittance timeout",
+  POCHI_RESULT: "Pochi result",
+  POCHI_TIMEOUT: "Pochi timeout",
+  B2B_CHECKOUT_RESULT: "B2B checkout result",
   OTHER: "Other",
 };
 
@@ -30,6 +35,17 @@ export const KIND_OPTIONS = Object.entries(KIND_LABELS).map(([value, label]) => 
 
 export function kindLabel(kind: string): string {
   return Object.hasOwn(KIND_LABELS, kind) ? KIND_LABELS[kind] : kind;
+}
+
+const ATTACH_TARGETS: Record<string, string> = {
+  REVERSAL_RESULT: "reversal",
+  TAX_REMITTANCE_RESULT: "tax remittance",
+  POCHI_RESULT: "Pochi payment",
+};
+
+/** What a failed result of this kind is attached to, as the attach section names it. */
+export function attachTarget(kind: string): string {
+  return Object.hasOwn(ATTACH_TARGETS, kind) ? ATTACH_TARGETS[kind] : "B2B transfer";
 }
 
 export function asStatusFilter(value: string | null): StatusFilter {

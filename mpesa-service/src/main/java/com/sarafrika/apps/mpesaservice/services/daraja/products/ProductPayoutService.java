@@ -25,6 +25,7 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalExecutor.Outco
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalGateway;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.services.features.FeatureGate;
 import com.sarafrika.apps.mpesaservice.services.features.ShortcodeFeatures;
 import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -66,6 +68,8 @@ public class ProductPayoutService {
     static final String AUDIT_SENT = "PRODUCT_PAYOUT_SENT";
     static final String UNKNOWN_OUTCOME = "Safaricom did not confirm it received this payment, so the money may "
             + "still move. Wait for the result or check the statement; do not raise it again.";
+    static final String NO_MATCH = "No %s payment matches this result. Replay it later, or attach it to its "
+            + "payment once the statement confirms which one it is.";
     static final String TAX_RESULT_PATH = "/tax-remittance/result";
     static final String TAX_TIMEOUT_PATH = "/tax-remittance/timeout";
     static final String POCHI_RESULT_PATH = "/pochi/result";
@@ -343,12 +347,58 @@ public class ProductPayoutService {
                 DarajaReplies.text(result, "ConversationID"));
         if (match.isEmpty()) {
             log.warn("{} result for an unknown payment {}", product, DarajaReplies.text(result, "ConversationID"));
+            CallbackOutcome.failed(String.format(NO_MATCH, label(product)));
             return Optional.empty();
         }
-        ProductPayout payout = match.get();
+        return Optional.of(settle(match.get(), result, raw));
+    }
+
+    /** Finance attaches a stored result nothing matched to the payment it belongs to, after checking the
+     * statement. It settles from the stored body only; nothing is sent to Safaricom. */
+    @Transactional
+    public ProductPayout attachResult(DarajaFeature product, UUID payoutUuid, JsonNode body, String raw) {
+        JsonNode result = body == null ? null : body.path("Result");
+        if (result == null || !result.isObject()) {
+            throw new ConflictException("The stored body has no Result object.");
+        }
+        ProductPayout payout = payouts.lockByUuid(payoutUuid).filter(p -> p.getProduct() == product)
+                .orElseThrow(() -> new NotFoundException(label(product) + " payment not found"));
         if (payout.getStatus() != ProductPayoutStatus.PENDING) {
-            log.info("Ignoring repeat {} result for {} already {}", product, payout.getUuid(), payout.getStatus());
-            return match;
+            throw new ConflictException("This payment is already " + payout.getStatus() + "; nothing to attach.");
+        }
+        if (differs(payout.getOriginatorConversationId(), DarajaReplies.text(result, "OriginatorConversationID"))
+                || differs(payout.getConversationId(), DarajaReplies.text(result, "ConversationID"))) {
+            throw new ConflictException("The result names another conversation than this payment.");
+        }
+        BigDecimal amount = resultAmount(result);
+        if (amount != null && amount.compareTo(payout.getAmount()) != 0) {
+            throw new ConflictException("The result is for KES " + amount.toPlainString() + ", not the payment's KES "
+                    + payout.getAmount().toPlainString() + ".");
+        }
+        return settle(payout, result, raw);
+    }
+
+    /** Whether the result names an amount and it is the payment's. */
+    public static boolean fits(ProductPayout payout, JsonNode body) {
+        BigDecimal amount = body == null ? null : resultAmount(body.path("Result"));
+        return amount != null && amount.compareTo(payout.getAmount()) == 0;
+    }
+
+    /** Pending payments Safaricom gave no conversation id for (its reply was lost), newest first. */
+    @Transactional(readOnly = true)
+    public java.util.List<ProductPayout> attachable(DarajaFeature product) {
+        return payouts.findAttachable(product, PageRequest.of(0, 50));
+    }
+
+    public static String label(DarajaFeature product) {
+        return product == DarajaFeature.TAX_REMITTANCE ? "Tax Remittance" : "Business to Pochi";
+    }
+
+    private ProductPayout settle(ProductPayout payout, JsonNode result, String raw) {
+        if (payout.getStatus() != ProductPayoutStatus.PENDING) {
+            log.info("Ignoring repeat {} result for {} already {}", payout.getProduct(), payout.getUuid(),
+                    payout.getStatus());
+            return payout;
         }
         String code = DarajaReplies.text(result, "ResultCode");
         boolean success = "0".equals(code);
@@ -365,7 +415,7 @@ public class ProductPayoutService {
         }
         payout.setRawResult(raw);
         payout.setCompletedAt(LocalDateTime.now());
-        return Optional.of(payouts.save(payout));
+        return payouts.save(payout);
     }
 
     /** Safaricom could not process the request in time. The outcome is unknown, so it stays PENDING. */
@@ -402,6 +452,23 @@ public class ProductPayoutService {
             }
         }
         return null;
+    }
+
+    // Pochi names it TransactionAmount, Tax Remittance (like B2B) Amount; a failure has no ResultParameters.
+    private static BigDecimal resultAmount(JsonNode result) {
+        String value = parameter(result, "TransactionAmount");
+        if (value == null) {
+            value = parameter(result, "Amount");
+        }
+        try {
+            return value == null ? null : new BigDecimal(value.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static boolean differs(String ours, String theirs) {
+        return StringUtils.hasText(ours) && StringUtils.hasText(theirs) && !ours.equals(theirs);
     }
 
     private static BigDecimal whole(BigDecimal amount) {

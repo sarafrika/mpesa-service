@@ -340,6 +340,67 @@ class CallbackInboxIntegrationTest {
     }
 
     @Test
+    void aTaxRemittanceResultNothingMatchesIsFailedAndFinanceAttachesItToItsPayment() throws Exception {
+        String originator = unique("oc-");
+        post("/api/v1/callbacks/tax-remittance/result", taxResult(originator, "25000"))
+                .andExpect(jsonPath("$.ResultCode").value("00000000"));
+        CallbackInboxEntry entry = latest(originator);
+        assertThat(entry.getKind()).isEqualTo(CallbackKind.TAX_REMITTANCE_RESULT);
+        assertThat(entry.getStatus()).isEqualTo(CallbackStatus.FAILED);
+        assertThat(entry.getError()).contains("No Tax Remittance payment matches");
+        assertThat(inboxService.get(entry.getUuid()).attachable()).isTrue();
+
+        // Safaricom's reply to the request was lost, so the payment has no ids to match on.
+        UUID mine = openTaxPayment("25000");
+        UUID smaller = openTaxPayment("900");
+        signIn("mpesa-finance");
+        assertThat(attachService.candidates(entry.getUuid())).first()
+                .satisfies(c -> assertThat(c.uuid()).isEqualTo(mine))
+                .satisfies(c -> assertThat(c.fits()).isTrue())
+                .satisfies(c -> assertThat(c.kind()).isEqualTo("TAX_REMITTANCE"));
+        assertThatThrownBy(() -> attachService.attach(entry.getUuid(), new AttachCallbackRequest(smaller, "wrong")))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("KES 25000");
+        CallbackDetailDto attached = attachService.attach(entry.getUuid(),
+                new AttachCallbackRequest(mine, "Statement shows the KRA payment for this PRN"));
+
+        assertThat(attached.callback().status()).isEqualTo("REPLAYED");
+        assertThat(jdbc.queryForMap("SELECT status, transaction_id, conversation_id FROM product_payouts "
+                + "WHERE uuid = ?", mine)).containsEntry("status", "SUCCESS")
+                .containsEntry("transaction_id", "TKR81LK5CY").containsEntry("conversation_id", "AG_" + originator);
+        assertThat(jdbc.queryForObject("SELECT status FROM product_payouts WHERE uuid = ?", String.class, smaller))
+                .isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events WHERE action = 'CALLBACK_ATTACHED' "
+                + "AND entity_id = ?", Long.class, entry.getUuid().toString())).isEqualTo(1);
+    }
+
+    @Test
+    void unmatchedPochiAndCheckoutCallbacksAreFailedAndReplayable() throws Exception {
+        String originator = unique("sar-pochi-");
+        post("/api/v1/callbacks/pochi/result", """
+                {"Result":{"ResultType":0,"ResultCode":2001,"ResultDesc":"The initiator information is invalid.",
+                 "OriginatorConversationID":"%s","ConversationID":"AG_%s"}}""".formatted(originator, originator))
+                .andExpect(jsonPath("$.ResultCode").value("00000000"));
+        CallbackInboxEntry pochi = latest(originator);
+        assertThat(pochi.getKind()).isEqualTo(CallbackKind.POCHI_RESULT);
+        assertThat(pochi.getStatus()).isEqualTo(CallbackStatus.FAILED);
+        assertThat(pochi.getError()).contains("No Business to Pochi payment matches");
+
+        String requestId = UUID.randomUUID().toString();
+        post("/api/v1/callbacks/b2b-checkout/result", """
+                {"resultCode":"0","resultDesc":"Process service request successfully.","amount":"71.0",
+                 "requestId":"%s","resultType":"0","conversationID":"AG_20261027_x","transactionId":"RDQ01NFT1Q",
+                 "status":"SUCCESS"}""".formatted(requestId)).andExpect(jsonPath("$.ResultCode").value("00000000"));
+        CallbackInboxEntry checkout = latest(requestId);
+        assertThat(checkout.getKind()).isEqualTo(CallbackKind.B2B_CHECKOUT_RESULT);
+        assertThat(checkout.getStatus()).isEqualTo(CallbackStatus.FAILED);
+        CallbackDetailDto detail = inboxService.get(checkout.getUuid());
+        assertThat(detail.replayable()).isTrue();
+        assertThat(detail.attachable()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM mpesa_incoming_payments WHERE transaction_id = ?",
+                Long.class, "RDQ01NFT1Q")).isZero();
+    }
+
+    @Test
     void reversalAndStatusResultsShowPartyNamesOnlyToFinance() throws Exception {
         String conversation = unique("AG_");
         post("/api/v1/callbacks/reversal/result", """
@@ -415,6 +476,25 @@ class CallbackInboxIntegrationTest {
                   receiver_shortcode, account_reference, amount, reference, outcome_unknown)
                 VALUES (?, ?, ?, 'BusinessPayBill', '522522', 'SAR-001', ?, ?, true) RETURNING uuid""", UUID.class,
                 shortcode.getUuid(), destination, UUID.randomUUID(), new BigDecimal(amount), unique("SWP-"));
+    }
+
+    /** An approved Tax Remittance whose request reached Safaricom without a reply: PENDING, no ids. */
+    private UUID openTaxPayment(String amount) {
+        return jdbc.queryForObject("""
+                INSERT INTO product_payouts (shortcode_uuid, product, approval_request_uuid, command_id, party_b,
+                  account_reference, amount, remarks, outcome_unknown)
+                VALUES (?, 'TAX_REMITTANCE', ?, 'PayTaxToKRA', '572572', ?, ?, 'Tax', true) RETURNING uuid""",
+                UUID.class, shortcode.getUuid(), UUID.randomUUID(), unique("PRN"), new BigDecimal(amount));
+    }
+
+    /** A Tax Remittance result shaped like the B2B results Safaricom documents for it. */
+    private static String taxResult(String originator, String amount) {
+        return """
+                {"Result":{"ResultType":"0","ResultCode":"0","ResultDesc":"The service request is processed successfully",
+                 "OriginatorConversationID":"%s","ConversationID":"AG_%s","TransactionID":"TKR81LK5CY",
+                 "ResultParameters":{"ResultParameter":[{"Key":"Amount","Value":"%s"},
+                 {"Key":"ReceiverPartyPublicName","Value":"572572 - Kenya Revenue Authority"}]}}}"""
+                .formatted(originator, originator, amount);
     }
 
     /** Daraja's BusinessPayBill result sample, for a request whose ids we never stored. */

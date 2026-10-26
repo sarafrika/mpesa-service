@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { asKind, asStatusFilter, kindLabel, shortEndpoint } from "./callback-filters.ts";
+import {
+  asKind,
+  asStatusFilter,
+  attachTarget,
+  kindLabel,
+  shortEndpoint,
+} from "./callback-filters.ts";
 
 test("status and kind filters only take known values", () => {
   assert.equal(asStatusFilter("FAILED"), "FAILED");
@@ -19,4 +25,13 @@ test("kinds and endpoints read as short labels", () => {
     "transaction-status/result",
   );
   assert.equal(shortEndpoint("/elsewhere"), "/elsewhere");
+});
+
+test("product callbacks have labels and attach targets", () => {
+  assert.equal(kindLabel("TAX_REMITTANCE_RESULT"), "Tax remittance result");
+  assert.equal(kindLabel("B2B_CHECKOUT_RESULT"), "B2B checkout result");
+  assert.equal(asKind("POCHI_RESULT"), "POCHI_RESULT");
+  assert.equal(attachTarget("POCHI_RESULT"), "Pochi payment");
+  assert.equal(attachTarget("REVERSAL_RESULT"), "reversal");
+  assert.equal(attachTarget("B2B_RESULT"), "B2B transfer");
 });

@@ -33,6 +33,12 @@ public interface ProductPayoutRepository extends JpaRepository<ProductPayout, Lo
                                                  @Param("id") String conversationId);
 
     @Query("""
+            SELECT p FROM ProductPayout p WHERE p.product = :product
+              AND p.status = com.sarafrika.apps.mpesaservice.utils.enums.ProductPayoutStatus.PENDING
+              AND p.conversationId IS NULL ORDER BY p.createdAt DESC, p.id DESC""")
+    java.util.List<ProductPayout> findAttachable(@Param("product") DarajaFeature product, Pageable pageable);
+
+    @Query("""
             SELECT p FROM ProductPayout p WHERE p.shortcodeUuid = :shortcode AND p.product = :product
               AND (:status IS NULL OR p.status = :status)""")
     Page<ProductPayout> findForShortcode(@Param("shortcode") UUID shortcodeUuid,

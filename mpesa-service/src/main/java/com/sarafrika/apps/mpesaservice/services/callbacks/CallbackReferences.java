@@ -24,10 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class CallbackReferences {
 
     static final int MAX_LENGTH = 500;
-    // Daraja's id fields across C2B, STK, B2C/B2B, status, balance and reversal callbacks.
+    // Daraja's id fields across C2B, STK, B2C/B2B, status, balance, reversal and B2B Express Checkout callbacks.
     static final Set<String> ID_KEYS = Set.of("TransID", "CheckoutRequestID", "MerchantRequestID", "ConversationID",
             "OriginatorConversationID", "TransactionID", "BillRefNumber", "MpesaReceiptNumber", "TransactionReceipt",
-            "ReceiptNo");
+            "ReceiptNo", "requestId", "transactionId");
 
     private final MpesaIncomingPaymentRepository incoming;
     private final MpesaOutgoingPaymentRepository outgoing;

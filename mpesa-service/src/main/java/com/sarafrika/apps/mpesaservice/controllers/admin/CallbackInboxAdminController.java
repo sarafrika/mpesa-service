@@ -127,7 +127,8 @@ public class CallbackInboxAdminController {
     @GetMapping("/{uuid}/attach-candidates")
     @PreAuthorize("hasRole('mpesa-finance')")
     @Operation(operationId = "listCallbackAttachCandidates",
-            summary = "Open B2B transfers or reversals a failed result could belong to, those that fit it first")
+            summary = "Open B2B transfers, reversals or Tax Remittance and Pochi payments a failed result could "
+                    + "belong to, those that fit it first")
     @ApiResponse(responseCode = "200", description = "Candidates; empty when the entry cannot be attached")
     @ApiResponse(responseCode = "403", description = "Requires mpesa-finance",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -141,7 +142,8 @@ public class CallbackInboxAdminController {
     @PostMapping("/{uuid}/attach")
     @PreAuthorize("hasRole('mpesa-finance')")
     @Operation(operationId = "attachCallbackResult",
-            summary = "Apply a failed B2B or reversal result to the transfer or reversal it belongs to (audited)",
+            summary = "Apply a failed B2B, reversal, Tax Remittance or Pochi result to the record it belongs to "
+                    + "(audited)",
             description = "For a result nothing matched, after checking the statement. It settles the record from "
                     + "the stored body; nothing is sent to Safaricom.")
     @ApiResponse(responseCode = "200", description = "The callback, now REPLAYED")

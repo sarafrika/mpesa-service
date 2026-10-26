@@ -6,12 +6,13 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-/** An open B2B transfer or reversal a failed result could be attached to. */
+/** An open B2B transfer, reversal, Tax Remittance or Pochi payment a failed result could be attached to. */
 @Schema(name = "AttachCandidateDto")
 public record AttachCandidateDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("uuid") UUID uuid,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"B2B_TRANSFER", "REVERSAL"})
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"B2B_TRANSFER", "REVERSAL", "TAX_REMITTANCE",
+                "BUSINESS_TO_POCHI"})
         @JsonProperty("kind") String kind,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "Sweep SWP-7K2Q9XHD to 522522")
         @JsonProperty("label") String label,
