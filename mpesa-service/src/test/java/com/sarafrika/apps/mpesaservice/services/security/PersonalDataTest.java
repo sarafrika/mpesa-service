@@ -81,6 +81,23 @@ class PersonalDataTest {
     }
 
     @Test
+    void statementTextAndLinesKeptInRawDataAreMasked() throws Exception {
+        assertThat(PersonalData.maskText("Customer Transfer to 254705912645 - NICHOLAS JOHN SONGOK Acc. INV-9"))
+                .isEqualTo("Customer Transfer to 2547•••••645 - N. SONGOK Acc. INV-9");
+        assertThat(PersonalData.maskText("Pay Bill from 254722***111 - John *** Acc. ELM-1"))
+                .isEqualTo("Pay Bill from 2547•••••111 - J. *** Acc. ELM-1");
+        assertThat(PersonalData.maskText("0722000111")).isEqualTo("0722•••••111");
+        assertThat(PersonalData.maskText("ELM-003019")).isEqualTo("ELM-003019");
+        assertThat(PersonalData.maskPublicName("601315 - Safaricom1338")).isEqualTo("601315 - S.");
+        JsonNode line = PersonalData.redact(json.readTree("""
+                {"StatementLine":{"Other Party Info":"254722123111 - JOHN KAMAU",
+                "Details":"Pay Bill from 254722123111 - JOHN KAMAU Acc. ELM-1","Receipt No.":"TJP9X2K0BB"}}"""));
+        assertThat(line.at("/StatementLine/Other Party Info").asText()).isEqualTo("2547•••••111 - J. KAMAU");
+        assertThat(line.at("/StatementLine/Details").asText()).isEqualTo("Pay Bill from 2547•••••111 - J. KAMAU Acc. ELM-1");
+        assertThat(line.at("/StatementLine/Receipt No.").asText()).isEqualTo("TJP9X2K0BB");
+    }
+
+    @Test
     void rawCallbacksAndPayloadsAreRedactedAtAnyDepth() throws Exception {
         JsonNode stk = json.readTree("""
                 {"Body":{"stkCallback":{"CallbackMetadata":{"Item":[

@@ -9,6 +9,8 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -20,6 +22,10 @@ public final class PersonalData {
     private static final Set<String> PHONE_KEYS = Set.of("msisdn", "phonenumber", "phone_number", "phone",
             "recipient_phone_number");
     private static final Set<String> FULL_NAME_KEYS = Set.of("customer_name", "recipient_name", "recipientname");
+
+    private static final Pattern PHONE_AND_NAME =
+            Pattern.compile("(\\+?\\d[\\d*]{8,14})(\\s+[-\u2013]\\s+)(.+?)(?=\\s+Acc\\.|,|;|$)");
+    private static final Pattern LONE_NUMBER = Pattern.compile("(?<![\\d*])\\d{9,15}(?![\\d*])");
 
     private PersonalData() {
     }
@@ -58,11 +64,35 @@ public final class PersonalData {
 
     /** Safaricom's "254712345678 - JANE WANJIRU KAMAU" with the phone masked and the name shortened; a short
      * business number before the dash (e.g. "601315 - Safaricom1338") is not a phone and stays. */
-    static String maskPublicName(String value) {
+    public static String maskPublicName(String value) {
+        if (value == null) {
+            return null;
+        }
         int dash = value.indexOf(" - ");
         String who = dash < 0 ? value : value.substring(0, dash);
         String maskedWho = who.replaceAll("[^0-9]", "").length() >= 9 ? maskPhone(who) : who;
         return dash < 0 ? maskedWho : maskedWho + " - " + shortName(value.substring(dash + 3));
+    }
+
+    /** Free text such as a statement's Details: "from 254712345678 - JANE KAMAU Acc. X" reads "from 2547•••••678 -
+     * J. KAMAU Acc. X", and any other run of 9 to 15 digits is masked like a phone. */
+    public static String maskText(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+        Matcher named = PHONE_AND_NAME.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (named.find()) {
+            named.appendReplacement(out, Matcher.quoteReplacement(maskPhone(named.group(1)) + named.group(2)
+                    + shortName(named.group(3))));
+        }
+        named.appendTail(out);
+        Matcher digits = LONE_NUMBER.matcher(out.toString());
+        StringBuilder masked = new StringBuilder();
+        while (digits.find()) {
+            digits.appendReplacement(masked, Matcher.quoteReplacement(maskPhone(digits.group())));
+        }
+        return digits.appendTail(masked).toString();
     }
 
     /** A copy of the JSON with phone and name values masked wherever they sit, including Daraja's
@@ -111,6 +141,13 @@ public final class PersonalData {
         // ReceiverPartyPublicName (B2C), Credit/DebitPartyPublicName (reversal), Credit/DebitPartyName (status).
         if (k.endsWith("publicname") || k.endsWith("partyname")) {
             return TextNode.valueOf(maskPublicName(value.asText()));
+        }
+        // An org statement line kept in a backfilled deposit's raw data.
+        if (k.equals("other party info")) {
+            return TextNode.valueOf(maskPublicName(value.asText()));
+        }
+        if (k.equals("details")) {
+            return TextNode.valueOf(maskText(value.asText()));
         }
         if (PHONE_KEYS.contains(k)) {
             return TextNode.valueOf(maskPhone(value.asText()));
