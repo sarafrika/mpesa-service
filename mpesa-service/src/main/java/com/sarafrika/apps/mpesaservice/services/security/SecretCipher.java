@@ -12,10 +12,8 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * AES-256-GCM for shortcode secrets at rest, as {@code enc:v1:<base64(iv|ciphertext|tag)>}.
- * Values without the prefix are legacy plaintext and come back unchanged until they are saved again.
- */
+/** AES-256-GCM for shortcode secrets at rest, as {@code enc:v1:<base64(iv|ciphertext|tag)>}. Values without
+ * the prefix are legacy plaintext and come back unchanged until they are saved again. */
 @Component
 public class SecretCipher {
 

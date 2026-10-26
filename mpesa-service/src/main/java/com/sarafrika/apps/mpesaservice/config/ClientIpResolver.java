@@ -6,10 +6,8 @@ import java.util.regex.Pattern;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.util.StringUtils;
 
-/**
- * The caller's address: the direct peer, unless that peer is a trusted proxy, in which case the
- * right-most X-Forwarded-For entry that is not itself a trusted proxy. Proxies may be IPs or CIDRs.
- */
+/** The caller's address: the direct peer, unless that peer is a trusted proxy (IP or CIDR), in which case
+ * the right-most X-Forwarded-For entry that is not itself a trusted proxy. */
 public class ClientIpResolver {
 
     private static final Pattern IP_LITERAL = Pattern.compile("^(\\d{1,3}(\\.\\d{1,3}){3}|[0-9a-fA-F:]*:[0-9a-fA-F:.]*)$");

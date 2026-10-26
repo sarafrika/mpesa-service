@@ -60,6 +60,7 @@ class C2BValidationServiceTest {
         shortcode = new MpesaShortCode();
         shortcode.setUuid(UUID.randomUUID());
         shortcode.setShortcode("600100");
+        shortcode.setIsActive(true);
         when(shortcodes.findByShortcode("600100")).thenReturn(Optional.of(shortcode));
     }
 
@@ -85,6 +86,17 @@ class C2BValidationServiceTest {
         C2BValidationRequest elsewhere = new C2BValidationRequest("Pay Bill", "T1", "20261026143208",
                 new BigDecimal("10"), "123456", "ELM-000001", null, null, "254712345678", null, null, null);
         assertThat(service.validate(elsewhere).resultCode()).isEqualTo(C2BResultCodes.INVALID_SHORTCODE);
+    }
+
+    @Test
+    void aSuspendedOrDraftShortcodeRejectsEveryPayment() {
+        when(rules.findByShortcodeUuid(shortcode.getUuid())).thenReturn(Optional.empty());
+        shortcode.setIsActive(false);
+
+        ValidationDecision decision = service.validate(request("anything", "10"));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.resultCode()).isEqualTo(C2BResultCodes.OTHER_ERROR);
     }
 
     @Test

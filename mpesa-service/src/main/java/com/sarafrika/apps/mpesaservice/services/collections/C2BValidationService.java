@@ -51,6 +51,10 @@ public class C2BValidationService {
             return ValidationDecision.reject(C2BResultCodes.INVALID_SHORTCODE,
                     "Shortcode " + request.businessShortCode() + " is not configured here");
         }
+        if (!Boolean.TRUE.equals(shortcode.get().getIsActive())) {
+            return ValidationDecision.reject(C2BResultCodes.OTHER_ERROR,
+                    "Shortcode " + shortcode.get().getShortcode() + " is not active here");
+        }
         RuleSet rules = ruleRepository.findByShortcodeUuid(shortcode.get().getUuid()).map(RuleSet::of).orElse(null);
         return evaluate(rules, shortcode.get().getShortcode(), request.billRefNumber(), request.transAmount(),
                 request.msisdn(), request.transId());
