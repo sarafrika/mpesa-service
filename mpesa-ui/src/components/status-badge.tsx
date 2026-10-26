@@ -41,7 +41,10 @@ const STATUS_TONE: Record<string, Tone> = {
 
 /** A status is always a word and a colour, so it reads without colour too. */
 export function StatusBadge({ status, tone }: { status: string; tone?: Tone }) {
-  const label = status.charAt(0) + status.slice(1).toLowerCase().replaceAll("_", " ");
+  // Enum codes (PENDING_APPROVAL) become words; ready-made labels ("Failed · HTTP 500") stay as given.
+  const label = /^[A-Z0-9_]+$/.test(status)
+    ? status.charAt(0) + status.slice(1).toLowerCase().replaceAll("_", " ")
+    : status;
   return (
     <Badge
       variant="outline"
