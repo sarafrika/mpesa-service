@@ -8,9 +8,9 @@ import { toast } from "sonner";
 import { z } from "zod";
 import {
   useActivateShortcode,
+  useSendShortcodeTestStk,
   useSuspendShortcode,
 } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
-import { useInitiateStkPush } from "@/api/generated/endpoints/m-pesa-payments/m-pesa-payments";
 import type { ShortcodeDetail } from "@/api/generated/model";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,9 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { isApiError } from "@/lib/api-errors";
-import { okData, useInvalidateShortcodes } from "./api";
-import { TextField } from "./form-fields";
+import { applyFieldErrors } from "@/lib/api-errors";
+import { okData, toastApiError, useInvalidateShortcodes } from "./api";
+import { FormRootError, TextField } from "./form-fields";
 
 /** mpesa-admin: suspend refuses STK pushes and payouts at once; activate lets them through again. */
 export function LifecycleButton({ shortcode }: { shortcode: ShortcodeDetail }) {
@@ -111,21 +111,11 @@ const stkSchema = z.object({
   amount: z
     .string()
     .trim()
-    .regex(/^[1-9][0-9]{0,5}$/, "Whole shillings, at least 1"),
-  account_reference: z.string().trim().max(12, "At most 12 characters"),
+    .regex(/^([1-9]|10)$/, "Whole shillings, 1 to 10"),
 });
 type StkValues = z.infer<typeof stkSchema>;
 
-/** The machine API's error envelope says what went wrong in error.errorMessage. */
-function stkFailure(error: unknown): string {
-  if (isApiError(error) && error.body && typeof error.body === "object") {
-    const body = error.body as { error?: { errorMessage?: string } };
-    if (body.error?.errorMessage) return body.error.errorMessage;
-  }
-  return "The STK push was not sent";
-}
-
-/** Sends a small STK push through the same machine API products use. */
+/** Sends a KES 1 to 10 STK push through the admin API, so the console needs no product grant. */
 export function SendTestStkDialog({
   shortcode,
   disabled,
@@ -136,29 +126,25 @@ export function SendTestStkDialog({
   const [open, setOpen] = useState(false);
   const form = useForm<StkValues>({
     resolver: zodResolver(stkSchema),
-    defaultValues: { phone_number: "", amount: "1", account_reference: "TEST" },
+    defaultValues: { phone_number: "", amount: "1" },
   });
-  const push = useInitiateStkPush({ mutation: { meta: { errorToast: false } } });
+  const push = useSendShortcodeTestStk({ mutation: { meta: { errorToast: false } } });
   const { errors } = form.formState;
 
   async function submit(values: StkValues) {
     try {
       const response = await push.mutateAsync({
-        data: {
-          shortcode_uuid: shortcode.uuid,
-          phone_number: values.phone_number,
-          amount: Number(values.amount),
-          account_reference: values.account_reference || undefined,
-          transaction_desc: "Console test",
-        },
+        uuid: shortcode.uuid,
+        data: { phone_number: values.phone_number, amount: Number(values.amount) },
       });
-      const body = okData(response);
       toast.success("STK push sent", {
-        description: body?.data?.CustomerMessage ?? "Ask the customer to enter their M-Pesa PIN.",
+        description:
+          okData(response)?.customer_message ?? "Ask the customer to enter their M-Pesa PIN.",
       });
       setOpen(false);
     } catch (error) {
-      toast.error("STK push failed", { description: stkFailure(error) });
+      if (!applyFieldErrors(error, form.setError))
+        toastApiError(error, { requiredRole: "mpesa-operator" });
     }
   }
 
@@ -181,7 +167,8 @@ export function SendTestStkDialog({
         <DialogHeader>
           <DialogTitle>Send a test STK push</DialogTitle>
           <DialogDescription>
-            The phone gets a real M-Pesa prompt from {shortcode.business_name}. Use a small amount.
+            The phone gets a real M-Pesa prompt from {shortcode.business_name} for KES 1 to 10,
+            against its default account reference.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-4" noValidate>
@@ -193,19 +180,13 @@ export function SendTestStkDialog({
             error={errors.phone_number}
             {...form.register("phone_number")}
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <TextField
-              label="Amount (KES)"
-              inputMode="numeric"
-              error={errors.amount}
-              {...form.register("amount")}
-            />
-            <TextField
-              label="Account reference"
-              error={errors.account_reference}
-              {...form.register("account_reference")}
-            />
-          </div>
+          <TextField
+            label="Amount (KES)"
+            inputMode="numeric"
+            error={errors.amount}
+            {...form.register("amount")}
+          />
+          <FormRootError message={errors.root?.server?.message} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
