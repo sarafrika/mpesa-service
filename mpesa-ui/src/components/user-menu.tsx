@@ -22,6 +22,19 @@ function initials(name?: string | null) {
     .toUpperCase();
 }
 
+// Ends the Keycloak session too, so the next sign-in asks for credentials again.
+async function federatedSignOut() {
+  let url = "/sign-in";
+  try {
+    const response = await fetch("/api/auth/federated-logout", { method: "POST" });
+    if (response.ok) url = (await response.json()).url ?? url;
+  } catch {
+    // Without the end-session URL we still clear the console's own session.
+  }
+  await signOut({ redirect: false });
+  window.location.assign(url);
+}
+
 export function UserMenu() {
   const { data: session } = useSession();
   const consoleRoles = session?.roles.filter((role) => role.startsWith("mpesa-")) ?? [];
@@ -45,7 +58,7 @@ export function UserMenu() {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => signOut({ callbackUrl: "/sign-in" })}>
+        <DropdownMenuItem onSelect={federatedSignOut}>
           <LogOut /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
