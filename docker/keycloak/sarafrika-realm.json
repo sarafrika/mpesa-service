@@ -1,0 +1,74 @@
+{
+  "realm": "sarafrika",
+  "enabled": true,
+  "displayName": "Sarafrika (local)",
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      { "name": "mpesa-viewer", "description": "Read dashboards, paybills and transactions" },
+      { "name": "mpesa-operator", "description": "Onboard paybills, run checks, raise reversals and payouts" },
+      { "name": "mpesa-finance", "description": "Approve money movement, exports and reconciliation" },
+      { "name": "mpesa-admin", "description": "Everything, including credentials, grants and audit" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "mpesa-ui",
+      "name": "Sarafrika M-Pesa console",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "mpesa-service audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "mpesa-service",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "elimika-backend",
+      "name": "Elimika (machine client)",
+      "publicClient": false,
+      "secret": "elimika-local-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "mpesa-service audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "mpesa-service",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "console-admin",
+      "enabled": true,
+      "firstName": "Console",
+      "lastName": "Admin",
+      "email": "console-admin@sarafrika.local",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "console-admin", "temporary": false }],
+      "realmRoles": ["default-roles-sarafrika", "mpesa-admin"]
+    }
+  ]
+}

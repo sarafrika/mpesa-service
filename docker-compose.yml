@@ -1,0 +1,59 @@
+# Local stack. `docker compose up` starts Postgres and Keycloak for running the apps on your machine;
+# `docker compose --profile apps up --build` also runs mpesa-service and mpesa-ui in containers.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: mpesa
+      POSTGRES_USER: mpesa
+      POSTGRES_PASSWORD: mpesa
+    ports: ["5432:5432"]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mpesa -d mpesa"]
+      interval: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Browsers use localhost:8081; containers reach keycloak:8080 but tokens keep the localhost issuer.
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports: ["8081:8080"]
+    volumes: [./docker/keycloak:/opt/keycloak/data/import:ro]
+
+  mpesa-service:
+    profiles: [apps]
+    build: ./mpesa-service
+    depends_on:
+      postgres: { condition: service_healthy }
+      keycloak: { condition: service_started }
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mpesa
+      SPRING_DATASOURCE_USERNAME: mpesa
+      SPRING_DATASOURCE_PASSWORD: mpesa
+      KEYCLOAK_ISSUER_URI: http://localhost:8081/realms/sarafrika
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/sarafrika/protocol/openid-connect/certs
+      KEYCLOAK_AUDIENCE: mpesa-service
+      CALLBACK_IP_WHITELIST_ENABLED: "false"
+    ports: ["8080:8080"]
+
+  mpesa-ui:
+    profiles: [apps]
+    build: ./mpesa-ui
+    depends_on: [mpesa-service]
+    environment:
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: local-only-secret-change-me-0123456789abcdef
+      KEYCLOAK_ISSUER: http://localhost:8081/realms/sarafrika
+      KEYCLOAK_INTERNAL_ISSUER: http://keycloak:8080/realms/sarafrika
+      KEYCLOAK_CLIENT_ID: mpesa-ui
+      MPESA_SERVICE_URL: http://mpesa-service:8080
+    ports: ["3000:3000"]
+
+volumes:
+  postgres-data:
