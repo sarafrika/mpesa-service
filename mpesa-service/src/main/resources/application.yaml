@@ -66,6 +66,10 @@ mpesa:
       - "196.201.212.74"
       - "196.201.212.69"
 
+    # Proxies (IPs or CIDRs, comma-separated) in front of this service. Only when the direct peer is one of
+    # them is X-Forwarded-For used, taking its right-most entry that is not a trusted proxy.
+    trusted-proxies: ${CALLBACK_TRUSTED_PROXIES:}
+
     # IP whitelisting configuration
     ip-whitelist:
       enabled: ${CALLBACK_IP_WHITELIST_ENABLED:true}  # Set to false for development

@@ -46,6 +46,10 @@ public class CallbackSecurityConfig {
     @Value("${mpesa.callback.ip-whitelist.enabled:true}")
     private boolean ipWhitelistEnabled;
 
+    /** Proxies (IPs or CIDRs) whose X-Forwarded-For we believe; empty trusts no forwarding header. */
+    @Value("${mpesa.callback.trusted-proxies:}")
+    private List<String> trustedProxies;
+
     /**
      * Keycloak issuer used to validate inbound JWTs. When blank (local/test) the resource
      * server is not wired so the application context still starts without a live Keycloak.
@@ -68,7 +72,13 @@ public class CallbackSecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain callbackSecurityFilterChain(HttpSecurity http) throws Exception {
+    public ClientIpResolver clientIpResolver() {
+        return new ClientIpResolver(trustedProxies);
+    }
+
+    @Bean
+    public SecurityFilterChain callbackSecurityFilterChain(HttpSecurity http, ClientIpResolver clientIpResolver)
+            throws Exception {
         http
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -89,7 +99,7 @@ public class CallbackSecurityConfig {
         }
 
         if (ipWhitelistEnabled) {
-            http.addFilterBefore(new CallbackIPWhitelistFilter(allowedIps), UsernamePasswordAuthenticationFilter.class);
+            http.addFilterBefore(new CallbackIPWhitelistFilter(allowedIps, clientIpResolver), UsernamePasswordAuthenticationFilter.class);
         }
 
         http.addFilterAfter(new CallbackLoggingFilter(), UsernamePasswordAuthenticationFilter.class);
@@ -104,9 +114,11 @@ public class CallbackSecurityConfig {
     public static class CallbackIPWhitelistFilter extends OncePerRequestFilter {
 
         private final List<String> allowedIps;
+        private final ClientIpResolver clientIpResolver;
 
-        public CallbackIPWhitelistFilter(List<String> allowedIps) {
+        public CallbackIPWhitelistFilter(List<String> allowedIps, ClientIpResolver clientIpResolver) {
             this.allowedIps = allowedIps;
+            this.clientIpResolver = clientIpResolver;
         }
 
         @Override
@@ -117,7 +129,7 @@ public class CallbackSecurityConfig {
 
             // Only apply IP filtering to callback endpoints
             if (requestPath.startsWith("/api/v1/callbacks/")) {
-                String clientIp = getClientIpAddress(request);
+                String clientIp = clientIpResolver.resolve(request);
 
                 log.debug("Callback request from IP: {} to path: {}", clientIp, requestPath);
 
@@ -133,37 +145,6 @@ public class CallbackSecurityConfig {
             }
 
             filterChain.doFilter(request, response);
-        }
-
-        private String getClientIpAddress(HttpServletRequest request) {
-            // Check for IP in various headers (useful when behind load balancers/proxies)
-            String[] headerNames = {
-                    "X-Forwarded-For",
-                    "X-Real-IP",
-                    "Proxy-Client-IP",
-                    "WL-Proxy-Client-IP",
-                    "HTTP_X_FORWARDED_FOR",
-                    "HTTP_X_FORWARDED",
-                    "HTTP_X_CLUSTER_CLIENT_IP",
-                    "HTTP_CLIENT_IP",
-                    "HTTP_FORWARDED_FOR",
-                    "HTTP_FORWARDED",
-                    "HTTP_VIA",
-                    "REMOTE_ADDR"
-            };
-
-            for (String header : headerNames) {
-                String ip = request.getHeader(header);
-                if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-                    // Handle comma-separated IPs (X-Forwarded-For can contain multiple IPs)
-                    if (ip.contains(",")) {
-                        ip = ip.split(",")[0].trim();
-                    }
-                    return ip;
-                }
-            }
-
-            return request.getRemoteAddr();
         }
 
         private boolean isIpAllowed(String clientIp) {
