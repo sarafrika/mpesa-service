@@ -91,6 +91,7 @@ class MetricsIntegrationTest {
 
     @BeforeEach
     void clean() {
+        jdbc.update("DELETE FROM balance_snapshots");
         jdbc.update("DELETE FROM mpesa_outgoing_payments");
         jdbc.update("DELETE FROM mpesa_incoming_payments");
         jdbc.update("DELETE FROM mpesa_shortcodes");
@@ -296,6 +297,33 @@ class MetricsIntegrationTest {
     }
 
     @Test
+    void theNewestReportWinsAndEachShortcodeMayHaveItsOwnThreshold() {
+        UUID queried = shortcode("Elimika Payouts", "PRODUCTION", true);
+        UUID ownLine = shortcode("Refunds", "PRODUCTION", true);
+        UUID payoutNewer = shortcode("Events", "PRODUCTION", true);
+        outgoing(queried, "SUCCESS", "10.00", "38420.00", NOW.minus(Duration.ofHours(2)));
+        snapshot(queried, "900000.00", NOW.minus(Duration.ofHours(1)));
+        outgoing(ownLine, "SUCCESS", "10.00", "120000.00", NOW.minus(Duration.ofHours(1)));
+        jdbc.update("UPDATE mpesa_shortcodes SET low_float_threshold = 200000 WHERE uuid = ?", ownLine);
+        snapshot(payoutNewer, "900000.00", NOW.minus(Duration.ofHours(3)));
+        outgoing(payoutNewer, "SUCCESS", "10.00", "1000.00", NOW.minus(Duration.ofHours(1)));
+
+        Map<UUID, PaybillHealthDto> byUuid = health.health(null).stream()
+                .collect(Collectors.toMap(PaybillHealthDto::shortcodeUuid, Function.identity()));
+
+        assertThat(byUuid.get(queried).floatAmount()).isEqualByComparingTo("900000.00");
+        assertThat(byUuid.get(queried).state()).isNotEqualTo(PaybillState.LOW_FLOAT);
+        assertThat(byUuid.get(queried).lowFloatThreshold()).isEqualByComparingTo("50000");
+        assertThat(byUuid.get(ownLine).state()).isEqualTo(PaybillState.LOW_FLOAT);
+        assertThat(byUuid.get(ownLine).lowFloatThreshold()).isEqualByComparingTo("200000");
+        assertThat(byUuid.get(payoutNewer).floatAmount()).isEqualByComparingTo("1000.00");
+        assertThat(attention.items(new AttentionScope(ownLine, null)).get(0).title())
+                .isEqualTo("Refunds float below KES 200,000.00");
+        assertThat(metrics.summary(WEEK_FROM, WEEK_TO, Filter.ALL).floatSummary().totalAmount())
+                .isEqualByComparingTo("1021000.00");
+    }
+
+    @Test
     void depositsToAnUnknownShortcodeCountInTotalsAndNeedAttention() {
         UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
         incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(1)));
@@ -353,6 +381,12 @@ class MetricsIntegrationTest {
                 uuid, shortcode, type, settled ? "TX" + n : "ws_CO_" + n, "ws_CO_" + n, new BigDecimal(amount),
                 status, MetricsTime.toStorage(at), settled ? MetricsTime.toStorage(at) : null);
         return uuid;
+    }
+
+    private void snapshot(UUID shortcode, String utility, Instant at) {
+        jdbc.update("INSERT INTO balance_snapshots (shortcode_uuid, status, source, utility_available, requested_at, "
+                + "received_at) VALUES (?, 'COMPLETED', 'MANUAL', ?, ?, ?)", shortcode, new BigDecimal(utility),
+                MetricsTime.toStorage(at), MetricsTime.toStorage(at));
     }
 
     private void outgoing(UUID shortcode, String status, String amount, String utilityFunds, Instant at) {

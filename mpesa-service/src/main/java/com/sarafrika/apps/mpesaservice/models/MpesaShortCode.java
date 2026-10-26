@@ -121,4 +121,8 @@ public class MpesaShortCode extends BaseEntity {
 
     @Column(name = "last_connection_error")
     private String lastConnectionError;
+
+    /** Utility balance (KES) below which this shortcode shows low float; null uses mpesa.alerts.low-float. */
+    @Column(name = "low_float_threshold")
+    private BigDecimal lowFloatThreshold;
 }

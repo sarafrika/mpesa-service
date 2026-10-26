@@ -68,7 +68,8 @@ public class PaybillHealthService {
                     latestFloat == null ? null : latestFloat.amount(),
                     latestFloat == null ? null : latestFloat.reportedAt(),
                     (collected == null ? 0 : collected.failedRecent()) + (paid == null ? 0 : paid.failedRecent()),
-                    (collected == null ? 0 : collected.settledRecent()) + (paid == null ? 0 : paid.settledRecent()));
+                    (collected == null ? 0 : collected.settledRecent()) + (paid == null ? 0 : paid.settledRecent()),
+                    threshold(row));
         }).toList();
     }
 
@@ -80,7 +81,7 @@ public class PaybillHealthService {
         if (!Environment.PRODUCTION.name().equals(row.environment())) {
             return PaybillState.SANDBOX;
         }
-        if (latestFloat != null && latestFloat.amount().compareTo(alerts.lowFloat()) < 0) {
+        if (latestFloat != null && latestFloat.amount().compareTo(threshold(row)) < 0) {
             return PaybillState.LOW_FLOAT;
         }
         Instant lastSeen = row.lastActivityAt() != null ? row.lastActivityAt() : row.createdAt();
@@ -88,6 +89,11 @@ public class PaybillHealthService {
             return PaybillState.STALE;
         }
         return PaybillState.HEALTHY;
+    }
+
+    /** The shortcode's own low-float threshold, else mpesa.alerts.low-float. */
+    BigDecimal threshold(ShortcodeRow row) {
+        return row.lowFloatThreshold() != null ? row.lowFloatThreshold() : alerts.lowFloat();
     }
 
     public Instant now() {

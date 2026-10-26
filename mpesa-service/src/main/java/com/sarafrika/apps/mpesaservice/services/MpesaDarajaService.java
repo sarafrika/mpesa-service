@@ -109,18 +109,9 @@ public interface MpesaDarajaService {
 
     // ==================== 4. BUSINESS TO BUSINESS (B2B) ====================
 
-    /**
-     * Transfer funds between business accounts
-     *
-     * @param senderShortcodeUuid UUID of sender's configured shortcode
-     * @param receiverShortcode Receiver's shortcode number
-     * @param amount Amount to transfer
-     * @param remarks Transaction remarks
-     * @param accountReference Account reference
-     * @return B2B transfer response
-     */
-    MpesaApiResponse<B2BTransferResponse> transferB2B(UUID senderShortcodeUuid, String receiverShortcode,
-                                                      BigDecimal amount, String remarks, String accountReference);
+    /** B2B payment (BusinessPayBill or BusinessBuyGoods) from a shortcode; Safaricom posts the outcome to the
+     * B2B result URL, or the B2B timeout URL when it could not process the request in time. */
+    MpesaApiResponse<B2BTransferResponse> sendB2BPayment(MpesaShortCode shortcode, B2BPaymentRequest request);
 
     // ==================== 5. TRANSACTION STATUS QUERY ====================
 
@@ -141,14 +132,9 @@ public interface MpesaDarajaService {
 
     // ==================== 6. ACCOUNT BALANCE QUERY ====================
 
-    /**
-     * Query M-Pesa account balance
-     *
-     * @param shortcodeUuid UUID of the configured shortcode
-     * @param remarks Query remarks
-     * @return Account balance response
-     */
-    MpesaApiResponse<AccountBalanceResponse> queryAccountBalance(UUID shortcodeUuid, String remarks);
+    /** Account Balance for a shortcode; Safaricom posts the balances to the account-balance result URL, or
+     * the account-balance timeout URL when it could not process the query in time. */
+    MpesaApiResponse<AccountBalanceResponse> queryAccountBalance(MpesaShortCode shortcode, String remarks);
 
     // ==================== 7. TRANSACTION REVERSAL ====================
 

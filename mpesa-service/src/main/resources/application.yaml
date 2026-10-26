@@ -69,6 +69,14 @@ mpesa:
     low-float: ${MPESA_ALERTS_LOW_FLOAT:50000}
     stale-after: ${MPESA_ALERTS_STALE_AFTER:6h}
 
+  # Scheduled Account Balance query for every active shortcode with an initiator. These are settings of this
+  # service, not Safaricom's: blank or 0 keeps it off; e.g. 30m. Each instance polls every balance-query-poll
+  # and claims due shortcodes, so a shortcode is asked once per interval however many instances run.
+  treasury:
+    balance-query-interval: ${MPESA_TREASURY_BALANCE_QUERY_INTERVAL:}
+    balance-query-poll: ${MPESA_TREASURY_BALANCE_QUERY_POLL:1m}
+    balance-query-batch: 20
+
   # Daraja base URLs and HTTP timeouts.
   daraja:
     sandbox:
@@ -148,6 +156,7 @@ mpesa:
     # Account Balance callback configuration
     account-balance:
       result-url: ${mpesa.callback.base-url}/account-balance/result
+      timeout-url: ${mpesa.callback.base-url}/account-balance/timeout
 
     # Transaction Reversal callback configuration
     reversal:

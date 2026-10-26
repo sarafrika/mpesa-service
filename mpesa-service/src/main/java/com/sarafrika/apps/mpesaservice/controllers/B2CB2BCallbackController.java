@@ -3,6 +3,9 @@ package com.sarafrika.apps.mpesaservice.controllers;
 
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionStatusService;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+import com.sarafrika.apps.mpesaservice.services.treasury.B2bTransferService;
+import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -36,6 +39,8 @@ public class B2CB2BCallbackController {
 
     private final MpesaPayoutService payoutService;
     private final TransactionStatusService transactionStatusService;
+    private final BalanceService balanceService;
+    private final B2bTransferService b2bTransferService;
     private final ObjectMapper objectMapper;
 
     // ==================== B2C CALLBACKS ====================
@@ -89,56 +94,31 @@ public class B2CB2BCallbackController {
 
     // ==================== B2B CALLBACKS ====================
 
-    /**
-     * Handle B2B transfer result callback
-     * Called when B2B transfer processing completes (success or failure)
-     */
+    /** The B2B result settles the sweep it belongs to, once (a repeat is acknowledged and ignored). */
     @PostMapping("/b2b/result")
     public ResponseEntity<CallbackAcknowledgment> handleB2BResult(
             @RequestBody B2BTransferResult transferResult) {
-
         try {
-            log.info("Received B2B transfer result - ConversationID: {}, ResultCode: {}",
-                    transferResult.result().conversationId(),
-                    transferResult.result().resultCode());
-
             B2BResult result = transferResult.result();
-
-            if (result.isSuccessful()) {
-                handleSuccessfulB2BTransfer(result);
-            } else {
-                handleFailedB2BTransfer(result);
-            }
-
+            log.info("Received B2B result - ConversationID: {}, ResultCode: {}", result.conversationId(),
+                    result.resultCode());
+            b2bTransferService.applyResult(result, objectMapper.writeValueAsString(transferResult));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
-
         } catch (Exception e) {
             log.error("Error processing B2B result callback", e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
 
-    /**
-     * Handle B2B transfer timeout callback
-     * Called when B2B transfer request times out
-     */
+    /** A queue timeout leaves the sweep's outcome unknown: it stays PENDING, flagged, and is never resent. */
+    // Daraja does not document the timeout body, so both a flat one and one wrapped in "Result" are read.
     @PostMapping("/b2b/timeout")
-    public ResponseEntity<CallbackAcknowledgment> handleB2BTimeout(
-            @RequestBody B2BTimeoutCallback timeoutCallback) {
-
+    public ResponseEntity<CallbackAcknowledgment> handleB2BTimeout(@RequestBody Map<String, Object> body) {
+        TimeoutIds ids = TimeoutIds.of(body);
+        log.warn("Received B2B timeout - ConversationID: {}", ids.conversationId());
         try {
-            log.warn("Received B2B timeout - ConversationID: {}, ResultDesc: {}",
-                    timeoutCallback.conversationId(),
-                    timeoutCallback.resultDesc());
-
-            // Handle timeout - mark transfer as failed
-            // TODO: Update transfer status to timeout
-            // TODO: Notify relevant parties
-            // TODO: Implement retry or manual intervention logic
-
-            log.info("Processed B2B timeout for ConversationID: {}", timeoutCallback.conversationId());
+            b2bTransferService.applyTimeout(ids.originatorConversationId(), ids.conversationId(), ids.description());
             return ResponseEntity.ok(CallbackAcknowledgment.success());
-
         } catch (Exception e) {
             log.error("Error processing B2B timeout callback", e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
@@ -191,32 +171,47 @@ public class B2CB2BCallbackController {
 
     // ==================== ACCOUNT BALANCE CALLBACKS ====================
 
-    /**
-     * Handle account balance query result callback
-     * Called with the account balance information
-     */
+    /** The Account Balance result fills the snapshot of the query it answers. */
     @PostMapping("/account-balance/result")
     public ResponseEntity<CallbackAcknowledgment> handleAccountBalanceResult(
             @RequestBody AccountBalanceResult balanceResult) {
-
         try {
-            log.info("Received account balance result - ConversationID: {}, ResultCode: {}",
-                    balanceResult.result().conversationId(),
-                    balanceResult.result().resultCode());
-
             AccountBalanceResultData result = balanceResult.result();
-
-            if (result.isSuccessful()) {
-                handleAccountBalanceSuccess(result);
-            } else {
-                handleAccountBalanceError(result);
-            }
-
+            log.info("Received account balance result - ConversationID: {}, ResultCode: {}",
+                    result.conversationId(), result.resultCode());
+            balanceService.applyResult(result, objectMapper.writeValueAsString(balanceResult));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
-
         } catch (Exception e) {
             log.error("Error processing account balance result callback", e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
+        }
+    }
+
+    /** Safaricom could not process a balance query in time; the snapshot is marked TIMED_OUT. */
+    @PostMapping("/account-balance/timeout")
+    public ResponseEntity<CallbackAcknowledgment> handleAccountBalanceTimeout(@RequestBody Map<String, Object> body) {
+        TimeoutIds ids = TimeoutIds.of(body);
+        log.warn("Account balance timeout - ConversationID: {}", ids.conversationId());
+        try {
+            balanceService.applyTimeout(ids.originatorConversationId(), ids.conversationId(), ids.description());
+            return ResponseEntity.ok(CallbackAcknowledgment.success());
+        } catch (Exception e) {
+            log.error("Error processing account balance timeout callback", e);
+            return ResponseEntity.ok(CallbackAcknowledgment.error());
+        }
+    }
+
+    /** The conversation ids of a timeout body, flat or wrapped in "Result". */
+    record TimeoutIds(String originatorConversationId, String conversationId, String description) {
+        static TimeoutIds of(Map<String, Object> body) {
+            Object wrapped = body.get("Result");
+            Map<?, ?> result = wrapped instanceof Map<?, ?> map ? map : body;
+            return new TimeoutIds(string(result.get("OriginatorConversationID")),
+                    string(result.get("ConversationID")), string(result.get("ResultDesc")));
+        }
+
+        private static String string(Object value) {
+            return value == null ? null : value.toString();
         }
     }
 
@@ -284,58 +279,6 @@ public class B2CB2BCallbackController {
     // ==================== CALLBACK PROCESSING METHODS ====================
 
 
-
-    private void handleSuccessfulB2BTransfer(B2BResult result) {
-        log.info("Processing successful B2B transfer - TransactionID: {}", result.transactionId());
-
-        // Extract transfer details
-        B2BResultParameters params = result.resultParameters();
-        if (params != null) {
-            String amount = params.getAmount();
-            String debitBalance = params.getDebitAccountCurrentBalance();
-            String receiverName = params.getReceiverPartyPublicName();
-
-            log.info("B2B Transfer Details - Amount: {}, Debit Balance: {}, Receiver: {}",
-                    amount, debitBalance, receiverName);
-
-            // TODO: Update transfer status to completed
-            // TODO: Update account balances
-            // TODO: Send confirmations to both parties
-        }
-    }
-
-    private void handleFailedB2BTransfer(B2BResult result) {
-        log.warn("Processing failed B2B transfer - ResultDesc: {}", result.resultDesc());
-
-        // TODO: Update transfer status to failed
-        // TODO: Notify sender of failure
-        // TODO: Implement retry logic if applicable
-    }
-
-    private void handleAccountBalanceSuccess(AccountBalanceResultData result) {
-        log.info("Processing account balance success");
-
-        // Extract balance details
-        AccountBalanceResultParameters params = result.resultParameters();
-        if (params != null) {
-            String accountBalance = params.getAccountBalance();
-            String workingFunds = params.getWorkingAccountAvailableFunds();
-            String utilityFunds = params.getUtilityAccountAvailableFunds();
-
-            log.info("Account Balance Details - Balance: {}, Working: {}, Utility: {}",
-                    accountBalance, workingFunds, utilityFunds);
-
-            // TODO: Update local balance records
-            // TODO: Notify requesting party of balance
-        }
-    }
-
-    private void handleAccountBalanceError(AccountBalanceResultData result) {
-        log.error("Account balance query error - ResultDesc: {}", result.resultDesc());
-
-        // TODO: Handle balance query error
-        // TODO: Notify requesting party of error
-    }
 
     private void handleSuccessfulReversal(TransactionReversalResultData result) {
         log.info("Processing successful reversal - TransactionID: {}", result.transactionId());

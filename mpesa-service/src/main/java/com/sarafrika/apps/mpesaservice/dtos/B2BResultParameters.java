@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.dtos;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -13,6 +14,7 @@ public record B2BResultParameters(
 
         @Schema(description = "List of result parameter items")
         @JsonProperty("ResultParameter")
+        @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
         List<B2BResultParameter> resultParameters
 ) {
 
@@ -20,6 +22,9 @@ public record B2BResultParameters(
      * Get specific parameter value by name
      */
     public String getParameterValue(String name) {
+        if (resultParameters == null) {
+            return null;
+        }
         return resultParameters.stream()
                 .filter(param -> name.equals(param.key()))
                 .map(B2BResultParameter::value)

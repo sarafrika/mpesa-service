@@ -102,7 +102,8 @@ class MetricsAdminControllerTest {
     void operatorsSeePaybillHealthToo() throws Exception {
         when(paybillHealthService.health(isNull())).thenReturn(List.of(new PaybillHealthDto(SHORTCODE, "600100",
                 "Elimika Fees", "PAYBILL", "PRODUCTION", true, PaybillState.LOW_FLOAT, BigDecimal.TEN, 1,
-                BigDecimal.ZERO, 0, Instant.parse("2026-10-26T08:00:00Z"), new BigDecimal("38420.00"), null, 0, 4)));
+                BigDecimal.ZERO, 0, Instant.parse("2026-10-26T08:00:00Z"), new BigDecimal("38420.00"), null, 0, 4,
+                new BigDecimal("50000.00"))));
 
         mockMvc.perform(get("/api/v1/admin/metrics/paybill-health"))
                 .andExpect(status().isOk())
