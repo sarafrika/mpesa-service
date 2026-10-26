@@ -48,11 +48,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleB2CResult(
             @RequestBody B2CPaymentResult paymentResult) {
 
-        log.info("Received B2C payment result - ConversationID: {}, ResultCode: {}",
-                paymentResult.result().conversationId(),
-                paymentResult.result().resultCode());
-
         try {
+            log.info("Received B2C payment result - ConversationID: {}, ResultCode: {}",
+                    paymentResult.result().conversationId(),
+                    paymentResult.result().resultCode());
+
             B2CResult result = paymentResult.result();
             payoutService.applyResult(result, objectMapper.writeValueAsString(paymentResult));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
@@ -71,11 +71,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleB2CTimeout(
             @RequestBody B2CTimeoutCallback timeoutCallback) {
 
-        log.warn("Received B2C timeout - ConversationID: {}, ResultDesc: {}",
-                timeoutCallback.conversationId(),
-                timeoutCallback.resultDesc());
-
         try {
+            log.warn("Received B2C timeout - ConversationID: {}, ResultDesc: {}",
+                    timeoutCallback.conversationId(),
+                    timeoutCallback.resultDesc());
+
             // A queue timeout leaves the outcome unknown: the payout stays pending and is flagged.
             payoutService.applyTimeout(timeoutCallback);
             log.info("Processed B2C timeout for ConversationID: {}", timeoutCallback.conversationId());
@@ -97,11 +97,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleB2BResult(
             @RequestBody B2BTransferResult transferResult) {
 
-        log.info("Received B2B transfer result - ConversationID: {}, ResultCode: {}",
-                transferResult.result().conversationId(),
-                transferResult.result().resultCode());
-
         try {
+            log.info("Received B2B transfer result - ConversationID: {}, ResultCode: {}",
+                    transferResult.result().conversationId(),
+                    transferResult.result().resultCode());
+
             B2BResult result = transferResult.result();
 
             if (result.isSuccessful()) {
@@ -126,11 +126,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleB2BTimeout(
             @RequestBody B2BTimeoutCallback timeoutCallback) {
 
-        log.warn("Received B2B timeout - ConversationID: {}, ResultDesc: {}",
-                timeoutCallback.conversationId(),
-                timeoutCallback.resultDesc());
-
         try {
+            log.warn("Received B2B timeout - ConversationID: {}, ResultDesc: {}",
+                    timeoutCallback.conversationId(),
+                    timeoutCallback.resultDesc());
+
             // Handle timeout - mark transfer as failed
             // TODO: Update transfer status to timeout
             // TODO: Notify relevant parties
@@ -155,11 +155,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleTransactionStatusResult(
             @RequestBody TransactionStatusResult statusResult) {
 
-        log.info("Received transaction status result - ConversationID: {}, ResultCode: {}",
-                statusResult.result().conversationId(),
-                statusResult.result().resultCode());
-
         try {
+            log.info("Received transaction status result - ConversationID: {}, ResultCode: {}",
+                    statusResult.result().conversationId(),
+                    statusResult.result().resultCode());
+
             transactionStatusService.applyResult(statusResult.result(), objectMapper.writeValueAsString(statusResult));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
 
@@ -199,11 +199,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleAccountBalanceResult(
             @RequestBody AccountBalanceResult balanceResult) {
 
-        log.info("Received account balance result - ConversationID: {}, ResultCode: {}",
-                balanceResult.result().conversationId(),
-                balanceResult.result().resultCode());
-
         try {
+            log.info("Received account balance result - ConversationID: {}, ResultCode: {}",
+                    balanceResult.result().conversationId(),
+                    balanceResult.result().resultCode());
+
             AccountBalanceResultData result = balanceResult.result();
 
             if (result.isSuccessful()) {
@@ -230,11 +230,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleReversalResult(
             @RequestBody TransactionReversalResult reversalResult) {
 
-        log.info("Received reversal result - ConversationID: {}, ResultCode: {}",
-                reversalResult.result().conversationId(),
-                reversalResult.result().resultCode());
-
         try {
+            log.info("Received reversal result - ConversationID: {}, ResultCode: {}",
+                    reversalResult.result().conversationId(),
+                    reversalResult.result().resultCode());
+
             TransactionReversalResultData result = reversalResult.result();
 
             if (result.isSuccessful()) {
@@ -263,11 +263,11 @@ public class B2CB2BCallbackController {
     public ResponseEntity<CallbackAcknowledgment> handleReversalTimeout(
             @RequestBody TransactionReversalTimeoutCallback timeoutCallback) {
 
-        log.warn("Received reversal timeout - ConversationID: {}, ResultDesc: {}",
-                timeoutCallback.conversationId(),
-                timeoutCallback.resultDesc());
-
         try {
+            log.warn("Received reversal timeout - ConversationID: {}, ResultDesc: {}",
+                    timeoutCallback.conversationId(),
+                    timeoutCallback.resultDesc());
+
             // Handle reversal timeout
             // TODO: Mark reversal as timed out
             // TODO: Implement manual intervention process

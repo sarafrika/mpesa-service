@@ -613,11 +613,11 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
                 errorCode = "INVALID_ARGUMENT";
                 httpStatus = HttpStatus.BAD_REQUEST.value();
             }
-            case RuntimeException runtimeException when e.getMessage().contains("Client error") -> {
+            case RuntimeException runtimeException when errorMessage != null && errorMessage.contains("Client error") -> {
                 errorCode = "CLIENT_ERROR";
                 httpStatus = HttpStatus.BAD_REQUEST.value();
             }
-            case RuntimeException runtimeException when e.getMessage().contains("Server error") -> {
+            case RuntimeException runtimeException when errorMessage != null && errorMessage.contains("Server error") -> {
                 errorCode = "SERVER_ERROR";
                 httpStatus = HttpStatus.BAD_GATEWAY.value();
             }
