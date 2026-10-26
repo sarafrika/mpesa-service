@@ -23,7 +23,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { toastApiError, useInvalidateShortcodes } from "./api";
 import { amountText, FormRootError, TextField, toAmount } from "./form-fields";
-import { snakeFieldMap } from "./paybill-health";
 
 const schema = UpdateShortcodeBody.pick({ account_reference: true, transaction_desc: true })
   .extend({
@@ -40,14 +39,6 @@ const schema = UpdateShortcodeBody.pick({ account_reference: true, transaction_d
   );
 
 type Values = z.infer<typeof schema>;
-const FIELDS = [
-  "business_name",
-  "min_amount",
-  "max_amount",
-  "account_reference",
-  "transaction_desc",
-] as const;
-
 function defaults(shortcode: ShortcodeDetail): Values {
   return {
     business_name: shortcode.business_name,
@@ -84,7 +75,7 @@ export function EditProfileDialog({ shortcode }: { shortcode: ShortcodeDetail })
       toast.success("Profile saved");
       setOpen(false);
     } catch (error) {
-      if (!applyFieldErrors(error, form.setError, snakeFieldMap(FIELDS))) toastApiError(error);
+      if (!applyFieldErrors(error, form.setError)) toastApiError(error);
     }
   }
 

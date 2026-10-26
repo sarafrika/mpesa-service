@@ -24,7 +24,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { toastApiError, useInvalidateShortcodes } from "./api";
 import { FormRootError, TextField } from "./form-fields";
-import { snakeFieldMap } from "./paybill-health";
 
 const FIELDS = [
   "consumer_key",
@@ -64,10 +63,7 @@ export function RotateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
       setOpen(false);
     } catch (error) {
       // "credentials" (nothing entered) belongs to the whole form, not one field.
-      const map: Record<string, Path<Values>> = {
-        ...snakeFieldMap(FIELDS),
-        credentials: "root.server" as Path<Values>,
-      };
+      const map: Record<string, Path<Values>> = { credentials: "root.server" as Path<Values> };
       if (!applyFieldErrors(error, form.setError, map))
         toastApiError(error, { requiredRole: "mpesa-admin" });
     }

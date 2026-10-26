@@ -72,6 +72,21 @@ describe("applyFieldErrors", () => {
     ]);
   });
 
+  it("lands a nested JSON path on its mapped top-level field", () => {
+    const set: string[] = [];
+    applyFieldErrors(
+      new ApiError(
+        400,
+        body(400, {
+          field_errors: [{ field: "grants[0].shortcode_uuid", message: "is listed twice" }],
+        }),
+      ),
+      (name) => set.push(name),
+      { grants: "grants" },
+    );
+    assert.deepEqual(set, ["grants"]);
+  });
+
   it("puts a bare validation message on the form root", () => {
     const set: string[] = [];
     applyFieldErrors(new ApiError(400, body(400, { message: "Bad dates" })), (name) =>

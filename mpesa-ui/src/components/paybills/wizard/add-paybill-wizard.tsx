@@ -45,7 +45,6 @@ import { cn } from "@/lib/utils";
 import { okData, toastApiError, useInvalidateShortcodes } from "../api";
 import { ResponseTypeSelect } from "../c2b-actions";
 import { amountText, FormRootError, TextField, toAmount } from "../form-fields";
-import { snakeFieldMap } from "../paybill-health";
 import { CallbackUrlsPanel } from "./callback-urls-panel";
 import { ValidationRulesSlot } from "./validation-rules-slot";
 import { VerifyStep } from "./verify-step";
@@ -120,8 +119,6 @@ const STEPS: { title: string; sub: string; fields: FormField[] }[] = [
   },
   { title: "Verify", sub: "Token, C2B URLs, go live", fields: [] },
 ];
-const ALL_FIELDS = STEPS.flatMap((step) => step.fields);
-const FIELD_MAP = snakeFieldMap(ALL_FIELDS);
 
 const KINDS = [
   { value: "PAYBILL", title: "Paybill", description: "Collect with account numbers (C2B and STK)" },
@@ -208,16 +205,12 @@ function Wizard() {
       setStep(0);
       return;
     }
-    if (!applyFieldErrors(error, form.setError, FIELD_MAP)) {
+    if (!applyFieldErrors(error, form.setError)) {
       toastApiError(error);
       return;
     }
     const steps = (isApiError(error) ? error.fieldErrors : [])
-      .map((item) =>
-        STEPS.findIndex((s) =>
-          s.fields.includes(FIELD_MAP[item.field] ?? (item.field as FormField)),
-        ),
-      )
+      .map((item) => STEPS.findIndex((s) => s.fields.includes(item.field as FormField)))
       .filter((index) => index >= 0);
     if (steps.length > 0) setStep(Math.min(...steps));
   }

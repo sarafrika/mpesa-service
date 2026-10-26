@@ -35,7 +35,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { okData, toastApiError, useInvalidateShortcodes } from "./api";
 import { FormRootError, TextField } from "./form-fields";
-import { snakeFieldMap } from "./paybill-health";
 
 export const RESPONSE_TYPES: { value: C2bResponseType; label: string }[] = [
   { value: "Cancelled", label: "Reject the payment (Cancelled)" },
@@ -157,14 +156,7 @@ export function SimulateC2bDialog({ shortcode }: { shortcode: ShortcodeDetail })
       });
       setOpen(false);
     } catch (error) {
-      if (
-        !applyFieldErrors(
-          error,
-          form.setError,
-          snakeFieldMap(["phone_number", "amount", "bill_ref_number"] as const),
-        )
-      )
-        toastApiError(error);
+      if (!applyFieldErrors(error, form.setError)) toastApiError(error);
     }
   }
 

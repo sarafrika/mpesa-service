@@ -131,14 +131,3 @@ export function initials(name: string): string {
   const letters = words.length === 1 ? words[0].slice(0, 2) : `${words[0][0]}${words[1][0]}`;
   return letters.toUpperCase();
 }
-
-// Body field errors name the Java property (businessName); forms use the JSON name
-// (business_name). Maps every camelCase spelling to its snake_case form field.
-export function snakeFieldMap<K extends string>(fields: readonly K[]): Record<string, K> {
-  const map: Record<string, K> = {};
-  for (const field of fields) {
-    map[field.replace(/_([a-z0-9])/g, (_, letter: string) => letter.toUpperCase())] = field;
-    map[field] = field;
-  }
-  return map;
-}

@@ -48,23 +48,6 @@ export const validationRulesSchema = z
 
 export type ValidationRulesValues = z.infer<typeof validationRulesSchema>;
 
-/** The service names fields by their Java property; the form uses the API's snake_case names. */
-export const FIELD_MAP = {
-  active: "active",
-  accountPattern: "account_pattern",
-  account_pattern: "account_pattern",
-  minAmount: "min_amount",
-  min_amount: "min_amount",
-  maxAmount: "max_amount",
-  max_amount: "max_amount",
-  lookupUrl: "lookup_url",
-  lookup_url: "lookup_url",
-  lookupTimeoutMs: "lookup_timeout_ms",
-  lookup_timeout_ms: "lookup_timeout_ms",
-  onLookupFailure: "on_lookup_failure",
-  on_lookup_failure: "on_lookup_failure",
-} as const satisfies Record<string, keyof ValidationRulesValues>;
-
 function toNumber(value: string): number | undefined {
   const cleaned = value.replaceAll(",", "").trim();
   if (!cleaned) return undefined;

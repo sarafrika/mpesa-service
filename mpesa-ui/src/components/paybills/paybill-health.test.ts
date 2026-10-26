@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ShortcodeHealth } from "../../api/generated/model/index.ts";
-import {
-  displayStatus,
-  healthChecks,
-  initials,
-  shortAge,
-  snakeFieldMap,
-} from "./paybill-health.ts";
+import { displayStatus, healthChecks, initials, shortAge } from "./paybill-health.ts";
 
 const NOW = Date.parse("2026-10-27T09:00:00Z");
 
@@ -98,15 +92,5 @@ describe("initials", () => {
     assert.equal(initials("Elimika Fees"), "EF");
     assert.equal(initials("sandbox"), "SA");
     assert.equal(initials("  "), "?");
-  });
-});
-
-describe("snakeFieldMap", () => {
-  it("maps Java property names back to form fields", () => {
-    const map = snakeFieldMap(["business_name", "shortcode", "b2c_result_url"] as const);
-    assert.equal(map.businessName, "business_name");
-    assert.equal(map.business_name, "business_name");
-    assert.equal(map.shortcode, "shortcode");
-    assert.equal(map.b2cResultUrl, "b2c_result_url");
   });
 });

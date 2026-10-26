@@ -167,10 +167,9 @@ export function describeApiError(error: unknown, options: DescribeOptions = {}):
   };
 }
 
-/**
- * Puts the service's field errors on a react-hook-form form; anything that matches no field,
- * or a validation error without field details, lands on `root.server`. Returns true if it set any.
- */
+// Puts the service's field errors (named as in the request JSON) on a react-hook-form form; a nested
+// path (grants[0].shortcode_uuid) falls back to its top-level `fieldMap` entry, a bare validation
+// error lands on `root.server`. Returns true if it handled the error.
 export function applyFieldErrors<T extends FieldValues>(
   error: unknown,
   setError: UseFormSetError<T>,
@@ -179,7 +178,8 @@ export function applyFieldErrors<T extends FieldValues>(
   if (!isApiError(error) || (error.status !== 400 && error.status !== 422)) return false;
   const unmatched: string[] = [];
   for (const item of error.fieldErrors) {
-    const name = fieldMap[item.field] ?? (item.field as Path<T>);
+    const top = item.field.split(/[.[]/, 1)[0];
+    const name = fieldMap[item.field] ?? fieldMap[top] ?? (item.field as Path<T>);
     if (name) setError(name, { type: "server", message: item.message });
     else unmatched.push(item.message);
   }

@@ -31,13 +31,8 @@ type ConnectForm = {
 
 const EMPTY: ConnectForm = { client_id: "", display_name: "", webhook_url: "", grants: {} };
 
-// Bean Validation names Java properties; the service's own checks use the JSON names.
-const FIELD_MAP = {
-  clientId: "client_id",
-  displayName: "display_name",
-  webhookUrl: "webhook_url",
-  grants: "grants",
-} as const;
+// Per-grant errors (grants[0].shortcode_uuid) belong to the grant matrix as a whole.
+const FIELD_MAP = { grants: "grants" } as const;
 
 type ConnectProductDialogProps = { open: boolean; onOpenChange: (open: boolean) => void };
 

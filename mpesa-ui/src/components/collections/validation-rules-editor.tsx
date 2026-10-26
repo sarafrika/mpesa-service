@@ -36,7 +36,6 @@ import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   describeRules,
-  FIELD_MAP,
   fromDto,
   toRequest,
   type ValidationRulesValues,
@@ -128,7 +127,7 @@ function RulesForm({
         queryClient.invalidateQueries({ queryKey: getGetValidationRulesQueryKey(shortcodeUuid) });
       },
       onError: (error) => {
-        if (applyFieldErrors(error, form.setError, FIELD_MAP)) return;
+        if (applyFieldErrors(error, form.setError)) return;
         const copy = describeApiError(error, {
           requiredRole: "mpesa-operator",
           resource: "paybill",
