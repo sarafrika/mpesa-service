@@ -119,6 +119,8 @@ public class TransactionStatusService {
         query.setReceipt(data.mpesaReceiptNumber());
         query.setCompletedAt(LocalDateTime.now());
         TransactionStatusQuery saved = queryRepository.save(query);
+        // The documented query reply has no MpesaReceiptNumber (developer.safaricom.co.ke/apis/MpesaExpressQuery),
+        // so a payment settled here usually keeps its checkout id; reconciliation attaches the statement's receipt.
         if (payment.getStatus() == IncomingPaymentStatus.PENDING) {
             Map<String, Object> callback = new LinkedHashMap<>();
             callback.put("Source", "STK push query");

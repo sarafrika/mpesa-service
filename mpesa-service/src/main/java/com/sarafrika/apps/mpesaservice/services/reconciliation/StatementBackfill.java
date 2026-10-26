@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
 import com.sarafrika.apps.mpesaservice.dtos.C2BConfirmationCallback;
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
@@ -19,7 +20,7 @@ public final class StatementBackfill {
     private StatementBackfill() {
     }
 
-    public static C2BConfirmationCallback callback(StatementLine line, String businessShortCode) {
+    public static C2BConfirmationCallback callback(StatementLine line, String businessShortCode, BigDecimal amount) {
         String[] party = party(line.otherParty());
         List<String> names = party.length > 1 ? Arrays.stream(party[1].trim().split("\\s+"))
                 .filter(n -> !n.isBlank() && !n.contains("*")).toList() : List.of();
@@ -27,7 +28,7 @@ public final class StatementBackfill {
                 line.reasonType() != null ? line.reasonType() : "Pay Bill",
                 line.receipt(),
                 line.completedAt() == null ? null : line.completedAt().format(TRANS_TIME),
-                line.paidIn(),
+                amount,
                 businessShortCode,
                 accountReference(line),
                 null, null, null,

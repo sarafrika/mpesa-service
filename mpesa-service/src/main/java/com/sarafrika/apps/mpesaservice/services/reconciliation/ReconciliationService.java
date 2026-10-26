@@ -44,7 +44,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 /** Runs reconciliations (uploaded statement or Pull Transactions), stores their counts and exceptions, and lists
@@ -66,12 +68,15 @@ public class ReconciliationService {
     private final AuditService audit;
     private final ObjectMapper objectMapper;
     private final ReconciliationProperties properties;
+    private final StkCandidates stkCandidates;
+    private final TransactionTemplate transaction;
     private final Clock clock;
 
     public ReconciliationService(ReconciliationRunRepository runs, ReconciliationExceptionRepository exceptions,
                                  MpesaShortCodeRepository shortcodes, ReconciliationLedger ledger,
                                  PullTransactionsService pull, AuditService audit, ObjectMapper objectMapper,
-                                 ReconciliationProperties properties, Optional<Clock> clock) {
+                                 ReconciliationProperties properties, StkCandidates stkCandidates,
+                                 PlatformTransactionManager transactions, Optional<Clock> clock) {
         this.runs = runs;
         this.exceptions = exceptions;
         this.shortcodes = shortcodes;
@@ -80,6 +85,8 @@ public class ReconciliationService {
         this.audit = audit;
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.stkCandidates = stkCandidates;
+        this.transaction = new TransactionTemplate(transactions);
         this.clock = clock.orElse(Clock.system(NAIROBI));
     }
 
@@ -107,8 +114,8 @@ public class ReconciliationService {
                 to.plusDays(1).atStartOfDay(), fileName, parsed.lines());
     }
 
-    /** Safaricom's Pull Transactions rows for [start, end) as the statement; deposits only, as Pull is C2B only. */
-    @Transactional
+    /** Safaricom's Pull Transactions rows for [start, end) as the statement; deposits only, as Pull is C2B only.
+     * Safaricom is asked before any database transaction opens, and a period ending in the future ends now. */
     public ReconciliationRunDto reconcilePull(UUID shortcodeUuid, LocalDateTime start, LocalDateTime end,
                                               ReconciliationTrigger trigger) {
         MpesaShortCode shortcode = shortcode(shortcodeUuid);
@@ -120,20 +127,27 @@ public class ReconciliationService {
         if (start.isBefore(now.minus(PULL_WINDOW).minusMinutes(5))) {
             throw new InvalidRequestException("from", "Safaricom only returns Pull Transactions from the last 48 hours");
         }
-        List<StatementLine> lines = pull.fetch(shortcode, start, end.isAfter(now) ? now : end);
-        return run(shortcode, ReconciliationSource.PULL_TRANSACTIONS, trigger, start, end, null, lines);
+        LocalDateTime until = end.isAfter(now) ? now : end;
+        if (!until.isAfter(start)) {
+            throw new InvalidRequestException("from", "must be in the past");
+        }
+        List<StatementLine> lines = pull.fetch(shortcode, start, until);
+        return transaction.execute(status -> run(shortcode, ReconciliationSource.PULL_TRANSACTIONS, trigger, start,
+                until, null, lines));
     }
 
     @Transactional
     public ReconciliationRunDto run(MpesaShortCode shortcode, ReconciliationSource source, ReconciliationTrigger trigger,
                                     LocalDateTime start, LocalDateTime end, String fileName, List<StatementLine> lines) {
-        boolean incomingOnly = source == ReconciliationSource.PULL_TRANSACTIONS;
+        // Pull returns C2B rows only (its FAQ), so a Pull run expects nothing else of ours in the period; any
+        // deposit of ours may still hold one of its receipts.
+        boolean pullRun = source == ReconciliationSource.PULL_TRANSACTIONS;
         Set<String> receipts = new LinkedHashSet<>();
         lines.forEach(l -> receipts.add(l.receipt()));
         List<LedgerEntry> byReceipt = receipts.isEmpty() ? List.of()
-                : ledger.byReceipts(shortcode.getUuid(), shortcode.getShortcode(), receipts, incomingOnly);
+                : ledger.byReceipts(shortcode.getUuid(), shortcode.getShortcode(), receipts, pullRun);
         List<LedgerEntry> inPeriod = ledger.settledInPeriod(shortcode.getUuid(), shortcode.getShortcode(), start, end,
-                incomingOnly);
+                pullRun);
         ReconciliationMatcher.Result result = ReconciliationMatcher.match(lines, start, end, byReceipt, inPeriod,
                 new ReconciliationMatcher.Markers(properties.chargeMarkers(), properties.reversalMarkers(),
                         properties.transferMarkers()));
@@ -162,7 +176,8 @@ public class ReconciliationService {
         run.setCompletedAt(LocalDateTime.now());
         ReconciliationRun saved = runs.save(run);
 
-        exceptions.supersede(shortcode.getUuid(), saved.getId(), start, end);
+        // A Pull run saw deposits only, so it rechecks only earlier Pull runs' exceptions.
+        exceptions.supersede(shortcode.getUuid(), saved.getId(), start, end, pullRun ? source.name() : null);
         exceptions.saveAll(result.exceptions().stream().map(d -> record(saved, d)).toList());
         audit.record(AUDIT_RUN, "RECONCILIATION_RUN", saved.getUuid().toString(), null, Map.of(
                 "shortcode", shortcode.getShortcode(), "source", source.name(), "trigger", trigger.name(),
@@ -258,14 +273,13 @@ public class ReconciliationService {
 
     /** The DTO with what a person may do now and the other party masked for non-finance roles. */
     public static ReconciliationExceptionDto toDto(ReconciliationExceptionRecord e, UUID runUuid) {
-        String party = e.getOtherParty();
-        if (party != null && !PersonalData.visible()) {
-            int dash = party.indexOf(" - ");
-            party = dash < 0 ? PersonalData.maskPhone(party)
-                    : PersonalData.maskPhone(party.substring(0, dash)) + " - "
-                    + PersonalData.shortName(party.substring(dash + 3));
-        }
-        return ReconciliationExceptionDto.from(e, runUuid, allowedActions(e).stream().map(Enum::name).toList(), party);
+        boolean visible = PersonalData.visible();
+        String party = e.getOtherParty() == null || visible ? e.getOtherParty()
+                : PersonalData.maskPublicName(e.getOtherParty());
+        String details = visible ? e.getDetails() : PersonalData.maskText(e.getDetails());
+        String account = visible ? e.getAccountReference() : PersonalData.maskText(e.getAccountReference());
+        return ReconciliationExceptionDto.from(e, runUuid, allowedActions(e).stream().map(Enum::name).toList(), party,
+                details, account);
     }
 
     static List<ReconciliationAction> allowedActions(ReconciliationExceptionRecord e) {
@@ -273,12 +287,14 @@ public class ReconciliationService {
             return List.of();
         }
         List<ReconciliationAction> actions = new ArrayList<>();
-        boolean queryable = e.getLedgerPaymentUuid() != null && !"B2B_TRANSFER".equals(e.getLedgerType());
+        boolean queryable = e.getLedgerPaymentUuid() != null && LedgerEntry.queryable(e.getLedgerType());
         switch (e.getKind()) {
             case MISSING_IN_LEDGER -> {
                 if (e.getLedgerPaymentUuid() == null && ReconciliationExceptionRecord.IN.equals(e.getDirection())
                         && e.getReversedBy() == null && e.getStatementLine() != null) {
-                    actions.add(ReconciliationAction.BACKFILL);
+                    // An STK payment settled without its receipt may be this deposit: attach, never add a second.
+                    actions.add(e.getStkCandidates() > 0 ? ReconciliationAction.ATTACH_STK_RECEIPT
+                            : ReconciliationAction.BACKFILL);
                 }
                 if (queryable) {
                     actions.add(ReconciliationAction.QUERY_STATUS);
@@ -297,8 +313,8 @@ public class ReconciliationService {
 
     static String kindFix(ReconciliationExceptionKind kind) {
         return switch (kind) {
-            case MISSING_IN_LEDGER -> "On Safaricom's record but not ours; backfill deposits whose confirmation never "
-                    + "arrived";
+            case MISSING_IN_LEDGER -> "On Safaricom's record but not ours; attach the receipt to an STK payment that "
+                    + "settled without one, or backfill deposits whose confirmation never arrived";
             case MISSING_IN_STATEMENT -> "In our ledger but not on Safaricom's record; query the status before the "
                     + "next run";
             case AMOUNT_MISMATCH -> "Amounts differ; compare the raw callback with the statement line";
@@ -346,6 +362,14 @@ public class ReconciliationService {
                 e.setAccountReference(truncate(account, 100));
             }
             e.setStatementLine(json(line));
+            if (draft.kind() == ReconciliationExceptionKind.MISSING_IN_LEDGER && draft.ledger().isEmpty()
+                    && draft.reversedBy() == null && ReconciliationExceptionRecord.IN.equals(draft.direction())) {
+                int candidates = stkCandidates.find(run.getShortcodeUuid(), line, draft.statementAmount()).size();
+                e.setStkCandidates(candidates);
+                if (candidates > 0) {
+                    e.setSuggestedFix(ReconciliationMatcher.FIX_ATTACH_STK);
+                }
+            }
         }
         return e;
     }

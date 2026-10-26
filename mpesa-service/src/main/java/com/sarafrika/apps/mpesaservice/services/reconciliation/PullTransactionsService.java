@@ -85,7 +85,7 @@ public class PullTransactionsService {
     public PullTransactionsStatusDto register(UUID shortcodeUuid, String nominatedNumber) {
         MpesaShortCode shortcode = shortcode(shortcodeUuid);
         requireEnabled(shortcodeUuid);
-        String number = msisdn(nominatedNumber);
+        String number = nominatedNumber(nominatedNumber);
         String callbackUrl = callbackUrl();
         MpesaApiResponse<Map<String, Object>> response = daraja.registerPullTransactions(shortcode, number, callbackUrl);
         if (!response.success() || response.data() == null) {
@@ -182,8 +182,8 @@ public class PullTransactionsService {
         }
         BigDecimal amount;
         try {
-            amount = new BigDecimal(String.valueOf(item.get("amount")).replace(",", "").trim()).abs();
-        } catch (NumberFormatException e) {
+            amount = StatementCsvParser.amount("amount", String.valueOf(item.get("amount")), false);
+        } catch (IllegalArgumentException e) {
             throw UpstreamException.badGateway("Safaricom sent an unreadable amount for " + receipt);
         }
         return new StatementLine(lineNumber, receipt.trim().toUpperCase(Locale.ROOT), time(string(item.get("trxDate"))),
@@ -237,13 +237,15 @@ public class PullTransactionsService {
         return callbackBaseUrl.replaceAll("/+$", "") + "/pull-transactions/callback";
     }
 
-    /** 0722000000, 722000000 and +254722000000 all become 254722000000. */
-    static String msisdn(String number) {
+    // Safaricom's Register sample sends "NominatedNumber":"0722000000" (its table shows 254722000000; older
+    // docs said 07XXXXXXXX or 2547XXXXXXX), so the number goes in the sample's local form.
+    /** 0722000000, 722000000, 254722000000 and +254722000000 all become 0722000000. */
+    static String nominatedNumber(String number) {
         String digits = number.replaceAll("\\D", "");
-        if (digits.startsWith("0")) {
-            return "254" + digits.substring(1);
+        if (digits.startsWith("254")) {
+            return "0" + digits.substring(3);
         }
-        return digits.startsWith("254") ? digits : "254" + digits;
+        return digits.startsWith("0") ? digits : "0" + digits;
     }
 
     private MpesaShortCode shortcode(UUID uuid) {

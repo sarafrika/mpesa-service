@@ -98,6 +98,10 @@ public class ReconciliationExceptionRecord {
     @Column(name = "reversed_by")
     private String reversedBy;
 
+    /** Settled STK payments without a receipt that this deposit may be, counted when the run stored it. */
+    @Column(name = "stk_candidates", nullable = false)
+    private int stkCandidates;
+
     @Column(name = "suggested_fix", nullable = false)
     private String suggestedFix;
 

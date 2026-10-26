@@ -41,6 +41,8 @@ public final class ReconciliationMatcher {
     }
 
     static final String FIX_BACKFILL = "The C2B confirmation never reached us; backfill the deposit so the product is told";
+    static final String FIX_ATTACH_STK = "An STK payment of this amount settled here without a receipt around this time; "
+            + "attach this receipt to it instead of adding a second deposit";
     static final String FIX_UNKNOWN_OUT = "Money left the account without a record here; find who sent it, then mark it "
             + "resolved with a note";
     static final String FIX_NOT_SETTLED = "Our record is %s but Safaricom completed it; query its status";

@@ -2,7 +2,9 @@ package com.sarafrika.apps.mpesaservice.controllers.admin;
 
 import com.sarafrika.apps.mpesaservice.dtos.admin.ApiError;
 import com.sarafrika.apps.mpesaservice.dtos.admin.PageResponse;
+import com.sarafrika.apps.mpesaservice.dtos.admin.reconciliation.AttachStkReceiptRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.reconciliation.PullReconciliationRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.reconciliation.StkCandidateDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.reconciliation.PullTransactionsStatusDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.reconciliation.ReconciliationExceptionDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.reconciliation.ReconciliationRunDto;
@@ -205,10 +207,45 @@ public class ReconciliationAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such exception",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "409", description = "Not a missing deposit, reversed at Safaricom, or already resolved",
+    @ApiResponse(responseCode = "409", description = "Not a missing deposit, reversed at Safaricom, an STK payment "
+            + "without a receipt fits it (attach instead), or already resolved",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ReconciliationExceptionDto backfillReconciliationException(@PathVariable("uuid") UUID uuid) {
         return resolver.backfill(uuid);
+    }
+
+    @GetMapping("/exceptions/{uuid}/stk-candidates")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "listReconciliationStkCandidates",
+            summary = "Settled STK payments without a receipt that this missing deposit may be",
+            description = "Same shortcode and amount, requested near the statement line's time, and the same phone "
+                    + "when the line shows one. Empty once none fits.")
+    @ApiResponse(responseCode = "200", description = "The candidates, oldest request first")
+    @ApiResponse(responseCode = "403", description = "Requires mpesa-finance",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No such exception",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public List<StkCandidateDto> listReconciliationStkCandidates(
+            @Parameter(description = "Exception uuid") @PathVariable("uuid") UUID uuid) {
+        return resolver.listStkCandidates(uuid);
+    }
+
+    @PostMapping("/exceptions/{uuid}/attach-stk-receipt")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "attachReconciliationStkReceipt",
+            summary = "Give a settled STK payment without a receipt this statement receipt; adds and announces nothing")
+    @ApiResponse(responseCode = "200", description = "The resolved exception")
+    @ApiResponse(responseCode = "403", description = "Requires mpesa-finance",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "404", description = "No such exception",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Not a missing deposit, the payment no longer fits, the receipt "
+            + "is already stored, or already resolved",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public ReconciliationExceptionDto attachReconciliationStkReceipt(
+            @Parameter(description = "Exception uuid") @PathVariable("uuid") UUID uuid,
+            @Valid @RequestBody AttachStkReceiptRequest body) {
+        return resolver.attachStkReceipt(uuid, body.paymentUuid());
     }
 
     @PostMapping("/exceptions/{uuid}/query-status")

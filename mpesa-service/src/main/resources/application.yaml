@@ -119,6 +119,9 @@ mpesa:
       # <callback base-url>/pull-transactions/callback.
       callback-url: ${MPESA_RECONCILIATION_PULL_CALLBACK_URL:}
       max-pages: 50
+    # A settled STK payment without a receipt is offered as a statement line's payment (attach, not backfill)
+    # when its amount matches and it was requested within this long of the line. Not a Safaricom figure.
+    stk-match-window: ${MPESA_RECONCILIATION_STK_MATCH_WINDOW:10m}
 
   # Daraja base URLs and HTTP timeouts.
   daraja:

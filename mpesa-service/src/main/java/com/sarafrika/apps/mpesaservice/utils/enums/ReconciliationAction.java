@@ -1,5 +1,5 @@
 package com.sarafrika.apps.mpesaservice.utils.enums;
 
 public enum ReconciliationAction {
-    BACKFILL, QUERY_STATUS, MERGE_DUPLICATE, MARK_RESOLVED
+    BACKFILL, ATTACH_STK_RECEIPT, QUERY_STATUS, MERGE_DUPLICATE, MARK_RESOLVED
 }

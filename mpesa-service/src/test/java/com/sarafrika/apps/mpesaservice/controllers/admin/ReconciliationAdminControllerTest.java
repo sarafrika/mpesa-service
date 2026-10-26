@@ -81,6 +81,11 @@ class ReconciliationAdminControllerTest {
                 .andExpect(jsonPath("$.message").value("You do not have permission to do this"));
         mockMvc.perform(post("/api/v1/admin/reconciliation/exceptions/{id}/backfill", ID)).andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/admin/reconciliation/exceptions/{id}/merge", ID)).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/reconciliation/exceptions/{id}/stk-candidates", ID))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/reconciliation/exceptions/{id}/attach-stk-receipt", ID)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"payment_uuid\":\"" + ID + "\"}"))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/admin/reconciliation/exceptions/{id}/query-status", ID))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/admin/reconciliation/exceptions/{id}/resolve", ID)
@@ -132,6 +137,22 @@ class ReconciliationAdminControllerTest {
                 .when(service).reconcileStatement(any(), any(), any(), any(), any());
         mockMvc.perform(upload()).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.field_errors[0].field").value("file"));
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-finance")
+    void financeAttachesAStatementReceiptToAnStkPayment() throws Exception {
+        UUID payment = UUID.randomUUID();
+        mockMvc.perform(get("/api/v1/admin/reconciliation/exceptions/{id}/stk-candidates", ID))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/admin/reconciliation/exceptions/{id}/attach-stk-receipt", ID)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field_errors[0].field").value("payment_uuid"));
+        mockMvc.perform(post("/api/v1/admin/reconciliation/exceptions/{id}/attach-stk-receipt", ID)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"payment_uuid\":\"" + payment + "\"}"))
+                .andExpect(status().isOk());
+        verify(resolver).listStkCandidates(ID);
+        verify(resolver).attachStkReceipt(ID, payment);
     }
 
     @Test

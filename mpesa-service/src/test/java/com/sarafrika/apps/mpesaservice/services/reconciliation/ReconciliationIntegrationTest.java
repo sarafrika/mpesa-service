@@ -80,7 +80,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ReconciliationService.class, ReconciliationResolver.class, ReconciliationLedger.class,
-        PullTransactionsService.class, NightlyReconciliationScheduler.class, ReconciliationConfig.class,
+        PullTransactionsService.class, NightlyReconciliationScheduler.class, ReconciliationConfig.class, StkCandidates.class,
         ShortcodeFeatures.class, C2BConfirmationService.class, AuditService.class, SecretCipher.class,
         OpenExceptionsAttentionSource.class, WebhookFanOutService.class, PaymentEventWebhookListener.class,
         MetricsService.class, MetricsQueries.class, ReconciliationIntegrationTest.Beans.class})
@@ -247,10 +247,79 @@ class ReconciliationIntegrationTest {
                 + "FROM webhook_deliveries WHERE event_type = 'c2b.confirmed' AND reference = ?", p + "0BB");
         assertThat(sent).extracting(r -> r.get("client_id")).containsExactlyInAnyOrder("elimika-backend", "ledger-app");
         assertThat(sent).extracting(r -> r.get("source")).containsOnly("STATEMENT");
-        var period = metrics.summary(before, java.time.Instant.now().plusSeconds(60),
-                new MetricsQueries.Filter(shortcode.getUuid(), null)).current();
+        // Counted on the day the money arrived (the statement's time), not on the day it was backfilled.
+        java.time.Instant day = LocalDate.of(2026, 10, 25).atStartOfDay(ReconciliationService.NAIROBI).toInstant();
+        var filter = new MetricsQueries.Filter(shortcode.getUuid(), null);
+        var period = metrics.summary(day, day.plus(java.time.Duration.ofDays(1)), filter).current();
         assertThat(period.collectedCount()).isEqualTo(1);
         assertThat(period.collectedAmount()).isEqualByComparingTo("2500.00");
+        assertThat(metrics.summary(before, java.time.Instant.now().plusSeconds(60), filter).current()
+                .collectedCount()).isZero();
+    }
+
+    @Test
+    void pochiAndTaxPaymentsAreLedgerRowsThatMatchAndAreNeverQueried() throws Exception {
+        productPayout("BUSINESS_TO_POCHI", p + "2CC", "3000.00", LocalDateTime.of(2026, 10, 25, 11, 30));
+        productPayout("TAX_REMITTANCE", p + "TX9", "500.00", LocalDateTime.of(2026, 10, 25, 15, 0));
+
+        ReconciliationRunDto run = upload();
+
+        List<ReconciliationExceptionDto> all = service.listExceptions(run.uuid(), null, null, PageRequest.of(0, 25))
+                .getContent();
+        assertThat(all).extracting(ReconciliationExceptionDto::receipt).doesNotContain(p + "2CC");
+        ReconciliationExceptionDto tax = find(all, p + "TX9");
+        assertThat(tax.kind()).isEqualTo("MISSING_IN_STATEMENT");
+        assertThat(tax.ledgerType()).isEqualTo("TAX_REMITTANCE");
+        assertThat(tax.allowedActions()).containsExactly("MARK_RESOLVED");
+    }
+
+    @Test
+    void backfillCreditsTheStatementAmountShownOverAllTheReceiptsLines() {
+        LocalDate day = LocalDate.of(2026, 10, 25);
+        ReconciliationRunDto run = upload(day, line(p + "M01", day.atTime(9, 0), "Pay Bill Online", "2,500.00", ""),
+                line(p + "M01", day.atTime(9, 0), "Adjustment", "", "-100.00"));
+        ReconciliationExceptionDto missing = find(service.listExceptions(run.uuid(), null, null,
+                PageRequest.of(0, 25)).getContent(), p + "M01");
+        assertThat(missing.statementAmount()).isEqualByComparingTo("2400.00");
+
+        resolver.backfill(missing.uuid());
+
+        assertThat(jdbc.queryForObject("SELECT amount FROM mpesa_incoming_payments WHERE transaction_id = ?",
+                java.math.BigDecimal.class, p + "M01")).isEqualByComparingTo("2400.00");
+    }
+
+    @Test
+    void aPullRunRechecksOnlyEarlierPullRunsComparesOnlyC2bRowsAndEndsNow() {
+        features.set(shortcode.getUuid(), DarajaFeature.PULL_TRANSACTIONS, true, "admin");
+        jdbc.update("INSERT INTO pull_transaction_registrations (shortcode_uuid, nominated_number, callback_url, "
+                + "registered) VALUES (?, '0722000000', 'https://example.test/cb', true)", shortcode.getUuid());
+        when(daraja.queryPullTransactions(any(), any(), any(), anyInt())).thenReturn(MpesaApiResponse.success(Map.of(
+                "ResponseCode", "1001", "Response", List.of(List.of())), 200));
+        LocalDate yesterday = LocalDate.now(ReconciliationService.NAIROBI).minusDays(1);
+        payout(p + "OUT", "300.00", yesterday.atTime(11, 0));
+        ReconciliationRunDto statement = upload(yesterday,
+                line(p + "S01", yesterday.atTime(9, 0), "Pay Bill Online", "100.00", ""));
+        assertThat(statement.openExceptions()).isEqualTo(2);
+        jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, "
+                + "checkout_request_id, phone_number, amount, status, transaction_date, created_at) VALUES (?, "
+                + "'STK_PUSH', ?, ?, '254712345678', 50, 'SUCCESS', ?, ?)", shortcode.getUuid(), p + "STK",
+                "ws_CO_" + p, yesterday.atTime(10, 0), yesterday.atTime(10, 0));
+        deposit(p + "C2B", "75.00", yesterday.atTime(12, 0));
+        LocalDateTime start = yesterday.atStartOfDay();
+
+        ReconciliationRunDto first = service.reconcilePull(shortcode.getUuid(), start,
+                LocalDateTime.now(ReconciliationService.NAIROBI).plusHours(2), ReconciliationTrigger.MANUAL);
+
+        assertThat(first.periodEnd()).isBeforeOrEqualTo(OffsetDateTime.now());
+        assertThat(service.listExceptions(first.uuid(), null, null, PageRequest.of(0, 25)).getContent())
+                .extracting(ReconciliationExceptionDto::receipt).containsExactly(p + "C2B");
+        assertThat(service.getRun(statement.uuid()).openExceptions()).isEqualTo(2);
+
+        ReconciliationRunDto second = service.reconcilePull(shortcode.getUuid(), start,
+                LocalDateTime.now(ReconciliationService.NAIROBI), ReconciliationTrigger.MANUAL);
+        assertThat(service.getRun(first.uuid()).openExceptions()).isZero();
+        assertThat(second.openExceptions()).isEqualTo(1);
+        assertThat(service.getRun(statement.uuid()).openExceptions()).isEqualTo(2);
     }
 
     @Test
@@ -333,13 +402,13 @@ class ReconciliationIntegrationTest {
         assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start, start.plusHours(12),
                 ReconciliationTrigger.MANUAL)).isInstanceOf(ConflictException.class).hasMessageContaining("Register");
 
-        when(daraja.registerPullTransactions(any(), eq("254722000000"), anyString())).thenReturn(MpesaApiResponse.success(
+        when(daraja.registerPullTransactions(any(), eq("0722000000"), anyString())).thenReturn(MpesaApiResponse.success(
                 Map.of("ResponseRefID", "ref-1", "Response Status", "1000",
                         "Response Description", "Shortcode Registered Successfully"), 200));
-        PullTransactionsStatusDto status = pull.register(shortcode.getUuid(), "0722000000");
+        PullTransactionsStatusDto status = pull.register(shortcode.getUuid(), "+254 722 000 000");
         assertThat(status.registered()).isTrue();
-        assertThat(status.nominatedNumber()).isEqualTo("2547•••••000");
-        verify(daraja).registerPullTransactions(any(), eq("254722000000"),
+        assertThat(status.nominatedNumber()).isEqualTo("0722•••••000");
+        verify(daraja).registerPullTransactions(any(), eq("0722000000"),
                 eq("https://example.test/api/v1/callbacks/pull-transactions/callback"));
 
         deposit(p + "PL1", "168.00", start.plusHours(1));
@@ -397,6 +466,30 @@ class ReconciliationIntegrationTest {
                 + shortcode.getShortcode()).replace("TJP9X2K", p).getBytes(java.nio.charset.StandardCharsets.UTF_8);
         return service.reconcileStatement(shortcode.getUuid(), LocalDate.of(2026, 10, 25), LocalDate.of(2026, 10, 25),
                 "statement.csv", content);
+    }
+
+    private ReconciliationRunDto upload(LocalDate day, String... lines) {
+        String csv = "Short Code:," + shortcode.getShortcode() + "\n"
+                + "Receipt No.,Completion Time,Initiation Time,Details,Transaction Status,Paid In,Withdrawn,Balance,"
+                + "Balance Confirmed,Reason Type,Other Party Info,Linked Transaction ID,A/C No.\n"
+                + String.join("\n", lines) + "\n";
+        return service.reconcileStatement(shortcode.getUuid(), day, day, "statement.csv",
+                csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String line(String receipt, LocalDateTime at, String details, String paidIn, String withdrawn) {
+        String time = at.format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"));
+        return String.join(",", receipt, time, time, details, "Completed", "\"" + paidIn + "\"",
+                "\"" + withdrawn + "\"", "", "true", details, "254722***111 - John ***", "", "ELM-1");
+    }
+
+    private void productPayout(String product, String receipt, String amount, LocalDateTime at) {
+        jdbc.update("INSERT INTO product_payouts (shortcode_uuid, product, approval_request_uuid, command_id, party_b, "
+                + "account_reference, amount, remarks, status, transaction_id, completed_at, created_at) VALUES (?, ?, ?, "
+                + "?, ?, ?, ?::numeric, 'test', 'SUCCESS', ?, ?, ?)", shortcode.getUuid(), product, UUID.randomUUID(),
+                product.equals("TAX_REMITTANCE") ? "PayTaxToKRA" : "BusinessPayToPochi",
+                product.equals("TAX_REMITTANCE") ? "572572" : "254705912645",
+                product.equals("TAX_REMITTANCE") ? "PRN1" : null, amount, receipt, at, at);
     }
 
     private void grant(String clientId, String operations) {

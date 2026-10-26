@@ -48,14 +48,17 @@ public interface ReconciliationExceptionRepository extends JpaRepository<Reconci
             GROUP BY e.shortcodeUuid""")
     List<Object[]> countOpenByShortcode();
 
-    /** Earlier runs whose whole period a new run covered: their open exceptions were checked again. */
+    /** Earlier runs whose whole period a new run covered (of this source only, when given): their open
+     * exceptions were checked again. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             UPDATE reconciliation_exceptions SET status = 'SUPERSEDED', updated_at = CURRENT_TIMESTAMP
             WHERE status = 'OPEN' AND shortcode_uuid = :shortcode AND run_id <> :runId
               AND run_id IN (SELECT id FROM reconciliation_runs
-                             WHERE shortcode_uuid = :shortcode AND period_start >= :start AND period_end <= :end)""",
+                             WHERE shortcode_uuid = :shortcode AND period_start >= :start AND period_end <= :end
+                               AND (CAST(:source AS VARCHAR) IS NULL OR source = CAST(:source AS VARCHAR)))""",
             nativeQuery = true)
     int supersede(@Param("shortcode") UUID shortcodeUuid, @Param("runId") Long runId,
-                  @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+                  @Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+                  @Param("source") String source);
 }
