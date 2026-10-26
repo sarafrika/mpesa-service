@@ -31,6 +31,9 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:}
+          # Tokens must name this service in "aud" (Keycloak audience mapper on the caller's client),
+          # so an ordinary realm login cannot call the gateway. Blank accepts any realm token.
+          audiences: ${KEYCLOAK_AUDIENCE:}
 
 # M-Pesa Daraja API Callback Configuration
 mpesa:
@@ -113,3 +116,13 @@ server:
     key-store: ${SSL_KEYSTORE_PATH:}
     key-store-password: ${SSL_KEYSTORE_PASSWORD:}
     key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
+
+# Only the health probe is exposed, without details; the container health check calls it.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
