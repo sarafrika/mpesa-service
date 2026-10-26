@@ -76,7 +76,7 @@ public class ShortcodeC2bService {
         if (code.getShortcodeType() == ShortcodeType.B2C) {
             throw new ConflictException("A B2C shortcode takes no C2B payments, so it has no C2B URLs");
         }
-        ShortcodeCallbackUrlsDto urls = callbackUrls.all();
+        ShortcodeCallbackUrlsDto urls = callbackUrls.forShortcode(code);
         MpesaApiResponse<C2BRegistrationResponse> response = darajaService.registerC2BUrls(shortcodeUuid,
                 urls.c2bConfirmationUrl(), urls.c2bValidationUrl(), responseType.name());
         boolean ok = response != null && response.success() && response.data() != null;

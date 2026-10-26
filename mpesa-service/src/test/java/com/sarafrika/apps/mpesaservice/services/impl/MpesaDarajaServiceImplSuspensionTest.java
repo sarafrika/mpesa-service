@@ -37,7 +37,8 @@ class MpesaDarajaServiceImplSuspensionTest {
     private final MpesaDarajaHttpClient sandbox = mock(MpesaDarajaHttpClient.class);
     private final MpesaIncomingPaymentService payments = mock(MpesaIncomingPaymentService.class);
     private final MpesaDarajaServiceImpl service = new MpesaDarajaServiceImpl(repository, payments, sandbox, mock(MpesaDarajaHttpClient.class),
-            mock(SecurityCredentialService.class), "https://pay.example.test/api/v1/callbacks");
+            mock(SecurityCredentialService.class),
+            new com.sarafrika.apps.mpesaservice.services.shortcode.CallbackUrls("https://pay.example.test/api/v1/callbacks"));
 
     @Test
     void aSuspendedShortcodeRefusesStkPushWith503() {

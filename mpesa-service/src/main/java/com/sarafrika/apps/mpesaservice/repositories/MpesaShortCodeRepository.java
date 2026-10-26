@@ -22,6 +22,8 @@ public interface MpesaShortCodeRepository extends JpaRepository<MpesaShortCode, 
      */
     Optional<MpesaShortCode> findByShortcode(String shortcode);
 
+    Optional<MpesaShortCode> findByCallbackToken(String callbackToken);
+
     /**
      * Find all active shortcode configurations with pagination
      */

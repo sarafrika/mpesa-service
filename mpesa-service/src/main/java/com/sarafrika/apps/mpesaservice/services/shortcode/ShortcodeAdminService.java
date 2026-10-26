@@ -155,7 +155,7 @@ public class ShortcodeAdminService {
     }
 
     public ShortcodeCallbackUrlsDto callbackUrls() {
-        return callbackUrls.all();
+        return callbackUrls.template();
     }
 
     /** Saves a draft: it takes no traffic until an admin activates it after a passing token check. */
@@ -216,8 +216,9 @@ public class ShortcodeAdminService {
     }
 
     @Transactional
-    public ShortcodeDetailDto update(UUID uuid, UpdateShortcodeRequest request) {
+    public ShortcodeDetailDto update(UUID uuid, UpdateShortcodeRequest given) {
         MpesaShortCode code = find(uuid);
+        UpdateShortcodeRequest request = withoutEchoedUrls(code, given);
         requireAdminToRepointProduction(code, request);
         Map<String, Object> before = ShortcodeViews.profile(code);
         BigDecimal min = request.minAmount() != null ? request.minAmount() : code.getMinAmount();
@@ -341,7 +342,19 @@ public class ShortcodeAdminService {
 
     private ShortcodeDetailDto detail(MpesaShortCode code) {
         ShortcodeHealthDto health = healthReader.healthOf(List.of(code)).get(code.getUuid());
-        return ShortcodeViews.detail(code, health);
+        return ShortcodeViews.detail(code, health, callbackUrls.stk(code));
+    }
+
+    // A URL sent back exactly as the detail showed it (token masked) is no change.
+    private UpdateShortcodeRequest withoutEchoedUrls(MpesaShortCode code, UpdateShortcodeRequest r) {
+        return new UpdateShortcodeRequest(r.businessName(), r.minAmount(), r.maxAmount(), r.accountReference(),
+                r.transactionDesc(), echoed(r.callbackUrl(), callbackUrls.stk(code)),
+                echoed(r.b2cResultUrl(), code.getB2cResultUrl()), echoed(r.b2cTimeoutUrl(), code.getB2cTimeoutUrl()));
+    }
+
+    private static String echoed(String requested, String current) {
+        return requested != null && current != null && requested.trim().equals(CallbackUrls.masked(current))
+                ? null : requested;
     }
 
     // Callback URLs decide where Safaricom posts production money events, so only an admin may repoint them.

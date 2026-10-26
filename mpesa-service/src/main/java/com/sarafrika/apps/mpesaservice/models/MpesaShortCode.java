@@ -10,12 +10,15 @@ import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.time.LocalDateTime;
 
 @Entity
@@ -125,4 +128,23 @@ public class MpesaShortCode extends BaseEntity {
     /** Utility balance (KES) below which this shortcode shows low float; null uses mpesa.alerts.low-float. */
     @Column(name = "low_float_threshold")
     private BigDecimal lowFloatThreshold;
+
+    /** Secret path segment of this shortcode's callback URLs (/api/v1/callbacks/{token}/...); never returned. */
+    @Column(name = "callback_token", updatable = false)
+    private String callbackToken;
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    public static String newCallbackToken() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
+    @PrePersist
+    void ensureCallbackToken() {
+        if (callbackToken == null) {
+            callbackToken = newCallbackToken();
+        }
+    }
 }

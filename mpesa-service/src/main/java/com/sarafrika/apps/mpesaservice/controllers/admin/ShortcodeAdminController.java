@@ -109,8 +109,8 @@ public class ShortcodeAdminController {
     @GetMapping("/callback-urls")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getShortcodeCallbackUrls",
-            summary = "The callback URLs this service registers with Safaricom")
-    @ApiResponse(responseCode = "200", description = "The configured callback URLs")
+            summary = "The callback URL pattern; each shortcode's own secret token replaces {callback-token}")
+    @ApiResponse(responseCode = "200", description = "The callback URLs with a token placeholder")
     public ShortcodeCallbackUrlsDto getShortcodeCallbackUrls() {
         return shortcodes.callbackUrls();
     }

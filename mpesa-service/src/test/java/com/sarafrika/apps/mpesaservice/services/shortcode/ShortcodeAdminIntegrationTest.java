@@ -127,7 +127,10 @@ class ShortcodeAdminIntegrationTest {
         assertThat(created.credentials().consumerKeyMasked()).isEqualTo("••••Qx7d");
         assertThat(created.credentials().consumerSecretMasked()).isEqualTo("••••9KfA");
         assertThat(created.credentials().updatedAt()).isNotNull();
-        assertThat(created.callbackUrl()).isEqualTo("https://pay.example.test/api/v1/callbacks/stk/callback");
+        assertThat(created.callbackUrl()).matches("https://pay\\.example\\.test/api/v1/callbacks/••••[0-9a-f]{4}/stk/callback");
+        String token = jdbc.queryForObject("SELECT callback_token FROM mpesa_shortcodes WHERE shortcode = ?",
+                String.class, number);
+        assertThat(token).matches("[0-9a-f]{64}").endsWith(created.callbackUrl().replaceAll(".*••••([0-9a-f]{4}).*", "$1"));
         assertThat(created.createdBy()).isEqualTo("jane.doe");
         assertThat(jdbc.queryForObject("SELECT consumer_secret FROM mpesa_shortcodes WHERE shortcode = ?",
                 String.class, number)).startsWith(SecretCipher.PREFIX);
@@ -286,7 +289,11 @@ class ShortcodeAdminIntegrationTest {
     void everyC2bRegistrationAttemptIsKeptAndAFailureAnswersUpstream() {
         signIn("mpesa-operator");
         ShortcodeDetailDto code = service.create(request(next(), ShortcodeType.PAYBILL, Environment.SANDBOX));
-        when(daraja.registerC2BUrls(eq(code.uuid()), anyString(), anyString(), eq("Cancelled")))
+        String token = jdbc.queryForObject("SELECT callback_token FROM mpesa_shortcodes WHERE uuid = ?",
+                String.class, code.uuid());
+        String base = "https://pay.example.test/api/v1/callbacks/";
+        when(daraja.registerC2BUrls(eq(code.uuid()), eq(base + token + "/c2b/confirmation"),
+                eq(base + token + "/c2b/validation"), eq("Cancelled")))
                 .thenReturn(MpesaApiResponse.error("CLIENT_ERROR", "Client error: 400 BAD_REQUEST", 400))
                 .thenReturn(MpesaApiResponse.success(new C2BRegistrationResponse(null, "orig", "Success"), 200));
 
@@ -297,12 +304,15 @@ class ShortcodeAdminIntegrationTest {
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
 
         assertThat(registered.successful()).isTrue();
-        assertThat(registered.confirmationUrl()).isEqualTo("https://pay.example.test/api/v1/callbacks/c2b/confirmation");
+        String shown = base + "••••" + token.substring(60);
+        assertThat(registered.confirmationUrl()).isEqualTo(shown + "/c2b/confirmation");
         assertThat(registered.registeredBy()).isEqualTo("jane.doe");
         assertThat(history.getContent()).extracting(C2bRegistrationDto::successful).containsExactly(true, false);
         ShortcodeDetailDto after = service.get(code.uuid());
         assertThat(after.health().c2bState()).isEqualTo(C2bRegistrationState.REGISTERED);
-        assertThat(after.validationUrl()).isEqualTo("https://pay.example.test/api/v1/callbacks/c2b/validation");
+        assertThat(after.validationUrl()).isEqualTo(shown + "/c2b/validation");
+        assertThat(jdbc.queryForObject("SELECT validation_url FROM mpesa_shortcodes WHERE uuid = ?", String.class,
+                code.uuid())).isEqualTo(base + token + "/c2b/validation");
     }
 
     @Test

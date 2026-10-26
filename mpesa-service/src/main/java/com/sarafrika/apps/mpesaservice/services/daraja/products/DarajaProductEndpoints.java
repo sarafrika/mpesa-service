@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.daraja.products;
 
+import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import java.net.URI;
@@ -48,9 +49,10 @@ public class DarajaProductEndpoints {
         return URI.create((production ? productionBaseUrl : sandboxBaseUrl) + path);
     }
 
-    /** Our callback URL for a path under /api/v1/callbacks, e.g. "/pochi/result". */
-    public String callbackUrl(String path) {
-        return callbackBaseUrl + path;
+    /** The shortcode's own callback URL (with its token) for a path under /api/v1/callbacks, e.g. "/pochi/result". */
+    public String callbackUrl(MpesaShortCode shortcode, String path) {
+        String token = shortcode == null ? null : shortcode.getCallbackToken();
+        return token == null || token.isBlank() ? callbackBaseUrl + path : callbackBaseUrl + "/" + token + path;
     }
 
     private static String trim(String url) {

@@ -310,11 +310,11 @@ public class ProductPayoutService {
             body = payout.getProduct() == DarajaFeature.TAX_REMITTANCE
                     ? DarajaProductRequests.taxRemittance(shortcode.getInitiatorName(), credential,
                     shortcode.getShortcode(), payout.getAmount(), payout.getAccountReference(), payout.getRemarks(),
-                    endpoints.callbackUrl(TAX_TIMEOUT_PATH), endpoints.callbackUrl(TAX_RESULT_PATH))
+                    endpoints.callbackUrl(shortcode, TAX_TIMEOUT_PATH), endpoints.callbackUrl(shortcode, TAX_RESULT_PATH))
                     : DarajaProductRequests.businessToPochi(payout.getOriginatorConversationId(),
                     shortcode.getInitiatorName(), credential, shortcode.getShortcode(), payout.getPartyB(),
                     payout.getAmount(), payout.getRemarks(), payout.getOccasion(),
-                    endpoints.callbackUrl(POCHI_TIMEOUT_PATH), endpoints.callbackUrl(POCHI_RESULT_PATH));
+                    endpoints.callbackUrl(shortcode, POCHI_TIMEOUT_PATH), endpoints.callbackUrl(shortcode, POCHI_RESULT_PATH));
         } catch (RuntimeException e) {
             // Nothing reached Safaricom, so this refusal is final.
             log.error("{} {} not sent: {}", payout.getProduct(), payout.getUuid(), e.toString());

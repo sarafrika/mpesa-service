@@ -5,7 +5,7 @@ import { ErrorState } from "@/components/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { okData } from "../api";
 
-/** The URLs this service registers with Safaricom, read from its callback configuration. */
+/** The URLs this service registers with Safaricom; each paybill's own token fills {callback-token}. */
 export function CallbackUrlsPanel({ kind }: { kind: string }) {
   const query = useGetShortcodeCallbackUrls({ query: { staleTime: 5 * 60_000 } });
   const urls = okData(query.data);
@@ -13,6 +13,10 @@ export function CallbackUrlsPanel({ kind }: { kind: string }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3.5">
       <span className="font-medium text-sm">Callback URLs are generated for you</span>
+      <p className="text-muted-foreground text-xs">
+        Each paybill gets its own secret token in place of {"{callback-token}"} once it is saved, so
+        callbacks to a guessed URL are refused.
+      </p>
       {query.isPending ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           <Skeleton className="h-4 w-full max-w-md" />

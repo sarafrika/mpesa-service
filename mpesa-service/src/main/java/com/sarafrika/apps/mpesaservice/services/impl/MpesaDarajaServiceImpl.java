@@ -3,6 +3,7 @@ package com.sarafrika.apps.mpesaservice.services.impl;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
+import com.sarafrika.apps.mpesaservice.services.shortcode.CallbackUrls;
 
 import com.sarafrika.apps.mpesaservice.clients.DarajaHttpException;
 import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
@@ -44,7 +45,7 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     private final MpesaDarajaHttpClient sandboxHttpClient;
     private final MpesaDarajaHttpClient productionHttpClient;
     private final SecurityCredentialService securityCredentialService;
-    private final String callbackBaseUrl;
+    private final CallbackUrls callbackUrls;
 
     // Cache for access tokens to avoid frequent authentication calls
     private final Map<String, CachedToken> tokenCache = new ConcurrentHashMap<>();
@@ -61,10 +62,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             @Qualifier("sandboxHttpClient") MpesaDarajaHttpClient sandboxHttpClient,
             @Qualifier("productionHttpClient") MpesaDarajaHttpClient productionHttpClient,
             SecurityCredentialService securityCredentialService,
-            @Value("${mpesa.callback.base-url:}") String callbackBaseUrl) {
+            CallbackUrls callbackUrls) {
 
         this.securityCredentialService = securityCredentialService;
-        this.callbackBaseUrl = callbackBaseUrl;
+        this.callbackUrls = callbackUrls;
         this.shortCodeRepository = shortCodeRepository;
         this.incomingPaymentService = incomingPaymentService;
         this.sandboxHttpClient = sandboxHttpClient;
@@ -282,8 +283,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             payload.put("PartyA", shortcode.getShortcode());
             payload.put("PartyB", phoneNumber);
             payload.put("Remarks", remarks != null && !remarks.isBlank() ? remarks : "Payout");
-            payload.put("QueueTimeOutURL", b2cUrl(shortcode.getB2cTimeoutUrl(), "/b2c/timeout"));
-            payload.put("ResultURL", b2cUrl(shortcode.getB2cResultUrl(), "/b2c/result"));
+            payload.put("QueueTimeOutURL", callbackUrls.b2cTimeout(shortcode));
+            payload.put("ResultURL", callbackUrls.b2cResult(shortcode));
             payload.put("Occasion", occasion != null && !occasion.isBlank() ? occasion : "Payout");
         } catch (Exception e) {
             // Nothing reached Safaricom, so this refusal is final.
@@ -300,15 +301,9 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         }
     }
 
-    private String b2cUrl(String configured, String path) {
-        if (configured != null && !configured.isBlank()) {
-            return configured;
-        }
-        return callbackUrl(path);
-    }
-
-    private String callbackUrl(String path) {
-        return callbackBaseUrl.replaceAll("/+$", "") + path;
+    /** This shortcode's own callback URL (with its token) for a path under /api/v1/callbacks. */
+    private String callbackUrl(MpesaShortCode shortcode, String path) {
+        return callbackUrls.url(shortcode, path);
     }
 
     // ==================== 4. B2B IMPLEMENTATION ====================
@@ -743,7 +738,7 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         payload.put("PartyA", phoneNumber);
         payload.put("PartyB", shortcode.getShortcode());
         payload.put("PhoneNumber", phoneNumber);
-        payload.put("CallBackURL", shortcode.getCallbackUrl());
+        payload.put("CallBackURL", callbackUrls.stk(shortcode));
         payload.put("AccountReference", accountReference != null ? accountReference : shortcode.getAccountReference());
         payload.put("TransactionDesc", transactionDesc != null ? transactionDesc : shortcode.getTransactionDesc());
         return payload;
@@ -789,8 +784,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         payload.put("PartyA", shortcode.getShortcode());
         payload.put("PartyB", phoneNumber);
         payload.put("Remarks", remarks != null ? remarks : "B2C Payment");
-        payload.put("QueueTimeOutURL", shortcode.getCallbackUrl());
-        payload.put("ResultURL", shortcode.getCallbackUrl());
+        payload.put("QueueTimeOutURL", callbackUrls.b2cTimeout(shortcode));
+        payload.put("ResultURL", callbackUrls.b2cResult(shortcode));
         payload.put("Occasion", occasion != null ? occasion : "Payment");
         return payload;
     }
@@ -811,8 +806,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             payload.put("AccountReference", request.accountReference());
         }
         payload.put("Remarks", request.remarks() != null && !request.remarks().isBlank() ? request.remarks() : "Sweep");
-        payload.put("QueueTimeOutURL", callbackUrl("/b2b/timeout"));
-        payload.put("ResultURL", callbackUrl("/b2b/result"));
+        payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/b2b/timeout"));
+        payload.put("ResultURL", callbackUrl(shortcode, "/b2b/result"));
         return payload;
     }
 
@@ -826,8 +821,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         payload.put("PartyA", shortcode.getShortcode());
         // IdentifierType 2 is a till number, 4 an organisation shortcode (paybill).
         payload.put("IdentifierType", shortcode.getShortcodeType() == ShortcodeType.TILL ? "2" : "4");
-        payload.put("ResultURL", callbackUrl("/transaction-status/result"));
-        payload.put("QueueTimeOutURL", callbackUrl("/transaction-status/timeout"));
+        payload.put("ResultURL", callbackUrl(shortcode, "/transaction-status/result"));
+        payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/transaction-status/timeout"));
         payload.put("Remarks", remarks != null ? remarks : "Transaction Status Query");
         payload.put("Occasion", "TransactionStatusQuery");
         return payload;
@@ -843,8 +838,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         payload.put("PartyA", shortcode.getShortcode());
         payload.put("IdentifierType", "4");
         payload.put("Remarks", remarks != null && !remarks.isBlank() ? remarks : "Account balance");
-        payload.put("QueueTimeOutURL", callbackUrl("/account-balance/timeout"));
-        payload.put("ResultURL", callbackUrl("/account-balance/result"));
+        payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/account-balance/timeout"));
+        payload.put("ResultURL", callbackUrl(shortcode, "/account-balance/result"));
         return payload;
     }
 
@@ -860,8 +855,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         payload.put("Amount", amount.stripTrailingZeros().toPlainString());
         payload.put("ReceiverParty", shortcode.getShortcode());
         payload.put("RecieverIdentifierType", "11");
-        payload.put("ResultURL", callbackUrl("/reversal/result"));
-        payload.put("QueueTimeOutURL", callbackUrl("/reversal/timeout"));
+        payload.put("ResultURL", callbackUrl(shortcode, "/reversal/result"));
+        payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/reversal/timeout"));
         payload.put("Remarks", remarks != null && remarks.length() >= 2 ? remarks : "Transaction Reversal");
         return payload;
     }

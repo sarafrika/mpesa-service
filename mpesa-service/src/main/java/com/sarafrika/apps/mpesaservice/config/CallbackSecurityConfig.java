@@ -1,7 +1,9 @@
 package com.sarafrika.apps.mpesaservice.config;
 
 import jakarta.servlet.http.HttpServletRequest;
+import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -77,8 +79,8 @@ public class CallbackSecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain callbackSecurityFilterChain(HttpSecurity http, ClientIpResolver clientIpResolver)
-            throws Exception {
+    public SecurityFilterChain callbackSecurityFilterChain(HttpSecurity http, ClientIpResolver clientIpResolver,
+            ObjectProvider<MpesaShortCodeRepository> shortcodes) throws Exception {
         http
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -97,6 +99,9 @@ public class CallbackSecurityConfig {
                     .decoder(KeycloakJwtDecoder.forIssuer(issuerUri, audiences, jwkSetUri))
                     .jwtAuthenticationConverter(KeycloakRealmRoles.authenticationConverter())));
         }
+
+        // First, so the IP allow-list and the logging filter only ever see the shared path.
+        http.addFilterBefore(new CallbackTokenFilter(shortcodes), UsernamePasswordAuthenticationFilter.class);
 
         if (ipWhitelistEnabled) {
             http.addFilterBefore(new CallbackIPWhitelistFilter(allowedIps, clientIpResolver), UsernamePasswordAuthenticationFilter.class);

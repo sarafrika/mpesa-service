@@ -202,8 +202,8 @@ class DarajaProductsIntegrationTest {
         assertThat(body).containsEntry("CommandID", "PayTaxToKRA").containsEntry("PartyB", "572572")
                 .containsEntry("AccountReference", "PRN1234XN").containsEntry("Amount", "3000")
                 .containsEntry("PartyA", shortcode.getShortcode())
-                .containsEntry("ResultURL", "https://pay.example.test/api/v1/callbacks/tax-remittance/result")
-                .containsEntry("QueueTimeOutURL", "https://pay.example.test/api/v1/callbacks/tax-remittance/timeout");
+                .containsEntry("ResultURL", ownCallbacks() + "/tax-remittance/result")
+                .containsEntry("QueueTimeOutURL", ownCallbacks() + "/tax-remittance/timeout");
 
         JsonNode result = objectMapper.readTree(TAX_SUCCESS.formatted("OC-TAX-1"));
         payouts.applyResult(DarajaFeature.TAX_REMITTANCE, result, result.toString());
@@ -342,7 +342,7 @@ class DarajaProductsIntegrationTest {
         assertThat(originator).startsWith("sar-pochi-");
         assertThat(body).containsEntry("CommandID", "BusinessPayToPochi").containsEntry("PartyB", "254705912645")
                 .containsEntry("Amount", "1500").containsEntry("Occassion", "October stock")
-                .containsEntry("ResultURL", "https://pay.example.test/api/v1/callbacks/pochi/result");
+                .containsEntry("ResultURL", ownCallbacks() + "/pochi/result");
 
         // The success sample on developer.safaricom.co.ke/apis/BusinessToPochi.
         JsonNode result = objectMapper.readTree("""
@@ -380,7 +380,7 @@ class DarajaProductsIntegrationTest {
         assertThat(body).containsEntry("primaryShortCode", "000001")
                 .containsEntry("receiverShortCode", shortcode.getShortcode())
                 .containsEntry("RequestRefID", started.requestRefId().toString())
-                .containsEntry("callbackUrl", "https://pay.example.test/api/v1/callbacks/b2b-checkout/result")
+                .containsEntry("callbackUrl", ownCallbacks() + "/b2b-checkout/result")
                 .containsEntry("partnerName", shortcode.getBusinessName());
 
         // The success callback sample on developer.safaricom.co.ke/apis/B2BExpressCheckout.
@@ -480,6 +480,10 @@ class DarajaProductsIntegrationTest {
 
     private static StartB2bCheckoutRequest checkout() {
         return new StartB2bCheckoutRequest("000001", new BigDecimal("71"), "INV-1", null);
+    }
+
+    private String ownCallbacks() {
+        return "https://pay.example.test/api/v1/callbacks/" + shortcode.getCallbackToken();
     }
 
     private MpesaShortCode shortcode(ShortcodeType type) {

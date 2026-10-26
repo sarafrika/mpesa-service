@@ -52,12 +52,14 @@ final class ShortcodeViews {
                 credentialsUpdatedAt(code), code.getCreatedAt(), health, products);
     }
 
-    static ShortcodeDetailDto detail(MpesaShortCode code, ShortcodeHealthDto health) {
+    /** stkCallbackUrl is the URL STK requests are sent with; every URL is shown with its token masked. */
+    static ShortcodeDetailDto detail(MpesaShortCode code, ShortcodeHealthDto health, String stkCallbackUrl) {
         return new ShortcodeDetailDto(code.getUuid(), code.getShortcode(), code.getBusinessName(),
                 code.getShortcodeType(), code.getEnvironment(), status(code), Boolean.TRUE.equals(code.getIsActive()),
                 code.getAccountReference(), code.getTransactionDesc(), code.getMinAmount(), code.getMaxAmount(),
-                code.getCallbackUrl(), code.getConfirmationUrl(), code.getValidationUrl(), code.getB2cResultUrl(),
-                code.getB2cTimeoutUrl(), code.getActivatedAt(), code.getSuspendedAt(), code.getCreatedAt(),
+                CallbackUrls.masked(stkCallbackUrl), CallbackUrls.masked(code.getConfirmationUrl()),
+                CallbackUrls.masked(code.getValidationUrl()), CallbackUrls.masked(code.getB2cResultUrl()),
+                CallbackUrls.masked(code.getB2cTimeoutUrl()), code.getActivatedAt(), code.getSuspendedAt(), code.getCreatedAt(),
                 code.getUpdatedAt(), code.getCreatedBy(), code.getUpdatedBy(),
                 credentials(code), health);
     }

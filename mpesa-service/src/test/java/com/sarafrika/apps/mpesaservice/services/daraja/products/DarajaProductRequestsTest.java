@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.services.daraja.products;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import java.math.BigDecimal;
@@ -96,7 +97,11 @@ class DarajaProductRequestsTest {
                 .hasToString("https://api.safaricom.co.ke/custom/remittax");
         assertThat(endpoints.requestUrl(DarajaFeature.B2B_EXPRESS_CHECKOUT, Environment.PRODUCTION))
                 .hasToString("https://api.safaricom.co.ke/custom/ussdpush");
-        assertThat(endpoints.callbackUrl("/pochi/result"))
+        MpesaShortCode code = new MpesaShortCode();
+        code.setCallbackToken("c0ffee");
+        assertThat(endpoints.callbackUrl(code, "/pochi/result"))
+                .isEqualTo("https://pay.example.test/api/v1/callbacks/c0ffee/pochi/result");
+        assertThat(endpoints.callbackUrl(new MpesaShortCode(), "/pochi/result"))
                 .isEqualTo("https://pay.example.test/api/v1/callbacks/pochi/result");
     }
 }

@@ -124,7 +124,7 @@ public class B2bCheckoutService {
                 "payment_ref", saved.getPaymentRef(), "request_ref_id", saved.getRequestRefId().toString()));
 
         Map<String, Object> body = DarajaProductRequests.b2bExpressCheckout(saved.getPrimaryShortCode(),
-                saved.getReceiverShortCode(), amount, saved.getPaymentRef(), endpoints.callbackUrl(RESULT_PATH),
+                saved.getReceiverShortCode(), amount, saved.getPaymentRef(), endpoints.callbackUrl(shortcode, RESULT_PATH),
                 saved.getPartnerName(), saved.getRequestRefId().toString());
         var url = endpoints.requestUrl(DarajaFeature.B2B_EXPRESS_CHECKOUT, shortcode.getEnvironment());
         MpesaApiResponse<JsonNode> response = daraja.callProduct(shortcode, "B2B Express Checkout",

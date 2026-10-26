@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.sarafrika.apps.mpesaservice.services.shortcode.CallbackUrls;
 import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaTokenResponse;
@@ -31,7 +32,8 @@ class DynamicQrPayloadTest {
     private final MpesaDarajaHttpClient sandbox = mock(MpesaDarajaHttpClient.class);
     private final MpesaDarajaServiceImpl service = new MpesaDarajaServiceImpl(repository,
             mock(MpesaIncomingPaymentService.class), sandbox, mock(MpesaDarajaHttpClient.class),
-            mock(SecurityCredentialService.class), "https://pay.example.test/api/v1/callbacks");
+            mock(SecurityCredentialService.class),
+            new CallbackUrls("https://pay.example.test/api/v1/callbacks"));
 
     @Test
     @SuppressWarnings("unchecked")

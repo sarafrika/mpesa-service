@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.dtos.admin.shortcode;
 
+import com.sarafrika.apps.mpesaservice.services.shortcode.CallbackUrls;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sarafrika.apps.mpesaservice.models.C2bRegistration;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -30,7 +31,8 @@ public record C2bRegistrationDto(
 
     public static C2bRegistrationDto from(C2bRegistration registration) {
         return new C2bRegistrationDto(registration.getUuid(), C2bResponseType.valueOf(registration.getResponseType()),
-                registration.getConfirmationUrl(), registration.getValidationUrl(), registration.isSuccessful(),
+                CallbackUrls.masked(registration.getConfirmationUrl()),
+                CallbackUrls.masked(registration.getValidationUrl()), registration.isSuccessful(),
                 registration.getResultCode(), registration.getResultDesc(), registration.getRegisteredBy(),
                 registration.getCreatedAt());
     }
