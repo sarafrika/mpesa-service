@@ -24,9 +24,13 @@ public record AuditEventDto(
         @JsonProperty("entity_type") String entityType,
         @Schema(example = "550e8400-e29b-41d4-a716-446655440000")
         @JsonProperty("entity_id") String entityId,
-        @Schema(type = "object", description = "The record before the change, secrets redacted")
+        @Schema(implementation = Object.class, type = "object", nullable = true,
+                additionalProperties = Schema.AdditionalPropertiesValue.TRUE,
+                description = "The record before the change, secrets redacted")
         @JsonProperty("before") JsonNode before,
-        @Schema(type = "object", description = "The record after the change, secrets redacted")
+        @Schema(implementation = Object.class, type = "object", nullable = true,
+                additionalProperties = Schema.AdditionalPropertiesValue.TRUE,
+                description = "The record after the change, secrets redacted")
         @JsonProperty("after") JsonNode after,
         @Schema(example = "196.201.214.200")
         @JsonProperty("ip") String ip,
