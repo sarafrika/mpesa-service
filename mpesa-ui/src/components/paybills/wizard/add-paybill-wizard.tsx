@@ -5,15 +5,22 @@ import { Check, Lock } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, type Path, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
+  useListProducts,
+  useUpsertProductGrant,
+} from "@/api/generated/endpoints/admin-products/admin-products";
+import {
   useCreateShortcode,
   useUpdateShortcode,
 } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
-import type { ShortcodeDetail } from "@/api/generated/model";
+import type {
+  UpsertProductGrantRequestOperationsItem as GrantOperation,
+  ShortcodeDetail,
+} from "@/api/generated/model";
 import { CreateShortcodeBody } from "@/api/generated/zod/admin-shortcodes/admin-shortcodes.zod";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -63,6 +70,7 @@ const schema = CreateShortcodeBody.omit({ min_amount: true, max_amount: true })
     min_amount: amountText,
     max_amount: amountText,
     response_type: z.enum(["Completed", "Cancelled"]),
+    product: z.string(),
   })
   .superRefine((values, ctx) => {
     if (values.shortcode_type === "B2C") {
@@ -97,8 +105,8 @@ type FormField = Path<WizardValues>;
 const STEPS: { title: string; sub: string; fields: FormField[] }[] = [
   {
     title: "Business",
-    sub: "Name, shortcode, kind",
-    fields: ["business_name", "shortcode", "shortcode_type", "environment"],
+    sub: "Name, shortcode, product",
+    fields: ["business_name", "shortcode", "shortcode_type", "environment", "product"],
   },
   {
     title: "Credentials",
@@ -126,6 +134,15 @@ const KINDS = [
   { value: "B2C", title: "B2C disbursement", description: "Send payouts to customers" },
 ] as const;
 
+const LATER = "later";
+
+/** What a product may do on a new shortcode by default; the paybill's Product access tab changes it. */
+function defaultOperations(kind: WizardValues["shortcode_type"]): GrantOperation[] {
+  return kind === "B2C"
+    ? ["B2C_PAYOUT", "STATUS_LOOKUP"]
+    : ["STK_PUSH", "C2B_FEED", "STATUS_LOOKUP"];
+}
+
 const DEFAULTS: WizardValues = {
   business_name: "",
   shortcode: "",
@@ -142,6 +159,7 @@ const DEFAULTS: WizardValues = {
   account_reference: "",
   transaction_desc: "",
   response_type: "Cancelled",
+  product: LATER,
 };
 
 const blank = (value: string | undefined) => (value?.trim() ? value.trim() : undefined);
@@ -178,6 +196,18 @@ function Wizard() {
   const form = useForm<WizardValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
   const create = useCreateShortcode({ mutation: { meta: { errorToast: false } } });
   const update = useUpdateShortcode({ mutation: { meta: { errorToast: false } } });
+  const grant = useUpsertProductGrant({ mutation: { meta: { errorToast: false } } });
+  const products = useListProducts({ size: 100 }, { query: { enabled: isAdmin } });
+  const productOptions = okData(products.data)?.items ?? [];
+  const formRef = useRef<HTMLFormElement>(null);
+  const shownStep = useRef(step);
+
+  // Continue and Back move focus to the new step's heading, so screen readers announce it.
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    formRef.current?.querySelector<HTMLElement>("h2")?.focus();
+  }, [step]);
   const { errors } = form.formState;
   const kind = form.watch("shortcode_type");
   const b2c = kind === "B2C";
@@ -234,11 +264,23 @@ function Wizard() {
             security_credential: blank(values.security_credential),
           },
         });
-        setCreated(okData(response));
+        const draft = okData(response);
+        setCreated(draft);
         await invalidate();
         toast.success("Draft saved", {
           description: "Credentials are encrypted. Nothing is live yet.",
         });
+        if (draft && isAdmin && values.product !== LATER) {
+          try {
+            await grant.mutateAsync({
+              clientId: values.product,
+              shortcodeUuid: draft.uuid,
+              data: { operations: defaultOperations(values.shortcode_type), active: true },
+            });
+          } catch (error) {
+            toastApiError(error, { requiredRole: "mpesa-admin" });
+          }
+        }
       } catch (error) {
         showServerErrors(error);
         return;
@@ -288,7 +330,7 @@ function Wizard() {
                   <span
                     className={cn(
                       "flex size-8 shrink-0 items-center justify-center rounded-full border font-semibold text-sm",
-                      done && "border-chart-1 bg-chart-1 text-white",
+                      done && "border-chart-1 bg-chart-1 text-primary-foreground",
                       current && "border-primary bg-primary text-primary-foreground",
                       !done && !current && "text-muted-foreground",
                     )}
@@ -307,6 +349,7 @@ function Wizard() {
 
         <Card className="min-w-0 flex-[999_1_520px] gap-6 px-5 py-6 md:px-7">
           <form
+            ref={formRef}
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
@@ -322,7 +365,9 @@ function Wizard() {
 
             {step === 0 && (
               <fieldset disabled={locked} className="flex flex-col gap-5">
-                <h2 className="font-semibold text-xl">Business details</h2>
+                <h2 tabIndex={-1} className="font-semibold text-xl outline-none">
+                  Business details
+                </h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField
                     label="Display name"
@@ -398,12 +443,46 @@ function Wizard() {
                     </Field>
                   )}
                 />
+                {isAdmin && (
+                  <Controller
+                    control={form.control}
+                    name="product"
+                    render={({ field }) => (
+                      <Field className="sm:max-w-xs">
+                        <FieldLabel htmlFor="product">Sarafrika product</FieldLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={locked}
+                        >
+                          <SelectTrigger id="product" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {productOptions.map((option) => (
+                              <SelectItem key={option.client_id} value={option.client_id}>
+                                {option.display_name}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value={LATER}>Not assigned yet</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>
+                          Gets access once the draft is saved; change what it may do on the
+                          paybill's Product access tab.
+                        </FieldDescription>
+                      </Field>
+                    )}
+                  />
+                )}
               </fieldset>
             )}
 
             {step === 1 && (
               <fieldset disabled={locked} className="flex flex-col gap-5">
-                <h2 className="font-semibold text-xl">Daraja credentials</h2>
+                <h2 tabIndex={-1} className="font-semibold text-xl outline-none">
+                  Daraja credentials
+                </h2>
                 <p className="text-muted-foreground text-sm">
                   From the Daraja portal app linked to this shortcode. They are write-only: after
                   saving, only the last four characters are shown.
@@ -471,7 +550,9 @@ function Wizard() {
 
             {step === 2 && created && (
               <div className="flex flex-col gap-5">
-                <h2 className="font-semibold text-xl">Callbacks and rules</h2>
+                <h2 tabIndex={-1} className="font-semibold text-xl outline-none">
+                  Callbacks and rules
+                </h2>
                 <CallbackUrlsPanel kind={kind} />
                 <div className="grid gap-4 sm:grid-cols-2">
                   {!b2c && (

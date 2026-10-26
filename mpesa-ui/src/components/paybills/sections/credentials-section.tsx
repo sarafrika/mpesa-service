@@ -1,11 +1,10 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
 import { KeyValueList } from "@/components/key-value-list";
 import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { formatDateTime } from "@/lib/format";
-import { RotateCredentialsDialog } from "../rotate-credentials-dialog";
+import { UpdateCredentialsDialog } from "../update-credentials-dialog";
 import type { PaybillSectionProps } from "./types";
 
 export function CredentialsSection({ shortcode }: PaybillSectionProps) {
@@ -15,10 +14,10 @@ export function CredentialsSection({ shortcode }: PaybillSectionProps) {
   return (
     <SectionCard
       title="Daraja credentials"
-      description="Write-only. Stored encrypted; only the last four characters are ever shown. Rotation needs mpesa-admin and is audited."
+      description="Write-only. Stored encrypted; only the last four characters are ever shown. Change them at Safaricom first, then update them here (mpesa-admin, audited)."
       actions={
         <RoleGate needs="mpesa-admin">
-          <RotateCredentialsDialog shortcode={shortcode} />
+          <UpdateCredentialsDialog shortcode={shortcode} />
         </RoleGate>
       }
     >
@@ -27,7 +26,7 @@ export function CredentialsSection({ shortcode }: PaybillSectionProps) {
           { label: "Consumer key", value: credentials.consumer_key_masked, mono: true },
           {
             label: "Consumer secret",
-            value: `${credentials.consumer_secret_masked}${credentials.rotated_at ? ` · rotated ${formatDateTime(credentials.rotated_at)}` : ""}`,
+            value: credentials.consumer_secret_masked,
             mono: true,
           },
           ...(b2c
@@ -52,18 +51,12 @@ export function CredentialsSection({ shortcode }: PaybillSectionProps) {
                 ? "Encrypted from the initiator password with Safaricom's certificate"
                 : "Not set",
           },
+          {
+            label: "Last updated",
+            value: credentials.updated_at ? formatDateTime(credentials.updated_at) : "Unknown",
+          },
         ]}
       />
-      {credentials.rotation_due && (
-        <div
-          role="status"
-          className="flex items-center gap-2.5 rounded-lg bg-warning-soft px-3 py-2.5 font-medium text-sm text-warning"
-        >
-          <TriangleAlert className="size-4 shrink-0" aria-hidden />
-          Credentials are {credentials.age_days ?? `over ${credentials.rotation_days}`} days old.
-          Sarafrika policy rotates at {credentials.rotation_days} days.
-        </div>
-      )}
     </SectionCard>
   );
 }
