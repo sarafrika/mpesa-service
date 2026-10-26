@@ -30,6 +30,10 @@ Signing out ends the Keycloak session too. The user menu asks `src/app/api/auth/
 
 Screens build on the components beside `src/components/ui/`: `PageHeader`, `SectionCard`, `StatCard`, `StatusBadge`, `Money`, `MaskedPhone`, `KeyValueList`, `Timeline`, `FilterChips`, `SearchInput`, `DataTablePagination`, `ConfirmDialog`, `EmptyState`, `ErrorState` and `RoleGate` (with the `useHasRole` hook). Formatting lives in `src/lib/format.ts` and the role hierarchy in `src/lib/roles.ts`; `pnpm test` runs their unit tests with Node's own test runner. Charts take `moneyChartConfig` from `src/lib/chart.ts`, so money in is always `--chart-1` and money out `--chart-2`.
 
+## Paged tables
+
+Every list keeps its page, size and sort in the URL through `usePaging()` (`src/hooks/use-paging.ts`), so refresh, back and shared links land on the same rows. The URL shows pages from 1; the API counts from 0, and `readPaging`/`writePaging` in `src/lib/page.ts` translate. Changing size, sort or a filter (`setFilters`) goes back to the first page, and `useClampPage` moves to the last real page when rows disappear. Pass `pagedQueryOptions` to the query so the current rows stay visible while the next page loads, and put `DataTablePagination` with `onPageSizeChange` under the table. The service caps `size` at 100.
+
 ## Loading and errors
 
 I want one broken card to stay one broken card. Every section of a screen sits inside `SectionBoundary`, which catches render errors, resets React Query and offers a retry, while `(console)/error.tsx`, `not-found.tsx` and `global-error.tsx` catch whatever gets past that. While a query has no data yet, show the skeleton shaped like the content (`TableSkeleton`, `StatCardSkeleton`, `ChartSkeleton`, `DetailPanelSkeleton`, `FormSkeleton`); when it fails with nothing to show, render `ErrorState` with the error; when a refresh fails over data you already have, keep the data and add `StaleNotice`.
