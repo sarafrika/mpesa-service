@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.config;
 
+import com.sarafrika.apps.mpesaservice.clients.DarajaHttpException;
 import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import lombok.extern.slf4j.Slf4j;
@@ -43,15 +44,10 @@ public class MpesaClientConfig {
                     log.debug("Sandbox API Request: {} {}", request.getMethod(), request.getURI());
                     return execution.execute(request, body);
                 })
-                .defaultStatusHandler(HttpStatusCode::is4xxClientError, (request, response) -> {
-                    log.error("Sandbox Client Error: {} - {}", response.getStatusCode(),
-                            new String(response.getBody().readAllBytes()));
-                    throw new RuntimeException("Client error: " + response.getStatusCode());
-                })
-                .defaultStatusHandler(HttpStatusCode::is5xxServerError, (request, response) -> {
-                    log.error("Sandbox Server Error: {} - {}", response.getStatusCode(),
-                            new String(response.getBody().readAllBytes()));
-                    throw new RuntimeException("Server error: " + response.getStatusCode());
+                .defaultStatusHandler(HttpStatusCode::isError, (request, response) -> {
+                    byte[] body = response.getBody().readAllBytes();
+                    log.error("Sandbox Daraja error: {} - {}", response.getStatusCode(), new String(body));
+                    throw new DarajaHttpException(response.getStatusCode().value(), body);
                 })
                 .build();
     }
@@ -67,15 +63,10 @@ public class MpesaClientConfig {
                     log.debug("Production API Request: {} {}", request.getMethod(), request.getURI());
                     return execution.execute(request, body);
                 })
-                .defaultStatusHandler(HttpStatusCode::is4xxClientError, (request, response) -> {
-                    log.error("Production Client Error: {} - {}", response.getStatusCode(),
-                            new String(response.getBody().readAllBytes()));
-                    throw new RuntimeException("Client error: " + response.getStatusCode());
-                })
-                .defaultStatusHandler(HttpStatusCode::is5xxServerError, (request, response) -> {
-                    log.error("Production Server Error: {} - {}", response.getStatusCode(),
-                            new String(response.getBody().readAllBytes()));
-                    throw new RuntimeException("Server error: " + response.getStatusCode());
+                .defaultStatusHandler(HttpStatusCode::isError, (request, response) -> {
+                    byte[] body = response.getBody().readAllBytes();
+                    log.error("Production Daraja error: {} - {}", response.getStatusCode(), new String(body));
+                    throw new DarajaHttpException(response.getStatusCode().value(), body);
                 })
                 .build();
     }

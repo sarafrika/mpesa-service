@@ -4,7 +4,10 @@ import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -83,6 +86,34 @@ public interface MpesaIncomingPaymentRepository extends JpaRepository<MpesaIncom
      * Count payments in a given status
      */
     Long countByStatus(IncomingPaymentStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM MpesaIncomingPayment p WHERE p.checkoutRequestId = :id")
+    Optional<MpesaIncomingPayment> lockByCheckoutRequestId(@Param("id") String checkoutRequestId);
+
+    /** Removes a C2B row merged into its STK twin; a soft delete would keep holding the receipt. */
+    @Modifying(flushAutomatically = true)
+    @Query(value = "DELETE FROM mpesa_incoming_payments WHERE id = :id", nativeQuery = true)
+    void hardDelete(@Param("id") Long id);
+
+    @Modifying(flushAutomatically = true)
+    @Query(value = "UPDATE webhook_deliveries SET payment_uuid = :to WHERE payment_uuid = :from", nativeQuery = true)
+    void repointWebhookDeliveries(@Param("from") UUID from, @Param("to") UUID to);
+
+    /** Claims due STK requests for the status job: SKIP LOCKED keeps two instances off the same rows. */
+    @Query(value = """
+            SELECT * FROM mpesa_incoming_payments
+            WHERE payment_type = 'STK_PUSH' AND status = 'PENDING' AND deleted_at IS NULL
+              AND checkout_request_id IS NOT NULL AND shortcode_uuid IS NOT NULL
+              AND created_at < :before AND created_at >= :notBefore
+              AND (next_check_at IS NULL OR next_check_at <= :now)
+            ORDER BY COALESCE(next_check_at, created_at), id
+            LIMIT :limit
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    List<MpesaIncomingPayment> claimStkChecks(@Param("before") LocalDateTime before,
+                                              @Param("notBefore") LocalDateTime notBefore,
+                                              @Param("now") LocalDateTime now, @Param("limit") int limit);
 
     /** Oldest first, for the job that asks Safaricom about STK requests still pending. */
     List<MpesaIncomingPayment> findByPaymentTypeAndStatusAndCreatedAtBefore(

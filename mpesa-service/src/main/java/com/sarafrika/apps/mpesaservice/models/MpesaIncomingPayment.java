@@ -107,4 +107,11 @@ public class MpesaIncomingPayment extends BaseEntity {
     /** The Keycloak client (azp) that requested an STK push. */
     @Column(name = "client_id")
     private String clientId;
+
+    /** When the STK status job may next ask Safaricom about this request; it backs off after each try. */
+    @Column(name = "next_check_at")
+    private LocalDateTime nextCheckAt;
+
+    @Column(name = "status_checks", nullable = false)
+    private int statusChecks;
 }

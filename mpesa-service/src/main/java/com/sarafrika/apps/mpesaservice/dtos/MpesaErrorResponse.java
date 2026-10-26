@@ -28,6 +28,11 @@ public record MpesaErrorResponse(
         LocalDateTime timestamp
 ) {
 
+    /** Daraja could not be reached or did not answer in time; whether it acted on the request is unknown. */
+    public static final String NETWORK_ERROR = "NETWORK_ERROR";
+    /** Refused here before anything was sent to Daraja (missing token, credential or configuration). */
+    public static final String NOT_SENT = "NOT_SENT";
+
     /**
      * Common error types based on Daraja API documentation
      */

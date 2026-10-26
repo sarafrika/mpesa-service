@@ -172,11 +172,17 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
     public MpesaIncomingPayment processStkPushCallback(String checkoutRequestId, Object callbackData) {
         log.info("Processing STK Push callback for checkoutRequestId: {}", checkoutRequestId);
 
-        MpesaIncomingPayment payment = repository.findByCheckoutRequestId(checkoutRequestId)
+        // Locked, and settled only from PENDING: a retried callback, the status job and a console query
+        // racing each other settle the payment once and announce it once.
+        MpesaIncomingPayment payment = repository.lockByCheckoutRequestId(checkoutRequestId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No incoming payment found for checkoutRequestId: " + checkoutRequestId));
+        if (payment.getStatus() != IncomingPaymentStatus.PENDING) {
+            log.info("STK request {} is already {}; ignoring this answer", checkoutRequestId, payment.getStatus());
+            return payment;
+        }
 
-        Map<String, Object> raw = toMap(callbackData);
+        Map<String, Object> raw = new java.util.LinkedHashMap<>(toMap(callbackData));
         payment.setRawCallbackData(raw);
 
         Integer resultCode = readInteger(raw.get("ResultCode"));
@@ -187,6 +193,7 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         if (metadata != null) {
             String receipt = readString(metadata.get("MpesaReceiptNumber"));
             if (receipt != null) {
+                absorbC2bTwin(payment, receipt, raw);
                 payment.setTransactionId(receipt);
             }
             BigDecimal amount = readBigDecimal(metadata.get("Amount"));
@@ -203,18 +210,50 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
             }
         }
 
-        IncomingPaymentStatus previous = payment.getStatus();
         payment.setStatus(resolveStatus(resultCode));
         payment.setProcessedAt(LocalDateTime.now());
 
         MpesaIncomingPayment saved = repository.save(payment);
         log.info("STK Push callback processed for checkoutRequestId: {} -> status: {}",
                 checkoutRequestId, saved.getStatus());
-        // A retried callback (or one after the status job settled it) must not announce the payment twice.
-        if (saved.getStatus() != previous) {
-            eventPublisher.publishEvent(stkEvent(saved));
-        }
+        eventPublisher.publishEvent(stkEvent(saved));
         return saved;
+    }
+
+    /** On a paybill the C2B confirmation of an STK payment may arrive first and hold the receipt. The STK
+     * row (which the product knows) keeps the payment; the confirmation's details move onto it. */
+    private void absorbC2bTwin(MpesaIncomingPayment payment, String receipt, Map<String, Object> raw) {
+        Optional<MpesaIncomingPayment> twin = repository.findByTransactionId(receipt)
+                .filter(other -> !other.getId().equals(payment.getId()));
+        if (twin.isEmpty()) {
+            return;
+        }
+        MpesaIncomingPayment c2b = twin.get();
+        log.info("STK request {} and C2B confirmation {} are one payment; merging", payment.getCheckoutRequestId(),
+                receipt);
+        copyC2bDetails(c2b, payment);
+        raw.put("C2BConfirmation", c2b.getRawCallbackData());
+        raw.put("MergedC2BPaymentUuid", String.valueOf(c2b.getUuid()));
+        repository.repointWebhookDeliveries(c2b.getUuid(), payment.getUuid());
+        repository.hardDelete(c2b.getId());
+    }
+
+    /** Names, channel and balance a C2B confirmation carries that an STK callback does not. */
+    public static void copyC2bDetails(MpesaIncomingPayment from, MpesaIncomingPayment to) {
+        applyIfMissing(to.getFirstName(), from.getFirstName(), to::setFirstName);
+        applyIfMissing(to.getMiddleName(), from.getMiddleName(), to::setMiddleName);
+        applyIfMissing(to.getLastName(), from.getLastName(), to::setLastName);
+        applyIfMissing(to.getBusinessShortCode(), from.getBusinessShortCode(), to::setBusinessShortCode);
+        applyIfMissing(to.getC2bChannel(), from.getC2bChannel(), to::setC2bChannel);
+        applyIfMissing(to.getInvoiceNumber(), from.getInvoiceNumber(), to::setInvoiceNumber);
+        applyIfMissing(to.getOrgAccountBalance(), from.getOrgAccountBalance(), to::setOrgAccountBalance);
+        applyIfMissing(to.getTransactionDate(), from.getTransactionDate(), to::setTransactionDate);
+    }
+
+    private static <T> void applyIfMissing(T current, T value, java.util.function.Consumer<T> setter) {
+        if (current == null && value != null) {
+            setter.accept(value);
+        }
     }
 
     private PaymentEvent stkEvent(MpesaIncomingPayment payment) {

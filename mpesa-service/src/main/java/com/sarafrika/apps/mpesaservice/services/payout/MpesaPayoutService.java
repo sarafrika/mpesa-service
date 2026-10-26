@@ -6,6 +6,7 @@ import com.sarafrika.apps.mpesaservice.dtos.B2CResult;
 import com.sarafrika.apps.mpesaservice.dtos.B2CResultParameters;
 import com.sarafrika.apps.mpesaservice.dtos.B2CTimeoutCallback;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
+import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
 import com.sarafrika.apps.mpesaservice.dtos.PayoutFloatDto;
 import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
@@ -13,6 +14,7 @@ import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
+import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentType;
 import java.math.BigDecimal;
@@ -33,12 +35,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * B2C payouts for other Sarafrika services.
- * <p>
- * A payout is saved as PENDING before Safaricom is called, with its own uuid as the
- * OriginatorConversationID, so a lost reply never loses track of money. The caller's
- * client_reference is unique per client: asking again returns the first payout. Safaricom's result
- * callback settles it once; later or duplicate callbacks change nothing.
+ * B2C payouts for other Sarafrika services. A payout is saved PENDING before Safaricom is called, so a lost
+ * reply never loses track of money; client_reference is unique per client, so asking again returns it.
+ * Webhooks: b2c.completed or b2c.failed once, from the result of a PENDING payout. A payout Daraja refused
+ * when it was sent is FAILED in that response with no webhook; should a success result still arrive for it,
+ * it becomes SUCCESS (audited) and b2c.completed is sent. No outcome (timeout, network, 5xx) keeps it
+ * PENDING with outcome_unknown: the money may still move, so the product must wait, not retry.
  */
 @Slf4j
 @Service
@@ -53,6 +55,11 @@ public class MpesaPayoutService {
     private final MpesaDarajaService darajaService;
     private final TransactionTemplate transactionTemplate;
     private final ApplicationEventPublisher events;
+    private final AuditService auditService;
+
+    static final String UNKNOWN_OUTCOME = "Safaricom did not confirm it received this payout, so it may still be "
+            + "paid. Wait for the result; do not send it again under a new client_reference.";
+    static final String AUDIT_LATE_SUCCESS = "PAYOUT_SUCCEEDED_AFTER_SUBMIT_FAILURE";
 
     /** Starts a payout, or returns the one already started for this client and reference. */
     public MpesaOutgoingPayment initiate(String clientId, B2CPayoutRequest request) {
@@ -81,10 +88,18 @@ public class MpesaPayoutService {
                 request.occasion());
         UUID uuid = payment.getUuid();
         return transactionTemplate.execute(status -> {
-            MpesaOutgoingPayment saved = paymentRepository.findByUuid(uuid).orElseThrow();
+            MpesaOutgoingPayment saved = paymentRepository.lockByUuid(uuid).orElseThrow();
+            if (saved.getStatus() != OutgoingPaymentStatus.PENDING) {
+                return saved; // The result callback beat this reply; it already settled the payout.
+            }
             if (response.success() && response.data() != null && response.data().isAccepted()) {
                 saved.setConversationId(response.data().conversationId());
                 saved.setResultDesc(response.data().responseDescription());
+            } else if (outcomeUnknown(response)) {
+                log.warn("B2C payout {} has no answer from Safaricom ({}); it stays pending", uuid,
+                        response.error() == null ? "empty reply" : response.error().errorCode());
+                saved.setOutcomeUnknown(true);
+                saved.setResultDesc(UNKNOWN_OUTCOME);
             } else {
                 saved.setStatus(OutgoingPaymentStatus.FAILED);
                 saved.setResultDesc(response.error() != null ? response.error().errorMessage()
@@ -95,19 +110,91 @@ public class MpesaPayoutService {
         });
     }
 
-    /** Settles a payout from Safaricom's result; only the first final result counts. */
+    /** True unless Daraja itself answered: a refusal (4xx, or ResponseCode not 0) or nothing was sent. */
+    static boolean outcomeUnknown(MpesaApiResponse<B2CPaymentResponse> response) {
+        if (response.success()) {
+            return response.data() == null;
+        }
+        String code = response.error() == null ? null : response.error().errorCode();
+        if (MpesaErrorResponse.NOT_SENT.equals(code) || "AUTH_FAILED".equals(code)) {
+            return false;
+        }
+        return code == null || MpesaErrorResponse.NETWORK_ERROR.equals(code) || "INTERNAL_ERROR".equals(code)
+                || response.httpStatus() >= 500 || response.httpStatus() == 408;
+    }
+
+    /** Settles a payout from Safaricom's result. The row is locked, so concurrent copies of one result
+     * settle it once; only a PENDING payout, or one refused when it was sent, takes a result. */
     @Transactional
     public Optional<MpesaOutgoingPayment> applyResult(B2CResult result, String raw) {
-        Optional<MpesaOutgoingPayment> match = find(result.originatorConversationId(), result.conversationId());
+        Optional<MpesaOutgoingPayment> match = lock(result.originatorConversationId(), result.conversationId());
         if (match.isEmpty()) {
             log.warn("B2C result for unknown payout {} / {}", result.originatorConversationId(), result.conversationId());
             return Optional.empty();
         }
         MpesaOutgoingPayment payment = match.get();
+        boolean refusedAtSubmit = payment.getStatus() == OutgoingPaymentStatus.FAILED
+                && payment.getRawCallbackData() == null;
+        if (refusedAtSubmit && result.isSuccessful()) {
+            return Optional.of(lateSuccess(payment, result, raw));
+        }
         if (payment.getStatus() != OutgoingPaymentStatus.PENDING) {
+            if (refusedAtSubmit) {
+                payment.setResultCode(result.resultCode());
+                payment.setResultDesc(result.resultDesc());
+                payment.setRawCallbackData(raw);
+                return Optional.of(paymentRepository.save(payment));
+            }
             log.info("Ignoring repeat B2C result for payout {} already {}", payment.getUuid(), payment.getStatus());
             return match;
         }
+        MpesaOutgoingPayment saved = settle(payment, result, raw);
+        events.publishEvent(settledEvent(saved));
+        return Optional.of(saved);
+    }
+
+    // Daraja refused the request when it was sent, yet the money moved: the result is the truth.
+    private MpesaOutgoingPayment lateSuccess(MpesaOutgoingPayment payment, B2CResult result, String raw) {
+        Map<String, Object> before = Map.of("status", payment.getStatus().name(),
+                "result_desc", String.valueOf(payment.getResultDesc()));
+        log.warn("B2C payout {} was refused when sent but Safaricom reports it paid; settling SUCCESS",
+                payment.getUuid());
+        MpesaOutgoingPayment saved = settle(payment, result, raw);
+        auditService.record(AUDIT_LATE_SUCCESS, "PAYOUT", saved.getUuid().toString(), before,
+                Map.of("status", saved.getStatus().name(), "transaction_id", String.valueOf(saved.getTransactionId())));
+        events.publishEvent(settledEvent(saved));
+        return saved;
+    }
+
+    /** A Transaction Status answer of Completed settles a PENDING (or refused-at-submit) payout as paid. */
+    @Transactional
+    public Optional<MpesaOutgoingPayment> settleFromStatusQuery(UUID payoutUuid, String receipt, String status) {
+        return paymentRepository.lockByUuid(payoutUuid).map(payment -> {
+            boolean refusedAtSubmit = payment.getStatus() == OutgoingPaymentStatus.FAILED
+                    && payment.getRawCallbackData() == null;
+            if (payment.getStatus() != OutgoingPaymentStatus.PENDING && !refusedAtSubmit) {
+                return payment;
+            }
+            Map<String, Object> before = Map.of("status", payment.getStatus().name());
+            payment.setStatus(OutgoingPaymentStatus.SUCCESS);
+            payment.setOutcomeUnknown(false);
+            if (receipt != null) {
+                payment.setTransactionId(receipt);
+            }
+            payment.setResultDesc("Transaction Status: " + status);
+            payment.setProcessedAt(LocalDateTime.now());
+            MpesaOutgoingPayment saved = paymentRepository.save(payment);
+            if (refusedAtSubmit) {
+                auditService.record(AUDIT_LATE_SUCCESS, "PAYOUT", saved.getUuid().toString(), before,
+                        Map.of("status", saved.getStatus().name(), "source", "transaction_status"));
+            }
+            events.publishEvent(settledEvent(saved));
+            return saved;
+        });
+    }
+
+    private MpesaOutgoingPayment settle(MpesaOutgoingPayment payment, B2CResult result, String raw) {
+        payment.setOutcomeUnknown(false);
         payment.setResultCode(result.resultCode());
         payment.setResultDesc(result.resultDesc());
         payment.setConversationId(result.conversationId());
@@ -128,9 +215,7 @@ public class MpesaPayoutService {
         } else {
             payment.setStatus(OutgoingPaymentStatus.FAILED);
         }
-        MpesaOutgoingPayment saved = paymentRepository.save(payment);
-        events.publishEvent(settledEvent(saved));
-        return Optional.of(saved);
+        return paymentRepository.save(payment);
     }
 
     /** b2c.completed or b2c.failed for the paying client; webhooks go out after this transaction commits. */
@@ -139,6 +224,7 @@ public class MpesaPayoutService {
         data.put("payout_uuid", payment.getUuid());
         data.put("client_reference", payment.getClientReference());
         data.put("status", payment.getStatus().name());
+        data.put("outcome_unknown", payment.isOutcomeUnknown());
         data.put("amount", payment.getAmount());
         data.put("phone_number", payment.getRecipientPhoneNumber());
         data.put("transaction_id", payment.getTransactionId());
@@ -155,9 +241,10 @@ public class MpesaPayoutService {
     /** A queue timeout leaves the outcome unknown, so the payout stays PENDING and is flagged. */
     @Transactional
     public Optional<MpesaOutgoingPayment> applyTimeout(B2CTimeoutCallback timeout) {
-        return find(timeout.originatorConversationId(), timeout.conversationId()).map(payment -> {
+        return lock(timeout.originatorConversationId(), timeout.conversationId()).map(payment -> {
             if (payment.getStatus() == OutgoingPaymentStatus.PENDING && payment.getTimedOutAt() == null) {
                 payment.setTimedOutAt(LocalDateTime.now());
+                payment.setOutcomeUnknown(true);
                 payment.setResultDesc(timeout.resultDesc());
                 return paymentRepository.save(payment);
             }
@@ -185,11 +272,11 @@ public class MpesaPayoutService {
                 .orElseGet(() -> new PayoutFloatDto(shortcodeUuid, null, null, null));
     }
 
-    private Optional<MpesaOutgoingPayment> find(String originatorConversationId, String conversationId) {
+    private Optional<MpesaOutgoingPayment> lock(String originatorConversationId, String conversationId) {
         Optional<MpesaOutgoingPayment> byOriginator = originatorConversationId == null ? Optional.empty()
-                : paymentRepository.findByOriginatorConversationId(originatorConversationId);
+                : paymentRepository.lockByOriginatorConversationId(originatorConversationId);
         return byOriginator.isPresent() || conversationId == null ? byOriginator
-                : paymentRepository.findByConversationId(conversationId);
+                : paymentRepository.lockByConversationId(conversationId);
     }
 
     private static void validate(MpesaShortCode shortcode, B2CPayoutRequest request) {

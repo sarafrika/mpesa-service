@@ -109,4 +109,8 @@ public class MpesaOutgoingPayment extends BaseEntity {
     /** Set when Safaricom reported a queue timeout; the outcome is then still unknown. */
     @Column(name = "timed_out_at")
     private LocalDateTime timedOutAt;
+
+    /** Safaricom never answered the request (or reported a queue timeout): the money may still move. */
+    @Column(name = "outcome_unknown", nullable = false)
+    private boolean outcomeUnknown;
 }

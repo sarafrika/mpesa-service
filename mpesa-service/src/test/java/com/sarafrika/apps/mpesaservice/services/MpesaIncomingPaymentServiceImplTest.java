@@ -70,7 +70,7 @@ class MpesaIncomingPaymentServiceImplTest {
 
     @Test
     void processStkPushCallback_success_transitionsToSuccessAndStoresReceipt() {
-        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
+        when(repository.lockByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
 
         MpesaIncomingPayment result = service.processStkPushCallback(CHECKOUT_ID, successCallback());
 
@@ -84,7 +84,7 @@ class MpesaIncomingPaymentServiceImplTest {
 
     @Test
     void processStkPushCallback_userCancelled_transitionsToCancelled() {
-        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
+        when(repository.lockByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
 
         Map<String, Object> cancelled = Map.of(
                 "CheckoutRequestID", CHECKOUT_ID,
@@ -101,7 +101,7 @@ class MpesaIncomingPaymentServiceImplTest {
 
     @Test
     void processStkPushCallback_failure_transitionsToFailed() {
-        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
+        when(repository.lockByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
 
         Map<String, Object> failed = Map.of(
                 "CheckoutRequestID", CHECKOUT_ID,
@@ -118,7 +118,7 @@ class MpesaIncomingPaymentServiceImplTest {
     void processStkPushCallback_publishesOneEventPerSettlement() {
         MpesaIncomingPayment payment = pendingStkPayment();
         payment.setClientId("elimika-backend");
-        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(payment));
+        when(repository.lockByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(payment));
 
         service.processStkPushCallback(CHECKOUT_ID, successCallback());
         service.processStkPushCallback(CHECKOUT_ID, successCallback());
@@ -132,9 +132,9 @@ class MpesaIncomingPaymentServiceImplTest {
 
     @Test
     void processStkPushCallback_cancelledAndFailedHaveTheirOwnEvents() {
-        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
+        when(repository.lockByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
         service.processStkPushCallback(CHECKOUT_ID, Map.of("ResultCode", 1032, "ResultDesc", "Cancelled"));
-        when(repository.findByCheckoutRequestId("other")).thenReturn(Optional.of(pendingStkPayment()));
+        when(repository.lockByCheckoutRequestId("other")).thenReturn(Optional.of(pendingStkPayment()));
         service.processStkPushCallback("other", Map.of("ResultCode", 2001, "ResultDesc", "Wrong PIN"));
 
         ArgumentCaptor<PaymentEvent> event = ArgumentCaptor.forClass(PaymentEvent.class);
@@ -145,7 +145,7 @@ class MpesaIncomingPaymentServiceImplTest {
 
     @Test
     void processStkPushCallback_unknownCheckoutId_throws() {
-        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.empty());
+        when(repository.lockByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.empty());
 
         try {
             service.processStkPushCallback(CHECKOUT_ID, successCallback());

@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
 
+import com.sarafrika.apps.mpesaservice.clients.DarajaHttpException;
 import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
 import com.sarafrika.apps.mpesaservice.dtos.*;
 import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
@@ -22,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -265,12 +267,13 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
                                                               String phoneNumber, BigDecimal amount, String remarks,
                                                               String occasion) {
         long startTime = System.currentTimeMillis();
+        String accessToken;
+        Map<String, Object> payload = new HashMap<>();
         try {
-            String accessToken = getAccessToken(shortcode);
+            accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
                 return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
             }
-            Map<String, Object> payload = new HashMap<>();
             payload.put("OriginatorConversationID", originatorConversationId);
             payload.put("InitiatorName", shortcode.getInitiatorName());
             payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
@@ -282,7 +285,13 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             payload.put("QueueTimeOutURL", b2cUrl(shortcode.getB2cTimeoutUrl(), "/b2c/timeout"));
             payload.put("ResultURL", b2cUrl(shortcode.getB2cResultUrl(), "/b2c/result"));
             payload.put("Occasion", occasion != null && !occasion.isBlank() ? occasion : "Payout");
-
+        } catch (Exception e) {
+            // Nothing reached Safaricom, so this refusal is final.
+            log.error("B2C payout {} not sent: {}", originatorConversationId, e.toString());
+            return MpesaApiResponse.error(MpesaErrorResponse.NOT_SENT, "The payout could not be prepared: "
+                    + e.getMessage(), HttpStatus.UNPROCESSABLE_ENTITY.value());
+        }
+        try {
             B2CPaymentResponse response = getHttpClient(shortcode.getEnvironment())
                     .sendB2CPaymentV3("Bearer " + accessToken, payload);
             return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
@@ -609,15 +618,28 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
         // Handle specific exception types
         switch (e) {
+            case DarajaHttpException daraja when daraja.errorCode() != null -> {
+                errorCode = daraja.errorCode();
+                errorMessage = daraja.errorMessage() != null ? daraja.errorMessage() : errorMessage;
+                httpStatus = daraja.status();
+            }
+            case DarajaHttpException daraja -> {
+                errorCode = daraja.status() >= 500 ? "SERVER_ERROR" : "CLIENT_ERROR";
+                httpStatus = daraja.status() >= 500 ? HttpStatus.BAD_GATEWAY.value() : daraja.status();
+            }
+            case ResourceAccessException network -> {
+                errorCode = MpesaErrorResponse.NETWORK_ERROR;
+                httpStatus = HttpStatus.SERVICE_UNAVAILABLE.value();
+            }
             case IllegalArgumentException illegalArgumentException -> {
                 errorCode = "INVALID_ARGUMENT";
                 httpStatus = HttpStatus.BAD_REQUEST.value();
             }
-            case RuntimeException runtimeException when errorMessage != null && errorMessage.contains("Client error") -> {
+            case RuntimeException runtimeException when e.getMessage() != null && e.getMessage().contains("Client error") -> {
                 errorCode = "CLIENT_ERROR";
                 httpStatus = HttpStatus.BAD_REQUEST.value();
             }
-            case RuntimeException runtimeException when errorMessage != null && errorMessage.contains("Server error") -> {
+            case RuntimeException runtimeException when e.getMessage() != null && e.getMessage().contains("Server error") -> {
                 errorCode = "SERVER_ERROR";
                 httpStatus = HttpStatus.BAD_GATEWAY.value();
             }
