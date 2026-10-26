@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -51,6 +50,10 @@ public class CallbackSecurityConfig {
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}")
     private String issuerUri;
 
+    /** Tokens must name one of these in "aud"; empty accepts any token from the realm. */
+    @Value("${spring.security.oauth2.resourceserver.jwt.audiences:}")
+    private List<String> audiences;
+
     @Bean
     public SecurityFilterChain callbackSecurityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -67,7 +70,8 @@ public class CallbackSecurityConfig {
         // Only enable JWT validation when an issuer is configured. Keeps local/test contexts
         // (and the @WebMvcTest suites) working without a running Keycloak.
         if (StringUtils.hasText(issuerUri)) {
-            http.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+            http.oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(
+                    KeycloakJwtDecoder.forIssuer(issuerUri, audiences))));
         }
 
         if (ipWhitelistEnabled) {
