@@ -1,0 +1,16 @@
+﻿Account Holder:,Sarafrika Test Limited
+Short Code:,600100
+Account:,Utility Account
+Time Period:,From,25-10-2026 00:00:00,To,25-10-2026 23:59:59
+Operator:,Test,Organization:,Sarafrika Test Limited,Date of Report:,26-10-2026 08:22:04
+Opening Balance:,1000,Closing Balance:,20500,Total Paid In:,22500,Total Withdrawn:,-3000
+Receipt No.,Completion Time,Initiation Time,Details,Transaction Status,Paid In,Withdrawn,Balance,Balance Confirmed,Reason Type,Other Party Info,Linked Transaction ID,A/C No.
+TJP9X2K1AA,25-10-2026 09:15:02,25-10-2026 09:15:01,Pay Bill Online from 254712***678 - Jane *** Acc. ELM-002211,Completed,5000.00,,6000.00,true,Pay Bill Online,254712***678 - Jane ***,,ELM-002211
+TJP9X2K0BB,25-10-2026 10:01:44,25-10-2026 10:01:44,"Pay Bill from 254722***111 - John *** Acc. ELM-003019",Completed,"2,500.00",,"8,500.00",true,Pay Utility,254722***111 - John ***,,ELM-003019
+TJP9X2K2CC,25-10-2026 11:30:00,25-10-2026 11:30:00,"Business Payment to 254733***222 - Mary ***, ""refund""",Completed,,-3000.00,5500.00,true,Business Payment to Customer via API,254733***222 - Mary ***,,
+TJP9X2K2CC,25-10-2026 11:30:00,25-10-2026 11:30:00,Business Payment Charge,Completed,,-15.00,5485.00,true,Business Payment Charge,,,
+TJP9X2K3DD,25-10-2026 12:00:00,25-10-2026 12:00:00,"Pay Bill Online
+second line",Failed,700.00,,5485.00,true,Pay Bill Online,254744***333 - Ann ***,,ELM-1
+TJP9X2K4EE,25-10-2026 13:00:00,25-10-2026 13:00:00,Pay Bill Online from 254755***444 - Tom *** Acc. ELM-9,Completed,15000.00,,20485.00,true,Pay Bill Online,254755***444 - Tom ***,,ELM-9
+TJP9X2K5FF,25-10-2026 14:00:00,25-10-2026 14:00:00,Reversal of TJP9X2K4EE,Completed,,-15000.00,5485.00,true,Reversal,,TJP9X2K4EE,
+,,,,,,,,,,,,

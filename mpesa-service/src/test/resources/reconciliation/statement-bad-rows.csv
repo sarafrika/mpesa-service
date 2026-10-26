@@ -1,0 +1,4 @@
+Receipt No.,Completion Time,Details,Transaction Status,Paid In,Withdrawn
+R1,25-10-2026 09:00:00,ok,Completed,100,
+R2,yesterday,bad time,Completed,100,
+R3,25-10-2026 09:00:00,bad amount,Completed,abc,

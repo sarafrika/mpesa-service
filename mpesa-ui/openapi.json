@@ -2193,6 +2193,70 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PageResponseReconciliationExceptionDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReconciliationExceptionDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseReconciliationRunDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReconciliationRunDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
       "PageResponseShortcodeSummary" : {
         "properties" : {
           "items" : {
@@ -2805,6 +2869,69 @@
         "required" : [ "api_calls_7d", "api_errors_7d", "error_rate_7d", "kes_in_7d", "kes_moved_7d", "kes_out_7d" ],
         "type" : "object"
       },
+      "PullReconciliationRequest" : {
+        "properties" : {
+          "from" : {
+            "example" : "2026-10-25T00:00:00+03:00",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "to" : {
+            "description" : "Exclusive end",
+            "example" : "2026-10-26T00:00:00+03:00",
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "from", "shortcode_uuid", "to" ],
+        "type" : "object"
+      },
+      "PullTransactionsStatusDto" : {
+        "properties" : {
+          "callback_url" : {
+            "type" : "string"
+          },
+          "enabled" : {
+            "description" : "The paybill's Pull Transactions feature is switched on",
+            "type" : "boolean"
+          },
+          "nightly_enabled" : {
+            "description" : "Whether the nightly Pull Transactions run is switched on for this service",
+            "type" : "boolean"
+          },
+          "nominated_number" : {
+            "description" : "Masked unless mpesa-finance or mpesa-admin",
+            "type" : "string"
+          },
+          "registered" : {
+            "type" : "boolean"
+          },
+          "registered_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "registered_by" : {
+            "type" : "string"
+          },
+          "response_description" : {
+            "type" : "string"
+          },
+          "response_status" : {
+            "example" : 1000,
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "enabled", "nightly_enabled", "registered", "shortcode_uuid" ],
+        "type" : "object"
+      },
       "QrCodeDto" : {
         "properties" : {
           "amount" : {
@@ -2860,6 +2987,257 @@
         "required" : [ "cpi", "created_at", "image_path", "merchant_name", "ref_no", "shortcode_uuid", "size", "trx_code", "uuid" ],
         "type" : "object"
       },
+      "ReconciliationExceptionDto" : {
+        "properties" : {
+          "account_reference" : {
+            "type" : "string"
+          },
+          "allowed_actions" : {
+            "items" : {
+              "enum" : [ "BACKFILL", "QUERY_STATUS", "MERGE_DUPLICATE", "MARK_RESOLVED" ]
+            },
+            "type" : "array"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "details" : {
+            "type" : "string"
+          },
+          "direction" : {
+            "enum" : [ "in", "out" ],
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "MISSING_IN_LEDGER", "MISSING_IN_STATEMENT", "AMOUNT_MISMATCH", "DUPLICATE_IN_LEDGER" ],
+            "type" : "string"
+          },
+          "last_action" : {
+            "type" : "string"
+          },
+          "ledger_amount" : {
+            "description" : "Amount in our ledger (the first row for a duplicate); null when we have none",
+            "type" : "number"
+          },
+          "ledger_count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "ledger_payment_uuid" : {
+            "description" : "Our transaction, for its detail page",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "ledger_status" : {
+            "type" : "string"
+          },
+          "ledger_type" : {
+            "type" : "string"
+          },
+          "other_party" : {
+            "type" : "string"
+          },
+          "receipt" : {
+            "example" : "TJP9X2K1AA",
+            "type" : "string"
+          },
+          "resolution_note" : {
+            "type" : "string"
+          },
+          "resolved_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "resolved_by" : {
+            "type" : "string"
+          },
+          "reversed_by" : {
+            "description" : "Receipt of the line that reversed this one at Safaricom",
+            "type" : "string"
+          },
+          "run_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "statement_amount" : {
+            "description" : "Amount on Safaricom's record; null when it has no such line",
+            "type" : "number"
+          },
+          "statement_time" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "OPEN", "RESOLVED", "SUPERSEDED" ],
+            "type" : "string"
+          },
+          "status_query_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "suggested_fix" : {
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "created_at", "direction", "kind", "ledger_count", "receipt", "run_uuid", "status", "suggested_fix", "uuid" ],
+        "type" : "object"
+      },
+      "ReconciliationKindSummaryDto" : {
+        "properties" : {
+          "kind" : {
+            "enum" : [ "MISSING_IN_LEDGER", "MISSING_IN_STATEMENT", "AMOUNT_MISMATCH", "DUPLICATE_IN_LEDGER" ],
+            "type" : "string"
+          },
+          "open" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "suggested_fix" : {
+            "type" : "string"
+          },
+          "total" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "value" : {
+            "description" : "Statement amount, else ledger amount",
+            "type" : "number"
+          }
+        },
+        "required" : [ "kind", "open", "suggested_fix", "total", "value" ],
+        "type" : "object"
+      },
+      "ReconciliationRunDto" : {
+        "properties" : {
+          "business_name" : {
+            "type" : "string"
+          },
+          "charge_lines" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "charges_total" : {
+            "type" : "number"
+          },
+          "completed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_by" : {
+            "type" : "string"
+          },
+          "exception_count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "exception_value" : {
+            "type" : "number"
+          },
+          "failure_reason" : {
+            "type" : "string"
+          },
+          "file_name" : {
+            "type" : "string"
+          },
+          "ledger_records" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "match_rate" : {
+            "description" : "Percent matched by count; null when nothing was compared",
+            "example" : 99.62,
+            "type" : "number"
+          },
+          "matched_count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "matched_value" : {
+            "type" : "number"
+          },
+          "open_exceptions" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "paid_in_total" : {
+            "type" : "number"
+          },
+          "period_end" : {
+            "description" : "Exclusive end of the period",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "period_start" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reversal_lines" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "shortcode" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "skipped_lines" : {
+            "description" : "Lines outside the period, not completed, or internal transfers",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "source" : {
+            "enum" : [ "STATEMENT", "PULL_TRANSACTIONS" ],
+            "type" : "string"
+          },
+          "statement_lines" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "enum" : [ "COMPLETED", "FAILED" ],
+            "type" : "string"
+          },
+          "trigger" : {
+            "enum" : [ "MANUAL", "SCHEDULED" ],
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "withdrawn_total" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "charge_lines", "charges_total", "created_at", "exception_count", "exception_value", "ledger_records", "matched_count", "matched_value", "open_exceptions", "paid_in_total", "period_end", "period_start", "reversal_lines", "shortcode_uuid", "skipped_lines", "source", "statement_lines", "status", "trigger", "uuid", "withdrawn_total" ],
+        "type" : "object"
+      },
+      "ReconciliationSummaryDto" : {
+        "properties" : {
+          "kinds" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReconciliationKindSummaryDto"
+            },
+            "type" : "array"
+          },
+          "run" : {
+            "$ref" : "#/components/schemas/ReconciliationRunDto"
+          }
+        },
+        "required" : [ "kinds", "run" ],
+        "type" : "object"
+      },
       "RegisterC2bUrlsRequest" : {
         "properties" : {
           "response_type" : {
@@ -2868,6 +3246,18 @@
           }
         },
         "required" : [ "response_type" ],
+        "type" : "object"
+      },
+      "RegisterPullTransactionsRequest" : {
+        "properties" : {
+          "nominated_number" : {
+            "example" : 254722000000,
+            "minLength" : 1,
+            "pattern" : "^(\\+?254|0)?[17]\\d{8}$",
+            "type" : "string"
+          }
+        },
+        "required" : [ "nominated_number" ],
         "type" : "object"
       },
       "RejectApprovalRequest" : {
@@ -2923,6 +3313,18 @@
           }
         },
         "required" : [ "reason", "transaction_uuid" ],
+        "type" : "object"
+      },
+      "ResolveReconciliationExceptionRequest" : {
+        "properties" : {
+          "note" : {
+            "example" : "Customer refunded by cheque, ref 4471",
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "note" ],
         "type" : "object"
       },
       "ReversalDto" : {
@@ -6281,6 +6683,870 @@
         },
         "summary" : "Grant or change a product's operations on a shortcode",
         "tags" : [ "Admin: Products" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/exceptions/{uuid}/backfill" : {
+      "post" : {
+        "operationId" : "backfillReconciliationException",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationExceptionDto"
+                }
+              }
+            },
+            "description" : "The resolved exception; a second call adds nothing"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such exception"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not a missing deposit, reversed at Safaricom, or already resolved"
+          }
+        },
+        "summary" : "Add a deposit missing from our ledger as a C2B payment and tell the product (c2b.confirmed)",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/exceptions/{uuid}/merge" : {
+      "post" : {
+        "operationId" : "mergeReconciliationDuplicate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationExceptionDto"
+                }
+              }
+            },
+            "description" : "The resolved exception"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such exception"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not a duplicate, the rows differ, or already resolved"
+          }
+        },
+        "summary" : "Keep the first row of a duplicated receipt and soft-delete the others; amounts never change",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/exceptions/{uuid}/query-status" : {
+      "post" : {
+        "operationId" : "queryReconciliationExceptionStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationExceptionDto"
+                }
+              }
+            },
+            "description" : "The exception with the status query it sent"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such exception"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Nothing to query, no initiator, or already resolved"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the query"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Ask Safaricom for our transaction's status; the exception stays open",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/exceptions/{uuid}/resolve" : {
+      "post" : {
+        "operationId" : "markReconciliationExceptionResolved",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ResolveReconciliationExceptionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationExceptionDto"
+                }
+              }
+            },
+            "description" : "The resolved exception"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No note"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such exception"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Already resolved"
+          }
+        },
+        "summary" : "Close an exception with a note",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/runs" : {
+      "get" : {
+        "operationId" : "listReconciliationRuns",
+        "parameters" : [ {
+          "description" : "Only this paybill's runs",
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; fields: created_at, period_start. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseReconciliationRunDto"
+                }
+              }
+            },
+            "description" : "A page of runs"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad paging or sort"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "Reconciliation runs, newest first",
+        "tags" : [ "Admin: Reconciliation" ]
+      },
+      "post" : {
+        "operationId" : "uploadReconciliationStatement",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "description" : "The statement exported as CSV from the M-Pesa org portal",
+                    "format" : "binary",
+                    "type" : "string"
+                  },
+                  "from" : {
+                    "description" : "First day, East Africa Time",
+                    "format" : "date",
+                    "type" : "string"
+                  },
+                  "shortcode_uuid" : {
+                    "format" : "uuid",
+                    "type" : "string"
+                  },
+                  "to" : {
+                    "description" : "Last day (inclusive)",
+                    "format" : "date",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file", "from", "shortcode_uuid", "to" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationRunDto"
+                }
+              }
+            },
+            "description" : "The completed run"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not a statement, unreadable lines (field_errors name each line), too large, or a bad period"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such paybill"
+          }
+        },
+        "summary" : "Reconcile a paybill against an M-Pesa organisation statement CSV for whole days",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/runs/pull" : {
+      "post" : {
+        "operationId" : "runPullTransactionsReconciliation",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PullReconciliationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationRunDto"
+                }
+              }
+            },
+            "description" : "The completed run"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad period"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Pull Transactions is off for this paybill, or not registered"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the query"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Reconcile a paybill's deposits against Safaricom's Pull Transactions (last 48 hours only)",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/runs/{uuid}" : {
+      "get" : {
+        "operationId" : "getReconciliationRun",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationRunDto"
+                }
+              }
+            },
+            "description" : "The run"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such run"
+          }
+        },
+        "summary" : "One reconciliation run",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/runs/{uuid}/exceptions" : {
+      "get" : {
+        "operationId" : "listReconciliationExceptions",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "kind",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "MISSING_IN_LEDGER", "MISSING_IN_STATEMENT", "AMOUNT_MISMATCH", "DUPLICATE_IN_LEDGER" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "OPEN", "RESOLVED", "SUPERSEDED" ],
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; fields: receipt, statement_amount, created_at. Default newest first",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "statement_amount,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseReconciliationExceptionDto"
+                }
+              }
+            },
+            "description" : "A page of exceptions"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad paging, sort or filter"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such run"
+          }
+        },
+        "summary" : "A run's exceptions, filtered by kind and status",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/runs/{uuid}/summary" : {
+      "get" : {
+        "operationId" : "getReconciliationRunSummary",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationSummaryDto"
+                }
+              }
+            },
+            "description" : "The summary"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such run"
+          }
+        },
+        "summary" : "A run with its exceptions counted per kind",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/shortcodes/{uuid}/pull-transactions" : {
+      "get" : {
+        "operationId" : "getPullTransactionsStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PullTransactionsStatusDto"
+                }
+              }
+            },
+            "description" : "The status"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such paybill"
+          }
+        },
+        "summary" : "Whether a paybill may use Pull Transactions and how its registration went",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/shortcodes/{uuid}/pull-transactions/register" : {
+      "post" : {
+        "operationId" : "registerPullTransactions",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterPullTransactionsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PullTransactionsStatusDto"
+                }
+              }
+            },
+            "description" : "Safaricom's answer; registered is false if it refused"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad nominated number"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such paybill"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Pull Transactions is off for this paybill"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the request"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Register a paybill for Pull Transactions with Safaricom (one-time)",
+        "tags" : [ "Admin: Reconciliation" ]
       }
     },
     "/api/v1/admin/shortcodes" : {
@@ -9969,6 +11235,9 @@
   }, {
     "description" : "Float: Account Balance queries, low-float threshold and B2B sweeps",
     "name" : "Admin: Treasury"
+  }, {
+    "description" : "Our ledger against Safaricom's organisation statement or Pull Transactions, matched on the receipt",
+    "name" : "Admin: Reconciliation"
   }, {
     "description" : "Sarafrika products (Keycloak clients) and the paybills and operations granted to them",
     "name" : "Admin: Products"
