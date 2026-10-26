@@ -102,8 +102,8 @@ public class MpesaShortCode extends BaseEntity {
     @Column(name = "suspended_at")
     private LocalDateTime suspendedAt;
 
-    @Column(name = "credentials_rotated_at")
-    private LocalDateTime credentialsRotatedAt;
+    @Column(name = "credentials_updated_at")
+    private LocalDateTime credentialsUpdatedAt;
 
     /** Outcome of the last Daraja OAuth token check run from the console. */
     @Column(name = "last_connection_ok")

@@ -4,7 +4,7 @@ import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationState;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.CreateShortcodeRequest;
-import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.RotateShortcodeCredentialsRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeCredentialsRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeCallbackUrlsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeHealthDto;
@@ -15,23 +15,28 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeReque
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
+import com.sarafrika.apps.mpesaservice.models.ClientShortcodeGrant;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
+import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantRepository;
 import com.sarafrika.apps.mpesaservice.repositories.ShortcodeAdminRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,7 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
-/** The console's view of paybills and tills: list, inspect, onboard, edit, rotate, check and switch on or off. */
+/** The console's view of paybills and tills: list, inspect, onboard, edit, update credentials, check and switch on or off. */
 @Service
 public class ShortcodeAdminService {
 
@@ -55,44 +60,63 @@ public class ShortcodeAdminService {
     private final MpesaDarajaService darajaService;
     private final AuditService auditService;
     private final CallbackUrls callbackUrls;
+    private final ClientShortcodeGrantRepository grants;
     private final TransactionTemplate transaction;
-    private final int rotationDays;
 
     public ShortcodeAdminService(ShortcodeAdminRepository repository, ShortcodeHealthReader healthReader,
                                  ShortcodeConnectionTester connectionTester, MpesaDarajaService darajaService,
                                  AuditService auditService, CallbackUrls callbackUrls,
-                                 PlatformTransactionManager transactionManager,
-                                 @Value("${mpesa.credentials.rotation-days:90}") int rotationDays) {
+                                 ClientShortcodeGrantRepository grants,
+                                 PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.healthReader = healthReader;
         this.connectionTester = connectionTester;
         this.darajaService = darajaService;
         this.auditService = auditService;
         this.callbackUrls = callbackUrls;
+        this.grants = grants;
         this.transaction = new TransactionTemplate(transactionManager);
-        this.rotationDays = rotationDays;
     }
 
-    /** Optional filters; blank or null values are ignored. q matches business name or shortcode. */
+    /** Optional filters; blank or null values are ignored. q matches business name or shortcode;
+     * clientId keeps the shortcodes that product holds an active grant on. */
     public record ShortcodeQuery(ShortcodeType type, Environment environment, Boolean active, ShortcodeStatus status,
-                                 String q) {
+                                 String q, String clientId) {
+
+        public ShortcodeQuery(ShortcodeType type, Environment environment, Boolean active, ShortcodeStatus status,
+                              String q) {
+            this(type, environment, active, status, q, null);
+        }
     }
 
     @Transactional(readOnly = true)
     public Page<ShortcodeSummaryDto> list(ShortcodeQuery query, Pageable pageable) {
         Page<MpesaShortCode> page = repository.findAll(matching(query), pageable);
         Map<UUID, ShortcodeHealthDto> health = healthReader.healthOf(page.getContent());
-        LocalDateTime now = LocalDateTime.now();
-        return page.map(code -> ShortcodeViews.summary(code, health.get(code.getUuid()), rotationDays, now));
+        Map<UUID, List<ShortcodeSummaryDto.ProductRef>> products = productsOf(page.getContent());
+        return page.map(code -> ShortcodeViews.summary(code, health.get(code.getUuid()),
+                products.getOrDefault(code.getUuid(), List.of())));
+    }
+
+    private Map<UUID, List<ShortcodeSummaryDto.ProductRef>> productsOf(List<MpesaShortCode> codes) {
+        if (codes.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> uuids = codes.stream().map(MpesaShortCode::getUuid).toList();
+        Map<UUID, List<ShortcodeSummaryDto.ProductRef>> result = new LinkedHashMap<>();
+        grants.findByShortcodeUuidInAndActiveTrue(uuids).stream()
+                .sorted(Comparator.comparing(ClientShortcodeGrant::getClientId))
+                .forEach(g -> result.computeIfAbsent(g.getShortcodeUuid(), k -> new ArrayList<>())
+                        .add(new ShortcodeSummaryDto.ProductRef(g.getClientId(), g.getDisplayName())));
+        return result;
     }
 
     @Transactional(readOnly = true)
     public ShortcodeTotalsDto totals() {
         List<MpesaShortCode> all = repository.findAll();
         Map<UUID, ShortcodeHealthDto> health = healthReader.healthOf(all);
-        LocalDateTime now = LocalDateTime.now();
         long active = 0, suspended = 0, draft = 0, production = 0, c2bApplicable = 0, c2bRegistered = 0;
-        long floatKnown = 0, due = 0;
+        long floatKnown = 0;
         BigDecimal totalFloat = BigDecimal.ZERO;
         for (MpesaShortCode code : all) {
             ShortcodeStatus status = ShortcodeViews.status(code);
@@ -115,12 +139,9 @@ public class ShortcodeAdminService {
                 floatKnown++;
                 totalFloat = totalFloat.add(h.floatUtility());
             }
-            if (ShortcodeViews.rotationDue(code, rotationDays, now)) {
-                due++;
-            }
         }
         return new ShortcodeTotalsDto(all.size(), active, suspended, draft, production, all.size() - production,
-                c2bApplicable, c2bRegistered, totalFloat, floatKnown, due, rotationDays);
+                c2bApplicable, c2bRegistered, totalFloat, floatKnown);
     }
 
     @Transactional(readOnly = true)
@@ -177,7 +198,7 @@ public class ShortcodeAdminService {
         }
         code.setCallbackUrl(callbackUrls.all().stkCallbackUrl());
         code.setIsActive(false);
-        code.setCredentialsRotatedAt(now);
+        code.setCredentialsUpdatedAt(now);
         code.setCreatedBy(actor);
         code.setUpdatedBy(actor);
         try {
@@ -192,6 +213,7 @@ public class ShortcodeAdminService {
     @Transactional
     public ShortcodeDetailDto update(UUID uuid, UpdateShortcodeRequest request) {
         MpesaShortCode code = find(uuid);
+        requireAdminToRepointProduction(code, request);
         Map<String, Object> before = ShortcodeViews.profile(code);
         BigDecimal min = request.minAmount() != null ? request.minAmount() : code.getMinAmount();
         BigDecimal max = request.maxAmount() != null ? request.maxAmount() : code.getMaxAmount();
@@ -218,23 +240,23 @@ public class ShortcodeAdminService {
         return detail(code);
     }
 
-    /** Replaces the given credentials; the token check must pass again before the shortcode is trusted. */
-    public ShortcodeDetailDto rotateCredentials(UUID uuid, RotateShortcodeCredentialsRequest request) {
+    /** Stores credentials already changed at Safaricom (Daraja has no API to change them), then re-runs
+     * the token check so the console shows at once whether the new values work. */
+    public ShortcodeDetailDto updateCredentials(UUID uuid, UpdateShortcodeCredentialsRequest request) {
         List<String> changed = new ArrayList<>();
-        ShortcodeDetailDto result = transaction.execute(status -> {
+        transaction.executeWithoutResult(status -> {
             MpesaShortCode code = find(uuid);
-            Map<String, Object> before = Map.of("credentials",
-                    ShortcodeViews.credentials(code, rotationDays, LocalDateTime.now()));
-            rotate(request.consumerKey(), "consumer_key", code::setConsumerKey, changed);
-            rotate(request.consumerSecret(), "consumer_secret", code::setConsumerSecret, changed);
-            rotate(request.passkey(), "passkey", code::setPasskey, changed);
-            rotate(request.initiatorName(), "initiator_name", code::setInitiatorName, changed);
-            rotate(request.initiatorPassword(), "initiator_password", code::setInitiatorPassword, changed);
-            rotate(request.securityCredential(), "security_credential", code::setSecurityCredential, changed);
+            Map<String, Object> before = Map.of("credentials", ShortcodeViews.credentials(code));
+            replace(request.consumerKey(), "consumer_key", code::setConsumerKey, changed);
+            replace(request.consumerSecret(), "consumer_secret", code::setConsumerSecret, changed);
+            replace(request.passkey(), "passkey", code::setPasskey, changed);
+            replace(request.initiatorName(), "initiator_name", code::setInitiatorName, changed);
+            replace(request.initiatorPassword(), "initiator_password", code::setInitiatorPassword, changed);
+            replace(request.securityCredential(), "security_credential", code::setSecurityCredential, changed);
             if (changed.isEmpty()) {
                 throw new InvalidRequestException("credentials", "Enter at least one new credential");
             }
-            code.setCredentialsRotatedAt(LocalDateTime.now());
+            code.setCredentialsUpdatedAt(LocalDateTime.now());
             code.setLastConnectionOk(null);
             code.setLastConnectionError(null);
             code.setUpdatedBy(CurrentActor.name());
@@ -242,11 +264,11 @@ public class ShortcodeAdminService {
             Map<String, Object> after = new LinkedHashMap<>();
             after.put("changed", changed);
             after.put("credentials", request);
-            auditService.record("SHORTCODE_CREDENTIALS_ROTATED", ENTITY, uuid.toString(), before, after);
-            return detail(code);
+            auditService.record("SHORTCODE_CREDENTIALS_UPDATED", ENTITY, uuid.toString(), before, after);
         });
         darajaService.evictAccessToken(uuid);
-        return result;
+        testConnection(uuid);
+        return transaction.execute(status -> detail(find(uuid)));
     }
 
     /** Asks Daraja for a token outside any transaction, then records the outcome. */
@@ -314,7 +336,23 @@ public class ShortcodeAdminService {
 
     private ShortcodeDetailDto detail(MpesaShortCode code) {
         ShortcodeHealthDto health = healthReader.healthOf(List.of(code)).get(code.getUuid());
-        return ShortcodeViews.detail(code, health, rotationDays, LocalDateTime.now());
+        return ShortcodeViews.detail(code, health);
+    }
+
+    // Callback URLs decide where Safaricom posts production money events, so only an admin may repoint them.
+    private static void requireAdminToRepointProduction(MpesaShortCode code, UpdateShortcodeRequest request) {
+        if (code.getEnvironment() != Environment.PRODUCTION || CurrentActor.isAdmin()) {
+            return;
+        }
+        if (changes(request.callbackUrl(), code.getCallbackUrl())
+                || changes(request.b2cResultUrl(), code.getB2cResultUrl())
+                || changes(request.b2cTimeoutUrl(), code.getB2cTimeoutUrl())) {
+            throw new AccessDeniedException("Changing a production shortcode's callback URLs needs mpesa-admin");
+        }
+    }
+
+    private static boolean changes(String requested, String current) {
+        return requested != null && !Objects.equals(blankToNull(requested), current);
     }
 
     static Specification<MpesaShortCode> matching(ShortcodeQuery query) {
@@ -335,6 +373,13 @@ public class ShortcodeAdminService {
                     case SUSPENDED -> cb.and(cb.isFalse(root.<Boolean>get("isActive")), cb.isNotNull(root.get("activatedAt")));
                     case DRAFT -> cb.and(cb.isFalse(root.<Boolean>get("isActive")), cb.isNull(root.get("activatedAt")));
                 });
+            }
+            if (StringUtils.hasText(query.clientId())) {
+                Subquery<UUID> granted = criteria.subquery(UUID.class);
+                Root<ClientShortcodeGrant> grant = granted.from(ClientShortcodeGrant.class);
+                granted.select(grant.get("shortcodeUuid")).where(
+                        cb.equal(grant.get("clientId"), query.clientId().trim()), cb.isTrue(grant.get("active")));
+                predicates.add(root.get("uuid").in(granted));
             }
             if (StringUtils.hasText(query.q())) {
                 String text = query.q().trim().toLowerCase(Locale.ROOT);
@@ -358,7 +403,7 @@ public class ShortcodeAdminService {
         }
     }
 
-    private static void rotate(String value, String name, Consumer<String> setter, List<String> changed) {
+    private static void replace(String value, String name, Consumer<String> setter, List<String> changed) {
         if (StringUtils.hasText(value)) {
             setter.accept(value.trim());
             changed.add(name);

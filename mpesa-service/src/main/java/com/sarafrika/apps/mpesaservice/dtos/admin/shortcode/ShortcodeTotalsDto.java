@@ -27,9 +27,5 @@ public record ShortcodeTotalsDto(
                 description = "Sum of the newest known utility balance of every shortcode")
         @JsonProperty("total_float") BigDecimal totalFloat,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Shortcodes with a known float")
-        @JsonProperty("float_known") long floatKnown,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-        @JsonProperty("credentials_due") long credentialsDue,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "90")
-        @JsonProperty("rotation_days") int rotationDays) {
+        @JsonProperty("float_known") long floatKnown) {
 }

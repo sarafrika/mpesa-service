@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 
-/** New Daraja credentials; a field left empty keeps the stored value, and at least one must be given. */
-@Schema(name = "RotateShortcodeCredentialsRequest")
-public record RotateShortcodeCredentialsRequest(
+/** Credentials already changed at Safaricom; a field left empty keeps the stored value, and one must be given. */
+@Schema(name = "UpdateShortcodeCredentialsRequest")
+public record UpdateShortcodeCredentialsRequest(
         @Schema(accessMode = Schema.AccessMode.WRITE_ONLY)
         @Size(max = 255, message = "must be at most 255 characters")
         @JsonProperty("consumer_key") String consumerKey,

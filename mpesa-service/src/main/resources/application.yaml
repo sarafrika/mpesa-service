@@ -57,10 +57,6 @@ mpesa:
   grants:
     enforce: ${MPESA_GRANTS_ENFORCE:true}
 
-  # Shortcode credentials older than this many days show "rotation due" in the console.
-  credentials:
-    rotation-days: ${MPESA_CREDENTIALS_ROTATION_DAYS:90}
-
   # Overview attention list: production float (KES) below low-float shows LOW_FLOAT; a shortcode
   # with no traffic for stale-after shows STALE.
   alerts:
