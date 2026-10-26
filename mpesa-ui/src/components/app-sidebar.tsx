@@ -14,6 +14,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -43,7 +44,7 @@ const NAV: { label: string; items: NavItem[] }[] = [
   {
     label: "Manage",
     items: [
-      { title: "Paybills & tills", href: "/paybills", icon: CreditCard },
+      { title: "Paybills & tills", href: "/paybills", icon: CreditCard, ready: true },
       { title: "Products", href: "/products", icon: Boxes },
       { title: "Approvals", href: "/approvals", icon: ShieldCheck },
     ],
@@ -58,8 +59,6 @@ const NAV: { label: string; items: NavItem[] }[] = [
 ];
 
 export function AppSidebar() {
-  const pathname = usePathname();
-
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -84,37 +83,54 @@ export function AppSidebar() {
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    {item.ready ? (
-                      <SidebarMenuButton
-                        asChild
-                        isActive={pathname === item.href}
-                        tooltip={item.title}
-                      >
-                        <Link href={item.href}>
-                          <item.icon />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    ) : (
-                      <>
-                        <SidebarMenuButton disabled tooltip={`${item.title} (coming soon)`}>
-                          <item.icon />
-                          <span>{item.title}</span>
-                        </SidebarMenuButton>
-                        <SidebarMenuBadge className="text-muted-foreground">Soon</SidebarMenuBadge>
-                      </>
-                    )}
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
+              {/* Below a dynamic route the pathname is only known at request time. */}
+              <Suspense fallback={<NavMenu items={group.items} />}>
+                <ActiveNavMenu items={group.items} />
+              </Suspense>
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function ActiveNavMenu({ items }: { items: NavItem[] }) {
+  return <NavMenu items={items} pathname={usePathname()} />;
+}
+
+function NavMenu({ items, pathname }: { items: NavItem[]; pathname?: string }) {
+  return (
+    <SidebarMenu>
+      {items.map((item) => (
+        <SidebarMenuItem key={item.href}>
+          {item.ready ? (
+            <SidebarMenuButton
+              asChild
+              isActive={
+                pathname !== undefined &&
+                (pathname === item.href ||
+                  (item.href !== "/" && pathname.startsWith(`${item.href}/`)))
+              }
+              tooltip={item.title}
+            >
+              <Link href={item.href}>
+                <item.icon />
+                <span>{item.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          ) : (
+            <>
+              <SidebarMenuButton disabled tooltip={`${item.title} (coming soon)`}>
+                <item.icon />
+                <span>{item.title}</span>
+              </SidebarMenuButton>
+              <SidebarMenuBadge className="text-muted-foreground">Soon</SidebarMenuBadge>
+            </>
+          )}
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
   );
 }
