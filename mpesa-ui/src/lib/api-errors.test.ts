@@ -47,6 +47,13 @@ describe("describeApiError", () => {
     assert.equal(copy.retryable, true);
   });
 
+  it("says Safaricom refused when the service answers 502 with a reason", () => {
+    const message = "Daraja did not issue a token for this shortcode's credentials";
+    const copy = describeApiError(new ApiError(502, body(502, { message })));
+    assert.equal(copy.title, "Safaricom didn't accept the request");
+    assert.equal(copy.description, message);
+  });
+
   it("stops React Query retrying 4xx only", () => {
     assert.equal(isClientError(new ApiError(404, undefined)), true);
     assert.equal(isClientError(new ApiError(503, undefined)), false);

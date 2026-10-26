@@ -158,6 +158,16 @@ export function describeApiError(error: unknown, options: DescribeOptions = {}):
           : (server ?? "Check the form and try again."),
     };
   }
+  // mpesa-service answers 502 with its own reason when Daraja refused or failed the call.
+  if (status === 502 && server) {
+    return {
+      ...base,
+      kind: "unavailable",
+      title: "Safaricom didn't accept the request",
+      description: server,
+      retryable: true,
+    };
+  }
   if (status >= 500) {
     return {
       ...base,
