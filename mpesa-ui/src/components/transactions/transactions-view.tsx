@@ -3,6 +3,7 @@
 import { ArrowLeftRight } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { useListTransactions } from "@/api/generated/endpoints/admin-transactions/admin-transactions";
 import type { ListTransactionsParams } from "@/api/generated/model";
 import { DataTablePagination } from "@/components/data-table-pagination";
@@ -78,22 +79,17 @@ export function TransactionsView() {
   const data = list.data?.status === 200 ? list.data.data : undefined;
   useClampPage(data, page, setPage);
 
-  const [paybills, setPaybills] = useState<PaybillOption[]>([]);
-  useEffect(() => {
-    if (!data) return;
-    setPaybills((known) => {
-      const next = new Map(known.map((option) => [option.uuid, option]));
-      for (const row of data.items) {
-        if (row.shortcode_uuid && !next.has(row.shortcode_uuid)) {
-          next.set(row.shortcode_uuid, {
-            uuid: row.shortcode_uuid,
-            label: `${row.business_name ?? "Paybill"} · ${row.shortcode ?? ""}`,
-          });
-        }
-      }
-      return next.size === known.length ? known : [...next.values()];
-    });
-  }, [data]);
+  const shortcodes = useListShortcodes({ size: 100, sort: ["business_name,asc"] });
+  const paybills = useMemo<PaybillOption[]>(
+    () =>
+      shortcodes.data?.status === 200
+        ? shortcodes.data.data.items.map((code) => ({
+            uuid: code.uuid,
+            label: `${code.business_name} · ${code.shortcode}`,
+          }))
+        : [],
+    [shortcodes.data],
+  );
 
   const setTx = useCallback(
     (uuid: string | undefined) => {

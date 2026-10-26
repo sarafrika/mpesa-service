@@ -2,7 +2,7 @@
 
 import { CreditCard } from "lucide-react";
 import Link from "next/link";
-import { useListGrantableShortcodes } from "@/api/generated/endpoints/admin-products/admin-products";
+import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { StatusBadge } from "@/components/status-badge";
@@ -31,7 +31,7 @@ type GrantMatrixProps = {
 
 /** Every paybill and till as a row, with a checkbox per operation the product may use on it. */
 export function GrantMatrix({ value, onChange, disabled, errorId }: GrantMatrixProps) {
-  const shortcodes = useListGrantableShortcodes({ size: 100 });
+  const shortcodes = useListShortcodes({ size: 100, sort: ["shortcode,asc"] });
   const page = okData(shortcodes.data);
 
   if (shortcodes.isPending) {
@@ -96,7 +96,7 @@ export function GrantMatrix({ value, onChange, disabled, errorId }: GrantMatrixP
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium font-mono text-sm tabular-nums">{code.shortcode}</span>
               <span className="min-w-0 flex-1 truncate text-sm">{code.business_name}</span>
-              {!code.active && <StatusBadge status="INACTIVE" />}
+              {!code.is_active && <StatusBadge status="INACTIVE" />}
               {code.environment === "SANDBOX" && <StatusBadge status="SANDBOX" />}
             </div>
             <fieldset

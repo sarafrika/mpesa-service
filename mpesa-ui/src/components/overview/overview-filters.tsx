@@ -1,6 +1,6 @@
 "use client";
 
-import type { PaybillHealthDto } from "@/api/generated/model";
+import type { ShortcodeSummary } from "@/api/generated/model";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -17,8 +17,8 @@ const ALL = "all";
 
 type OverviewFiltersProps = {
   filters: Filters;
-  /** Shortcodes in the chosen environment, from paybill health; undefined while loading. */
-  paybills: PaybillHealthDto[] | undefined;
+  /** Shortcodes in the chosen environment, from the shortcode list; undefined while loading. */
+  paybills: ShortcodeSummary[] | undefined;
   onPaybillChange: (paybill: string | undefined) => void;
   onPeriodChange: (period: PeriodKey) => void;
   onEnvironmentChange: (environment: OverviewEnvironment) => void;
@@ -31,7 +31,7 @@ export function OverviewFilters({
   onPeriodChange,
   onEnvironmentChange,
 }: OverviewFiltersProps) {
-  const known = paybills?.some((paybill) => paybill.shortcode_uuid === filters.paybill);
+  const known = paybills?.some((paybill) => paybill.uuid === filters.paybill);
   return (
     <>
       <div className="flex min-w-48 flex-col gap-1.5">
@@ -53,7 +53,7 @@ export function OverviewFilters({
               <SelectItem value={filters.paybill}>Selected paybill</SelectItem>
             )}
             {paybills?.map((paybill) => (
-              <SelectItem key={paybill.shortcode_uuid} value={paybill.shortcode_uuid}>
+              <SelectItem key={paybill.uuid} value={paybill.uuid}>
                 {paybill.business_name} · {paybill.shortcode}
               </SelectItem>
             ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Store } from "lucide-react";
+import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
 import { PageHeader } from "@/components/page-header";
@@ -21,9 +22,15 @@ export function OverviewDashboard() {
   const { filters, range, now, setPaybill, setPeriod, setEnvironment } = useOverviewFilters();
   const { summary, timeseries, health, attention, latest } = useOverviewQueries(filters, range);
   const canAddPaybill = useHasRole("mpesa-operator");
+  const shortcodes = useListShortcodes({
+    environment: filters.environment,
+    size: 100,
+    sort: ["business_name,asc"],
+  });
+  const paybills = shortcodes.data?.status === 200 ? shortcodes.data.data.items : undefined;
 
   const environmentLabel = filters.environment === "SANDBOX" ? "Sandbox" : "Production";
-  const selected = health.data?.find((paybill) => paybill.shortcode_uuid === filters.paybill);
+  const selected = paybills?.find((paybill) => paybill.uuid === filters.paybill);
   const scope = selected
     ? `${selected.business_name} · ${selected.shortcode}`
     : "All paybills and tills";
@@ -48,7 +55,7 @@ export function OverviewDashboard() {
           <>
             <OverviewFilters
               filters={filters}
-              paybills={health.data}
+              paybills={paybills}
               onPaybillChange={setPaybill}
               onPeriodChange={setPeriod}
               onEnvironmentChange={setEnvironment}
