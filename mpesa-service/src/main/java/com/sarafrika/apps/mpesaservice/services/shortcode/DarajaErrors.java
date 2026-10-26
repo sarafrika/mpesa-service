@@ -15,7 +15,7 @@ final class DarajaErrors {
             return UpstreamException.badGateway(
                     "Daraja did not issue a token for this shortcode's credentials, so " + action + " was not sent");
         }
-        if (code == null || "INTERNAL_ERROR".equals(code)) {
+        if (code == null || "INTERNAL_ERROR".equals(code) || MpesaErrorResponse.NETWORK_ERROR.equals(code)) {
             return UpstreamException.unavailable("Safaricom could not be reached to " + action + "; try again shortly");
         }
         return UpstreamException.badGateway("Safaricom refused to " + action + describe(error.errorMessage()));

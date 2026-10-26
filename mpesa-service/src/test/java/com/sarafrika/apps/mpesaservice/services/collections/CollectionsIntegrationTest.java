@@ -33,6 +33,7 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentReposito
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentServiceImpl;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.PageRequests;
@@ -81,7 +82,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({C2BConfirmationService.class, TransactionFeedService.class, TransactionStatusService.class,
         ValidationRuleService.class, C2BValidationService.class, AccountLookupClient.class, StkStatusReconciler.class,
-        MpesaIncomingPaymentServiceImpl.class, AuditService.class, SecretCipher.class,
+        MpesaIncomingPaymentServiceImpl.class, AuditService.class, SecretCipher.class, MpesaPayoutService.class,
         CollectionsIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @RecordApplicationEvents
@@ -102,7 +103,32 @@ class CollectionsIntegrationTest {
         ClientIpResolver clientIpResolver() {
             return new ClientIpResolver(List.of());
         }
+
+        @Bean
+        com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard outboundUrlGuard() {
+            return com.sarafrika.apps.mpesaservice.services.security.TestUrlGuards.publicDns();
+        }
+
+        @Bean
+        AllEvents allEvents() {
+            return new AllEvents();
+        }
     }
+
+    /** Events from every thread; ApplicationEvents only records the test thread's. */
+    static class AllEvents {
+        final java.util.Queue<PaymentEvent> seen = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+        @org.springframework.context.event.EventListener
+        void on(PaymentEvent event) {
+            seen.add(event);
+        }
+    }
+
+    @Autowired
+    private AllEvents allEvents;
+    @Autowired
+    private MpesaIncomingPaymentServiceImpl incomingService;
 
     @Autowired
     private C2BConfirmationService confirmationService;
@@ -145,6 +171,30 @@ class CollectionsIntegrationTest {
     }
 
     // ---------- C2B confirmations ----------
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"mpesa-viewer,false", "mpesa-operator,false",
+            "mpesa-finance,true", "mpesa-admin,true"})
+    void onlyFinanceAndAdminSeeFullPhonesAndNames(String role, boolean full) {
+        String transId = unique("TJR");
+        UUID uuid = confirmationService.confirm(confirmation(transId, shortcode.getShortcode(), "Pay Bill"),
+                Map.of("TransID", transId, "MSISDN", "254712345612", "FirstName", "JANE")).payment().getUuid();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("jane", "n/a",
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role))));
+        try {
+            TransactionDetailDto detail = feedService.detail(uuid);
+            TransactionDto row = feedService.list(new TransactionFeedService.Filter(null, null, null, null, null,
+                    transId, null, null), org.springframework.data.domain.PageRequest.of(0, 5)).getContent().getFirst();
+
+            assertThat(row.phone()).isEqualTo(full ? "254712345612" : "2547•••••612");
+            assertThat(row.customerName()).isEqualTo(full ? "JANE W KAMAU" : "J. KAMAU");
+            assertThat(detail.firstName()).isEqualTo(full ? "JANE" : "J.");
+            assertThat(detail.rawCallback().get("MSISDN").asText()).isEqualTo(full ? "254712345612" : "2547•••••612");
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
 
     @Test
     void aRetriedConfirmationIsStoredOnceAndAnnouncedOnce() {
@@ -338,6 +388,98 @@ class CollectionsIntegrationTest {
         assertThat(incomingRepository.findByUuid(fresh).orElseThrow().getStatus()).isEqualTo(IncomingPaymentStatus.PENDING);
         assertThat(events.stream(PaymentEvent.class).filter(e -> old.equals(e.paymentUuid())))
                 .extracting(PaymentEvent::type).containsExactly(PaymentEvent.STK_CANCELLED);
+    }
+
+    @Test
+    void twoAnswersForOneStkRequestArrivingTogetherSettleItOnce() throws Exception {
+        UUID uuid = stk("250", LocalDateTime.now().minusMinutes(30));
+        String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
+        Map<String, Object> paid = stkSuccess(checkout, unique("TK"));
+        java.util.concurrent.CyclicBarrier start = new java.util.concurrent.CyclicBarrier(2);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            List<java.util.concurrent.Future<?>> runs = new java.util.ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                runs.add(pool.submit(() -> {
+                    start.await();
+                    return incomingService.processStkPushCallback(checkout, paid);
+                }));
+            }
+            for (java.util.concurrent.Future<?> run : runs) {
+                run.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        incomingService.processStkPushCallback(checkout, Map.of("ResultCode", 1032, "ResultDesc", "Cancelled"));
+
+        assertThat(incomingRepository.findByUuid(uuid).orElseThrow().getStatus()).isEqualTo(IncomingPaymentStatus.SUCCESS);
+        assertThat(allEvents.seen.stream().filter(e -> uuid.equals(e.paymentUuid())))
+                .extracting(PaymentEvent::type).containsExactly(PaymentEvent.STK_COMPLETED);
+    }
+
+    @Test
+    void stillProcessingIsNoAnswerAndTheJobBacksOff() {
+        UUID uuid = stk("250", LocalDateTime.now().minusMinutes(30));
+        String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
+        when(darajaService.queryStkPushStatus(eq(shortcode.getUuid()), eq(checkout)))
+                .thenReturn(MpesaApiResponse.success(new StkStatusResponse("m-1", checkout, 4999,
+                        "The transaction is still under processing", null, null, null, null), 200));
+
+        reconciler.reconcile();
+        reconciler.reconcile();
+
+        MpesaIncomingPayment after = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo(IncomingPaymentStatus.PENDING);
+        assertThat(after.getStatusChecks()).isEqualTo(1);
+        assertThat(after.getNextCheckAt()).isAfter(LocalDateTime.now());
+        assertThatThrownBy(() -> statusService.request(uuid)).isInstanceOf(UpstreamException.class);
+    }
+
+    @Test
+    void aC2bConfirmationThatBeatTheStkCallbackIsMergedIntoTheStkPayment() {
+        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
+        String receipt = unique("TM");
+        UUID c2b = confirmationService.confirm(confirmation(receipt, shortcode.getShortcode(), "Pay Bill"), null)
+                .payment().getUuid();
+        jdbc.update("INSERT INTO webhook_subscriptions (uuid, client_id, url, secret) VALUES (?, 'x', 'https://x', 's')",
+                UUID.randomUUID());
+        UUID subscription = jdbc.queryForObject("SELECT uuid FROM webhook_subscriptions ORDER BY id DESC LIMIT 1",
+                UUID.class);
+        jdbc.update("INSERT INTO webhook_deliveries (subscription_uuid, client_id, event_id, event_type, payload, "
+                + "payment_uuid) VALUES (?, 'x', ?, 'c2b.confirmed', '{}', ?)", subscription, UUID.randomUUID(), c2b);
+
+        MpesaIncomingPayment merged = incomingService.processStkPushCallback(checkout, stkSuccess(checkout, receipt));
+
+        assertThat(merged.getUuid()).isEqualTo(uuid);
+        assertThat(merged.getTransactionId()).isEqualTo(receipt);
+        assertThat(merged.getFirstName()).isEqualTo("JANE");
+        assertThat(merged.getRawCallbackData()).containsKey("C2BConfirmation");
+        assertThat(incomingRepository.findByUuid(c2b)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM webhook_deliveries WHERE payment_uuid = ?", Long.class,
+                uuid)).isEqualTo(1);
+    }
+
+    @Test
+    void aC2bConfirmationAfterTheStkCallbackOnlyAddsItsDetails() {
+        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
+        String receipt = unique("TN");
+        incomingService.processStkPushCallback(checkout, stkSuccess(checkout, receipt));
+
+        C2BConfirmationService.Confirmation again = confirmationService.confirm(
+                confirmation(receipt, shortcode.getShortcode(), "Pay Bill"), Map.of("TransID", receipt));
+
+        assertThat(again.duplicate()).isTrue();
+        MpesaIncomingPayment stored = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(stored.getLastName()).isEqualTo("KAMAU");
+        assertThat(stored.getRawCallbackData()).containsKey("C2BConfirmation");
+    }
+
+    private static Map<String, Object> stkSuccess(String checkout, String receipt) {
+        return Map.of("CheckoutRequestID", checkout, "ResultCode", 0, "ResultDesc", "Processed",
+                "CallbackMetadata", Map.of("Item", List.of(Map.of("Name", "MpesaReceiptNumber", "Value", receipt))));
     }
 
     // ---------- validation rules ----------

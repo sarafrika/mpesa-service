@@ -8,6 +8,7 @@ import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
+import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentServiceImpl;
 import com.sarafrika.apps.mpesaservice.utils.enums.C2BChannel;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
@@ -54,8 +55,18 @@ public class C2BConfirmationService {
         String transId = callback.transId().trim();
         Optional<MpesaIncomingPayment> existing = paymentRepository.findByTransactionId(transId);
         if (existing.isPresent()) {
+            MpesaIncomingPayment stored = existing.get();
+            if (stored.getPaymentType() == IncomingPaymentType.STK_PUSH && stored.getC2bChannel() == null) {
+                // The STK callback came first: this confirmation is the same payment, so it only adds detail.
+                MpesaIncomingPaymentServiceImpl.copyC2bDetails(fromCallback(callback, transId, null), stored);
+                Map<String, Object> merged = new LinkedHashMap<>(
+                        stored.getRawCallbackData() == null ? Map.of() : stored.getRawCallbackData());
+                merged.put("C2BConfirmation", raw);
+                stored.setRawCallbackData(merged);
+                paymentRepository.save(stored);
+            }
             log.info("C2B confirmation {} was already stored; acknowledging the retry", transId);
-            return new Confirmation(existing.get(), true);
+            return new Confirmation(stored, true);
         }
 
         Optional<MpesaShortCode> shortcode = Optional.ofNullable(callback.businessShortCode())
@@ -65,21 +76,7 @@ public class C2BConfirmationService {
                     callback.businessShortCode());
         }
 
-        MpesaIncomingPayment payment = new MpesaIncomingPayment();
-        payment.setPaymentType(IncomingPaymentType.C2B);
-        payment.setTransactionId(transId);
-        payment.setShortcodeUuid(shortcode.map(MpesaShortCode::getUuid).orElse(null));
-        payment.setBusinessShortCode(callback.businessShortCode());
-        payment.setC2bChannel(channel(callback.transType(), shortcode.orElse(null)));
-        payment.setAmount(callback.transAmount());
-        payment.setPhoneNumber(callback.msisdn());
-        payment.setAccountReference(callback.billRefNumber());
-        payment.setInvoiceNumber(blankToNull(callback.invoiceNumber()));
-        payment.setOrgAccountBalance(callback.orgAccountBalance());
-        payment.setFirstName(blankToNull(callback.firstName()));
-        payment.setMiddleName(blankToNull(callback.middleName()));
-        payment.setLastName(blankToNull(callback.lastName()));
-        payment.setTransactionDate(parseTransTime(callback.transTime()));
+        MpesaIncomingPayment payment = fromCallback(callback, transId, shortcode.orElse(null));
         payment.setTransactionDesc(callback.transType());
         payment.setRawCallbackData(raw != null ? raw
                 : objectMapper.convertValue(callback, new TypeReference<Map<String, Object>>() {}));
@@ -92,6 +89,26 @@ public class C2BConfirmationService {
         eventPublisher.publishEvent(new PaymentEvent(PaymentEvent.C2B_CONFIRMED, saved.getShortcodeUuid(),
                 saved.getUuid(), null, eventData(saved)));
         return new Confirmation(saved, false);
+    }
+
+    private static MpesaIncomingPayment fromCallback(C2BConfirmationCallback callback, String transId,
+                                                     MpesaShortCode shortcode) {
+        MpesaIncomingPayment payment = new MpesaIncomingPayment();
+        payment.setPaymentType(IncomingPaymentType.C2B);
+        payment.setTransactionId(transId);
+        payment.setShortcodeUuid(shortcode == null ? null : shortcode.getUuid());
+        payment.setBusinessShortCode(callback.businessShortCode());
+        payment.setC2bChannel(channel(callback.transType(), shortcode));
+        payment.setAmount(callback.transAmount());
+        payment.setPhoneNumber(callback.msisdn());
+        payment.setAccountReference(callback.billRefNumber());
+        payment.setInvoiceNumber(blankToNull(callback.invoiceNumber()));
+        payment.setOrgAccountBalance(callback.orgAccountBalance());
+        payment.setFirstName(blankToNull(callback.firstName()));
+        payment.setMiddleName(blankToNull(callback.middleName()));
+        payment.setLastName(blankToNull(callback.lastName()));
+        payment.setTransactionDate(parseTransTime(callback.transTime()));
+        return payment;
     }
 
     @Transactional(readOnly = true)

@@ -82,13 +82,14 @@ class ShortcodeAdminControllerTest {
 
         mockMvc.perform(get(BASE).param("page", "1").param("size", "10").param("sort", "shortcode,desc")
                         .param("type", "PAYBILL").param("environment", "PRODUCTION").param("status", "ACTIVE")
-                        .param("q", "elimika"))
+                        .param("q", "elimika").param("client_id", "elimika-backend"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].business_name").value("Elimika Fees"))
                 .andExpect(jsonPath("$.items[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$.items[0].health.c2b_state").value("REGISTERED"))
                 .andExpect(jsonPath("$.items[0].health.collected_today").value(902140.0))
                 .andExpect(jsonPath("$.items[0].consumer_secret").doesNotExist())
+                .andExpect(jsonPath("$.items[0].products[0].client_id").value("elimika-backend"))
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.total_items").value(11));
         ArgumentCaptor<ShortcodeAdminService.ShortcodeQuery> query =
@@ -96,7 +97,7 @@ class ShortcodeAdminControllerTest {
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
         verify(shortcodes).list(query.capture(), pageable.capture());
         assertThat(query.getValue()).isEqualTo(new ShortcodeAdminService.ShortcodeQuery(ShortcodeType.PAYBILL,
-                Environment.PRODUCTION, null, ShortcodeStatus.ACTIVE, "elimika"));
+                Environment.PRODUCTION, null, ShortcodeStatus.ACTIVE, "elimika", "elimika-backend"));
         assertThat(pageable.getValue()).isEqualTo(PageRequest.of(1, 10,
                 Sort.by(Sort.Order.desc("shortcode"), Sort.Order.desc("id"))));
     }
@@ -123,7 +124,7 @@ class ShortcodeAdminControllerTest {
     @WithMockUser(roles = "mpesa-viewer")
     void totalsCallbackUrlsAndDetailAreReadable() throws Exception {
         when(shortcodes.totals()).thenReturn(new ShortcodeTotalsDto(5, 4, 1, 0, 4, 1, 3, 2,
-                new BigDecimal("2412680.00"), 3, 1, 90));
+                new BigDecimal("2412680.00"), 3, 0));
         when(shortcodes.callbackUrls()).thenReturn(new ShortcodeCallbackUrlsDto("https://x/stk", "https://x/c",
                 "https://x/v", "https://x/r", "https://x/t"));
         when(shortcodes.get(ID)).thenReturn(detail());
@@ -131,7 +132,7 @@ class ShortcodeAdminControllerTest {
         mockMvc.perform(get(BASE + "/totals"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.c2b_registered").value(2))
-                .andExpect(jsonPath("$.credentials_due").value(1));
+                .andExpect(jsonPath("$.credentials_due").doesNotExist());
         mockMvc.perform(get(BASE + "/callback-urls"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.c2b_confirmation_url").value("https://x/c"));
@@ -221,8 +222,8 @@ class ShortcodeAdminControllerTest {
 
     @Test
     @WithMockUser(roles = "mpesa-admin")
-    void anAdminRotatesCredentialsActivatesAndSuspends() throws Exception {
-        when(shortcodes.rotateCredentials(eq(ID), any())).thenReturn(detail());
+    void anAdminUpdatesCredentialsActivatesAndSuspends() throws Exception {
+        when(shortcodes.updateCredentials(eq(ID), any())).thenReturn(detail());
         when(shortcodes.activate(ID)).thenReturn(detail());
         when(shortcodes.suspend(ID, "Leaked")).thenReturn(detail());
         when(shortcodes.suspend(eq(ID), isNull())).thenReturn(detail());
@@ -359,12 +360,13 @@ class ShortcodeAdminControllerTest {
     private static ShortcodeHealthDto health() {
         return new ShortcodeHealthDto(true, LocalDateTime.now(), 312, null, C2bRegistrationState.REGISTERED,
                 LocalDateTime.now(), LocalDateTime.now(), new BigDecimal("902140.00"), new BigDecimal("1640210.00"),
-                BigDecimal.ZERO, LocalDateTime.now());
+                BigDecimal.ZERO, LocalDateTime.now(), BigDecimal.ZERO, null);
     }
 
     private static ShortcodeSummaryDto summary() {
         return new ShortcodeSummaryDto(ID, "600100", "Elimika Fees", ShortcodeType.PAYBILL, Environment.PRODUCTION,
-                ShortcodeStatus.ACTIVE, true, LocalDateTime.now(), false, LocalDateTime.now(), health());
+                ShortcodeStatus.ACTIVE, true, LocalDateTime.now(), LocalDateTime.now(), health(),
+                List.of(new ShortcodeSummaryDto.ProductRef("elimika-backend", "Elimika")));
     }
 
     private static ShortcodeDetailDto detail() {
@@ -372,6 +374,6 @@ class ShortcodeAdminControllerTest {
                 ShortcodeStatus.DRAFT, false, "ELIMIKA", "Elimika fees", BigDecimal.ONE, new BigDecimal("150000"),
                 "https://x/stk", null, null, null, null, null, null, LocalDateTime.now(), LocalDateTime.now(),
                 "jane.doe", "jane.doe", new ShortcodeCredentialsDto("••••Qx7d", "••••9KfA", null, null, false, false,
-                LocalDateTime.now(), 0L, false, 90), health());
+                LocalDateTime.now()), health());
     }
 }

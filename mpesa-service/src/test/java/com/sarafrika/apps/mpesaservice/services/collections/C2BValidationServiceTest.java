@@ -10,6 +10,7 @@ import com.sarafrika.apps.mpesaservice.models.C2BValidationRule;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.C2BValidationRuleRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
+import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.LookupFailurePolicy;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -30,7 +31,8 @@ class C2BValidationServiceTest {
     private final MpesaShortCodeRepository shortcodes = mock(MpesaShortCodeRepository.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final C2BValidationService service =
-            new C2BValidationService(rules, shortcodes, new AccountLookupClient(objectMapper));
+            new C2BValidationService(rules, shortcodes, new AccountLookupClient(objectMapper,
+                    new OutboundUrlGuard(java.net.InetAddress::getAllByName, true)));
 
     private HttpServer server;
     private final AtomicReference<String> lastBody = new AtomicReference<>();
@@ -60,6 +62,7 @@ class C2BValidationServiceTest {
         shortcode = new MpesaShortCode();
         shortcode.setUuid(UUID.randomUUID());
         shortcode.setShortcode("600100");
+        shortcode.setIsActive(true);
         when(shortcodes.findByShortcode("600100")).thenReturn(Optional.of(shortcode));
     }
 
@@ -85,6 +88,17 @@ class C2BValidationServiceTest {
         C2BValidationRequest elsewhere = new C2BValidationRequest("Pay Bill", "T1", "20261026143208",
                 new BigDecimal("10"), "123456", "ELM-000001", null, null, "254712345678", null, null, null);
         assertThat(service.validate(elsewhere).resultCode()).isEqualTo(C2BResultCodes.INVALID_SHORTCODE);
+    }
+
+    @Test
+    void aSuspendedOrDraftShortcodeRejectsEveryPayment() {
+        when(rules.findByShortcodeUuid(shortcode.getUuid())).thenReturn(Optional.empty());
+        shortcode.setIsActive(false);
+
+        ValidationDecision decision = service.validate(request("anything", "10"));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.resultCode()).isEqualTo(C2BResultCodes.OTHER_ERROR);
     }
 
     @Test
@@ -153,6 +167,12 @@ class C2BValidationServiceTest {
         rule.setOnLookupFailure(LookupFailurePolicy.ACCEPT);
         rule.setLookupUrl("http://127.0.0.1:1/unreachable");
         assertThat(service.validate(request("ELM-004512", "4500")).accepted()).isTrue();
+        rule.setOnLookupFailure(LookupFailurePolicy.REJECT);
+        ValidationDecision refused = service.validate(request("ELM-004512", "4500"));
+        assertThat(refused.reason()).startsWith("Account lookup could not be reached").doesNotContain("Exception");
+        rule.setLookupUrl("https://10.0.0.8/lookup");
+        assertThat(service.validate(request("ELM-004512", "4500")).reason())
+                .startsWith("The account lookup URL is not allowed");
     }
 
     @Test

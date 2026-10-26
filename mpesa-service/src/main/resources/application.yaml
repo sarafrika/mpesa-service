@@ -19,6 +19,12 @@ spring:
         format_sql: false
     show-sql: false
 
+  # The STK status job and the webhook poller each get a scheduler thread, so a slow one never stalls the other.
+  task:
+    scheduling:
+      pool:
+        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:3}
+
   # Flyway runs on boot; migrations live under db/migrations (non-default location).
   flyway:
     enabled: ${SPRING_FLYWAY_ENABLED:true}
@@ -57,10 +63,6 @@ mpesa:
   grants:
     enforce: ${MPESA_GRANTS_ENFORCE:true}
 
-  # Shortcode credentials older than this many days show "rotation due" in the console.
-  credentials:
-    rotation-days: ${MPESA_CREDENTIALS_ROTATION_DAYS:90}
-
   # Overview attention list: production float (KES) below low-float shows LOW_FLOAT; a shortcode
   # with no traffic for stale-after shows STALE.
   alerts:
@@ -76,7 +78,13 @@ mpesa:
     connect-timeout: ${MPESA_DARAJA_CONNECT_TIMEOUT:30s}
     read-timeout: ${MPESA_DARAJA_READ_TIMEOUT:60s}
 
-  # Signed payment events to products. Retries at 10 s, 1 min, 10 min and 1 h, then FAILED.
+  # Webhook and C2B account lookup URLs must be https to a public address. true also allows
+  # http://localhost for local development; never in production.
+  outbound:
+    allow-localhost: ${MPESA_OUTBOUND_ALLOW_LOCALHOST:false}
+
+  # Signed payment events to products. Retries at 10 s, 1 min, 10 min and 1 h, then FAILED. Each delivery is
+  # claimed just before it is sent; the lease must outlast one attempt (connect + request timeout).
   webhooks:
     connect-timeout: ${MPESA_WEBHOOKS_CONNECT_TIMEOUT:3s}
     request-timeout: ${MPESA_WEBHOOKS_REQUEST_TIMEOUT:5s}
@@ -150,12 +158,16 @@ mpesa:
     testing:
       enabled: ${CALLBACK_TESTING_ENABLED:false}
 
-  # STK requests still PENDING after status-query-after get an STK push query and are settled.
+  # STK requests still PENDING after status-query-after get an STK push query and are settled. Unanswered
+  # ones are asked again after 1, 2, 4... minutes (at most status-query-max-delay) until give-up-after;
+  # these are retry settings of this service, not Safaricom limits.
   stk:
     status-query-enabled: ${MPESA_STK_STATUS_QUERY_ENABLED:true}
     status-query-after: ${MPESA_STK_STATUS_QUERY_AFTER:10m}
     status-query-interval-ms: ${MPESA_STK_STATUS_QUERY_INTERVAL_MS:60000}
     status-query-batch: 50
+    status-query-max-delay: ${MPESA_STK_STATUS_QUERY_MAX_DELAY:1h}
+    status-query-give-up-after: ${MPESA_STK_STATUS_QUERY_GIVE_UP_AFTER:2d}
 
 # Request logging configuration
 logging:

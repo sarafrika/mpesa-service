@@ -4,6 +4,7 @@ import { CreditCard, Plus } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useListProducts } from "@/api/generated/endpoints/admin-products/admin-products";
 import {
   useGetShortcodeTotals,
   useListShortcodes,
@@ -72,7 +73,7 @@ const ENVIRONMENT_OPTIONS = [
   { value: "SANDBOX", label: "Sandbox" },
 ] as const;
 
-const COLUMNS = 9;
+const COLUMNS = 10;
 
 function pick<T extends string>(value: string | null, allowed: readonly { value: string }[]) {
   return allowed.some((option) => option.value === value && value !== "all")
@@ -175,10 +176,14 @@ function PaybillTotals() {
           }
         />
         <StatCard
-          label="Credentials due for rotation"
-          value={formatCount(data.credentials_due)}
-          note={`Older than ${data.rotation_days} days`}
-          noteTone={data.credentials_due > 0 ? "warning" : "muted"}
+          label="B2C initiator errors (24 h)"
+          value={formatCount(data.initiator_errors_24h)}
+          note={
+            data.initiator_errors_24h > 0
+              ? "Payouts refused for the initiator's credentials. Update them on the paybill."
+              : undefined
+          }
+          noteTone="warning"
         />
       </section>
     </div>
@@ -195,6 +200,9 @@ function PaybillTable() {
     ENVIRONMENT_OPTIONS,
   );
   const q = params.get("q") ?? "";
+  const product = params.get("product") ?? undefined;
+  const products = useListProducts({ size: 100 });
+  const productOptions = okData(products.data)?.items ?? [];
 
   // The box updates at once; the URL (and so the query) only after typing pauses.
   // Back/forward or "Clear filters" change q from outside, so the box follows it; only typing pushes.
@@ -222,13 +230,14 @@ function PaybillTable() {
       status,
       environment,
       q: q || undefined,
+      client_id: product,
     },
     { query: pagedQueryOptions },
   );
   const data = okData(query.data);
   useClampPage(data, paging.page, paging.setPage);
   const [now] = useState(() => Date.now());
-  const filtered = Boolean(type || status || environment || q);
+  const filtered = Boolean(type || status || environment || q || product);
 
   return (
     <Card className="gap-0 py-0">
@@ -277,6 +286,25 @@ function PaybillTable() {
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={product ?? "all"}
+          onValueChange={(value) => setFilters({ product: value === "all" ? undefined : value })}
+        >
+          <SelectTrigger aria-label="Product" className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All products</SelectItem>
+            {product && !productOptions.some((option) => option.client_id === product) && (
+              <SelectItem value={product}>{product}</SelectItem>
+            )}
+            {productOptions.map((option) => (
+              <SelectItem key={option.client_id} value={option.client_id}>
+                {option.display_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {data && <StaleNotice query={query} className="mx-4 mt-3 md:mx-5" />}
@@ -306,6 +334,7 @@ function PaybillTable() {
                     status: undefined,
                     environment: undefined,
                     q: undefined,
+                    product: undefined,
                   });
                 }}
               >
@@ -350,6 +379,7 @@ function PaybillTable() {
                   Paybill
                 </SortableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Product</TableHead>
                 <TableHead>Env</TableHead>
                 <TableHead>Checks</TableHead>
                 <TableHead className="text-right">Today (KES)</TableHead>
@@ -379,6 +409,13 @@ function PaybillTable() {
                   </TableCell>
                   <TableCell>{TYPE_LABELS[row.shortcode_type] ?? row.shortcode_type}</TableCell>
                   <TableCell>
+                    {row.products.length === 0 ? (
+                      <span className="text-muted-foreground">Unassigned</span>
+                    ) : (
+                      row.products.map((p) => p.display_name || p.client_id).join(", ")
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <EnvironmentBadge environment={row.environment} />
                   </TableCell>
                   <TableCell>
@@ -386,7 +423,7 @@ function PaybillTable() {
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {row.shortcode_type === "B2C" ? (
-                      "—"
+                      <Money amount={row.health.paid_out_today} direction="out" hideCode />
                     ) : (
                       <Money amount={row.health.collected_today} hideCode />
                     )}

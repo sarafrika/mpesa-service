@@ -1,5 +1,8 @@
 package com.sarafrika.apps.mpesaservice.services.products;
 
+import com.sarafrika.apps.mpesaservice.dtos.admin.products.UpsertProductGrantRequest;
+import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -103,6 +106,8 @@ class ProductsAndWebhooksIntegrationTest {
     private WebhookTimelineContributor timeline;
     @Autowired
     private TransactionTemplate transactions;
+    @Autowired
+    private WebhookAdminService webhooks;
 
     @MockitoBean
     private WebhookTransport transport;
@@ -120,6 +125,11 @@ class ProductsAndWebhooksIntegrationTest {
         @Bean
         ClientIpResolver clientIpResolver() {
             return new ClientIpResolver(List.of());
+        }
+
+        @Bean
+        com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard outboundUrlGuard() {
+            return com.sarafrika.apps.mpesaservice.services.security.TestUrlGuards.publicDns();
         }
     }
 
@@ -155,6 +165,27 @@ class ProductsAndWebhooksIntegrationTest {
                 String.class, clientId)).isEqualTo("STK_PUSH,C2B_FEED");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events WHERE entity_id = ?", Long.class, clientId))
                 .isEqualTo(1);
+    }
+
+    @Test
+    void deletingAWebhookOrGrantKeepsTheRowsAndHistory() {
+        ConnectProductResponse connected = connect();
+        UUID subscription = connected.webhook().uuid();
+        List<WebhookDelivery> queued = fanOut.enqueue(new PaymentEvent(PaymentEvent.C2B_CONFIRMED, paybill.getUuid(),
+                UUID.randomUUID(), null, Map.of("transaction_id", "TJQ4K2L9XD", "amount", 10)));
+        assertThat(queued).hasSize(1);
+
+        webhooks.delete(subscription);
+        products.deleteGrant(clientId, paybill.getUuid());
+
+        assertThat(jdbc.queryForObject("SELECT deleted_at IS NOT NULL FROM webhook_subscriptions WHERE uuid = ?",
+                Boolean.class, subscription)).isTrue();
+        assertThat(deliveries.findByUuid(queued.get(0).getUuid())).isPresent();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM client_shortcode_grants WHERE client_id = ? "
+                + "AND deleted_at IS NOT NULL", Long.class, clientId)).isEqualTo(1);
+        assertThatThrownBy(() -> webhooks.getSubscription(subscription)).isInstanceOf(NotFoundException.class);
+        assertThat(products.upsertGrant(clientId, paybill.getUuid(), new UpsertProductGrantRequest(
+                null, java.util.Set.of(GrantOperation.STATUS_LOOKUP), true)).operations()).containsExactly(GrantOperation.STATUS_LOOKUP);
     }
 
     @Test

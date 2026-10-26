@@ -5,6 +5,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /** One row of the paybills list. */
@@ -24,11 +25,21 @@ public record ShortcodeSummaryDto(
         @JsonProperty("status") ShortcodeStatus status,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("is_active") boolean active,
-        @JsonProperty("credentials_rotated_at") LocalDateTime credentialsRotatedAt,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                description = "Credentials are older than the rotation policy (mpesa.credentials.rotation-days)")
-        @JsonProperty("credentials_due") boolean credentialsDue,
+        @Schema(description = "When the stored credentials were last saved here")
+        @JsonProperty("credentials_updated_at") LocalDateTime credentialsUpdatedAt,
         @JsonProperty("created_at") LocalDateTime createdAt,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-        @JsonProperty("health") ShortcodeHealthDto health) {
+        @JsonProperty("health") ShortcodeHealthDto health,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "Sarafrika products with an active grant on this shortcode")
+        @JsonProperty("products") List<ProductRef> products) {
+
+    /** A product (Keycloak client) using this shortcode. */
+    @Schema(name = "ShortcodeProductRef")
+    public record ProductRef(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "elimika-backend")
+            @JsonProperty("client_id") String clientId,
+            @Schema(example = "Elimika")
+            @JsonProperty("display_name") String displayName) {
+    }
 }

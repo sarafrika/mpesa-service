@@ -19,11 +19,6 @@ public record ShortcodeCredentialsDto(
         @JsonProperty("initiator_password_set") boolean initiatorPasswordSet,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("security_credential_set") boolean securityCredentialSet,
-        @JsonProperty("rotated_at") LocalDateTime rotatedAt,
-        @Schema(example = "104", description = "Days since the last rotation")
-        @JsonProperty("age_days") Long ageDays,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-        @JsonProperty("rotation_due") boolean rotationDue,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "90")
-        @JsonProperty("rotation_days") int rotationDays) {
+        @Schema(description = "When the stored credentials were last saved here")
+        @JsonProperty("updated_at") LocalDateTime updatedAt) {
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCw } from "lucide-react";
+import { RotateCw, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTestShortcodeConnection } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
@@ -50,25 +50,45 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
               onClick={() => test.mutate({ uuid: shortcode.uuid })}
             >
               {test.isPending ? <Spinner /> : <RotateCw />}
-              Run checks
+              Run all checks
             </Button>
           </RoleGate>
         }
       >
+        {shortcode.health.credentials_hint && (
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-lg bg-warning-soft px-3 py-2.5 font-medium text-sm text-warning"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              The latest payout was refused with ResultCode 2001.{" "}
+              {shortcode.health.credentials_hint}
+            </span>
+          </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {checks.map((check) => (
             <HealthCheckCard key={check.key} check={check} />
           ))}
           <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-sm">Collected today</span>
-              <StatusBadge status={c2b ? "Incoming" : "n/a"} tone={c2b ? "success" : "neutral"} />
+              <span className="font-medium text-sm">
+                {c2b ? "Collected today" : "Paid out today"}
+              </span>
+              <StatusBadge status={c2b ? "Incoming" : "Outgoing"} tone={c2b ? "success" : "info"} />
             </div>
             <span className="font-semibold text-lg">
-              {c2b ? <Money amount={shortcode.health.collected_today} /> : "—"}
+              {c2b ? (
+                <Money amount={shortcode.health.collected_today} />
+              ) : (
+                <Money amount={shortcode.health.paid_out_today} direction="out" />
+              )}
             </span>
             <span className="text-muted-foreground text-xs">
-              Successful STK and C2B since midnight
+              {c2b
+                ? "Successful STK and C2B since midnight"
+                : "Successful B2C payouts since midnight"}
             </span>
           </div>
         </div>

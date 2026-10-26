@@ -37,6 +37,12 @@ public class PendingStkAttentionSource implements AttentionSource {
                 : " The oldest has waited " + PaybillAttentionSource.span(Duration.between(pending.oldest(), now)) + ".";
         return List.of(new AttentionItemDto("STK_PENDING", AttentionItemDto.INFO, title,
                 "The customer has not answered the prompt, or Safaricom's callback has not arrived." + oldest,
-                "/transactions?status=PENDING&payment_type=STK_PUSH", scope.shortcodeUuid()));
+                link(scope), scope.shortcodeUuid()));
+    }
+
+    /** The transactions screen reads type, status and paybill from its query string. */
+    static String link(AttentionScope scope) {
+        String link = "/transactions?type=STK_PUSH&status=PENDING";
+        return scope.shortcodeUuid() == null ? link : link + "&paybill=" + scope.shortcodeUuid();
     }
 }

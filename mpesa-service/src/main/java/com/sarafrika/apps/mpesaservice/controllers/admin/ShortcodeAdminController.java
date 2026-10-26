@@ -6,7 +6,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.CreateShortcodeRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.RegisterC2bUrlsRequest;
-import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.RotateShortcodeCredentialsRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeCredentialsRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeCallbackUrlsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
@@ -90,9 +90,11 @@ public class ShortcodeAdminController {
             @RequestParam(name = "active", required = false) Boolean active,
             @RequestParam(name = "status", required = false) ShortcodeStatus status,
             @Parameter(description = "Matches business name (any case) or shortcode")
-            @RequestParam(name = "q", required = false) String q) {
+            @RequestParam(name = "q", required = false) String q,
+            @Parameter(description = "Only shortcodes this product (Keycloak client id) holds an active grant on")
+            @RequestParam(name = "client_id", required = false) String clientId) {
         return PageResponse.from(shortcodes.list(
-                new ShortcodeAdminService.ShortcodeQuery(type, environment, active, status, q),
+                new ShortcodeAdminService.ShortcodeQuery(type, environment, active, status, q, clientId),
                 PageRequests.of(page, size, sort, SORTABLE, DEFAULT_SORT)));
     }
 
@@ -148,14 +150,16 @@ public class ShortcodeAdminController {
 
     @PutMapping("/{uuid}/credentials")
     @PreAuthorize("hasRole('mpesa-admin')")
-    @Operation(operationId = "rotateShortcodeCredentials", summary = "Rotate a shortcode's Daraja credentials",
-            description = "Empty fields keep the stored value. The token check must pass again afterwards.")
-    @ApiResponse(responseCode = "200", description = "The shortcode with its new masked credentials")
+    @Operation(operationId = "updateShortcodeCredentials",
+            summary = "Store a shortcode's Daraja credentials after they were changed at Safaricom",
+            description = "Daraja has no API to change credentials: change them on the Daraja portal or the M-Pesa "
+                    + "org portal first. Empty fields keep the stored value. Saving re-runs the token check.")
+    @ApiResponse(responseCode = "200", description = "The shortcode with its new masked credentials and token check")
     @ApiResponse(responseCode = "404", description = "No such shortcode",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public ShortcodeDetailDto rotateShortcodeCredentials(@PathVariable UUID uuid,
-                                                         @Valid @RequestBody RotateShortcodeCredentialsRequest request) {
-        return shortcodes.rotateCredentials(uuid, request);
+    public ShortcodeDetailDto updateShortcodeCredentials(@PathVariable UUID uuid,
+                                                         @Valid @RequestBody UpdateShortcodeCredentialsRequest request) {
+        return shortcodes.updateCredentials(uuid, request);
     }
 
     @PostMapping("/{uuid}/test-connection")

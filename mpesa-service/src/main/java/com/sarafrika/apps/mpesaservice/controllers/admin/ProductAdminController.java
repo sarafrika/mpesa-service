@@ -78,13 +78,15 @@ public class ProductAdminController {
                 PageRequests.of(page, size, sort, PRODUCT_SORTS, PRODUCT_DEFAULT_SORT)));
     }
 
-    @GetMapping("/products/{clientId}")
+    @GetMapping("/products/{client_id}")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getProduct", summary = "One product by its Keycloak client id")
     @ApiResponse(responseCode = "200", description = "The product")
     @ApiResponse(responseCode = "404", description = "No grants, webhook or traffic for that client",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public ProductDto getProduct(@PathVariable String clientId) {
+    public ProductDto getProduct(
+            @Parameter(description = "The product's Keycloak client id (azp)", example = "elimika-backend")
+            @PathVariable("client_id") String clientId) {
         return productService.getProduct(clientId);
     }
 
@@ -104,7 +106,7 @@ public class ProductAdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(productService.connect(request));
     }
 
-    @PutMapping("/products/{clientId}/grants/{shortcodeUuid}")
+    @PutMapping("/products/{client_id}/grants/{shortcode_uuid}")
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "upsertProductGrant", summary = "Grant or change a product's operations on a shortcode")
     @ApiResponse(responseCode = "200", description = "The grant as saved")
@@ -114,12 +116,15 @@ public class ProductAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such shortcode",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public ProductGrantDto upsertProductGrant(@PathVariable String clientId, @PathVariable UUID shortcodeUuid,
-                                              @Valid @RequestBody UpsertProductGrantRequest request) {
+    public ProductGrantDto upsertProductGrant(
+            @Parameter(description = "The product's Keycloak client id (azp)", example = "elimika-backend")
+            @PathVariable("client_id") String clientId,
+            @Parameter(description = "The shortcode's uuid") @PathVariable("shortcode_uuid") UUID shortcodeUuid,
+            @Valid @RequestBody UpsertProductGrantRequest request) {
         return productService.upsertGrant(clientId, shortcodeUuid, request);
     }
 
-    @DeleteMapping("/products/{clientId}/grants/{shortcodeUuid}")
+    @DeleteMapping("/products/{client_id}/grants/{shortcode_uuid}")
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "deleteProductGrant", summary = "Remove a product's access to a shortcode")
     @ApiResponse(responseCode = "204", description = "Removed")
@@ -127,7 +132,10 @@ public class ProductAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "404", description = "No such grant",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public ResponseEntity<Void> deleteProductGrant(@PathVariable String clientId, @PathVariable UUID shortcodeUuid) {
+    public ResponseEntity<Void> deleteProductGrant(
+            @Parameter(description = "The product's Keycloak client id (azp)", example = "elimika-backend")
+            @PathVariable("client_id") String clientId,
+            @Parameter(description = "The shortcode's uuid") @PathVariable("shortcode_uuid") UUID shortcodeUuid) {
         productService.deleteGrant(clientId, shortcodeUuid);
         return ResponseEntity.noContent().build();
     }

@@ -21,6 +21,7 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookAdminService;
+import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookUrls;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
@@ -74,6 +75,7 @@ public class ProductAdminService {
     private final WebhookAdminService webhooks;
     private final AuditService auditService;
     private final EntityManager entityManager;
+    private final OutboundUrlGuard urlGuard;
 
     /** Sorted in memory: there are few products, and they are not rows of one table. */
     @Transactional(readOnly = true)
@@ -104,7 +106,7 @@ public class ProductAdminService {
             throw new ConflictException("Product '" + clientId + "' is already connected; edit its grants instead");
         }
         if (StringUtils.hasText(request.webhookUrl())) {
-            WebhookUrls.validated("webhook_url", request.webhookUrl());
+            WebhookUrls.validated("webhook_url", request.webhookUrl(), urlGuard);
         }
         Set<UUID> seen = new HashSet<>();
         List<ClientShortcodeGrant> created = new ArrayList<>();

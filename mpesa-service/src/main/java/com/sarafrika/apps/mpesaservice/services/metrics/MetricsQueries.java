@@ -176,6 +176,15 @@ public class MetricsQueries {
                 MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
     }
 
+    /** C2B confirmations since a time that reached a shortcode not configured here. */
+    public PendingStk unlinkedDeposits(Instant since) {
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.toStorage(since));
+        String sql = "SELECT COUNT(*) AS n, MIN(p.created_at) AS oldest FROM mpesa_incoming_payments p "
+                + "WHERE p.deleted_at IS NULL AND p.shortcode_uuid IS NULL AND p.created_at >= :since";
+        return jdbc.queryForObject(sql, params, (rs, i) -> new PendingStk(rs.getLong("n"),
+                MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
+    }
+
     /** The newest payments across both tables, newest first. */
     public List<LatestRow> latest(int limit, Filter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", limit);
@@ -199,8 +208,9 @@ public class MetricsQueries {
                 MetricsTime.fromStorage(rs.getTimestamp("created_at")));
     }
 
+    // LEFT JOIN: a C2B confirmation for a shortcode we do not know is still money that arrived.
     private static String from(Direction direction) {
-        return "FROM " + direction.table + " p JOIN mpesa_shortcodes s ON s.uuid = p.shortcode_uuid "
+        return "FROM " + direction.table + " p LEFT JOIN mpesa_shortcodes s ON s.uuid = p.shortcode_uuid "
                 + "WHERE p.deleted_at IS NULL";
     }
 

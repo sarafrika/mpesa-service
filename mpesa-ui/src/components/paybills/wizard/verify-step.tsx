@@ -229,7 +229,11 @@ export function VerifyStep({
             size="sm"
             disabled={!tokenOk || !c2bOk || activate.isPending}
             onClick={async () => {
-              await activate.mutateAsync({ uuid });
+              try {
+                await activate.mutateAsync({ uuid });
+              } catch {
+                return; // The mutation's error toast already says why.
+              }
               await invalidate();
               toast.success(`${shortcode.business_name} is live`);
             }}
@@ -244,7 +248,9 @@ export function VerifyStep({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold text-xl">Verify and go live</h2>
+        <h2 tabIndex={-1} className="font-semibold text-xl outline-none">
+          Verify and go live
+        </h2>
         <Button
           variant="outline"
           disabled={test.isPending || register.isPending || live}

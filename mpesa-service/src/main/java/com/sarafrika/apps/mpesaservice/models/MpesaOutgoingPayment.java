@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import com.sarafrika.apps.mpesaservice.utils.converters.OutgoingPaymentStatusConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.OutgoingPaymentTypeConverter;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
@@ -18,6 +20,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "mpesa_outgoing_payments")
+@SQLDelete(sql = "UPDATE mpesa_outgoing_payments SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -105,4 +109,8 @@ public class MpesaOutgoingPayment extends BaseEntity {
     /** Set when Safaricom reported a queue timeout; the outcome is then still unknown. */
     @Column(name = "timed_out_at")
     private LocalDateTime timedOutAt;
+
+    /** Safaricom never answered the request (or reported a queue timeout): the money may still move. */
+    @Column(name = "outcome_unknown", nullable = false)
+    private boolean outcomeUnknown;
 }

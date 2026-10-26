@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,7 +19,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationState
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bResponseType;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.CreateShortcodeRequest;
-import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.RotateShortcodeCredentialsRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeCredentialsRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
@@ -125,7 +126,7 @@ class ShortcodeAdminIntegrationTest {
         assertThat(created.active()).isFalse();
         assertThat(created.credentials().consumerKeyMasked()).isEqualTo("••••Qx7d");
         assertThat(created.credentials().consumerSecretMasked()).isEqualTo("••••9KfA");
-        assertThat(created.credentials().rotationDue()).isFalse();
+        assertThat(created.credentials().updatedAt()).isNotNull();
         assertThat(created.callbackUrl()).isEqualTo("https://pay.example.test/api/v1/callbacks/stk/callback");
         assertThat(created.createdBy()).isEqualTo("jane.doe");
         assertThat(jdbc.queryForObject("SELECT consumer_secret FROM mpesa_shortcodes WHERE shortcode = ?",
@@ -252,7 +253,7 @@ class ShortcodeAdminIntegrationTest {
     }
 
     @Test
-    void updatesChangeOnlyWhatIsGivenAndRotationResetsTheTokenCheck() {
+    void updatesChangeOnlyWhatIsGivenAndSavingCredentialsRerunsTheTokenCheck() {
         signIn("mpesa-admin");
         ShortcodeDetailDto draft = service.create(request(next(), ShortcodeType.PAYBILL, Environment.SANDBOX));
         when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
@@ -260,8 +261,8 @@ class ShortcodeAdminIntegrationTest {
 
         ShortcodeDetailDto updated = service.update(draft.uuid(), new UpdateShortcodeRequest("Renamed", null,
                 new BigDecimal("250000"), "", null, null, null, null));
-        ShortcodeDetailDto rotated = service.rotateCredentials(draft.uuid(),
-                new RotateShortcodeCredentialsRequest(null, "new-secret-ZZ99", "", null, null, null));
+        ShortcodeDetailDto rotated = service.updateCredentials(draft.uuid(),
+                new UpdateShortcodeCredentialsRequest(null, "new-secret-ZZ99", "", null, null, null));
 
         assertThat(updated.businessName()).isEqualTo("Renamed");
         assertThat(updated.maxAmount()).isEqualByComparingTo("250000");
@@ -270,13 +271,14 @@ class ShortcodeAdminIntegrationTest {
         assertThat(rotated.credentials().consumerSecretMasked()).isEqualTo("••••ZZ99");
         assertThat(rotated.credentials().consumerKeyMasked()).isEqualTo("••••Qx7d");
         assertThat(rotated.credentials().passkeyMasked()).isEqualTo("••••b21c");
-        assertThat(rotated.health().tokenOk()).isNull();
+        assertThat(rotated.health().tokenOk()).isTrue();
+        verify(tester, times(2)).test(any());
         verify(daraja).evictAccessToken(draft.uuid());
         String audit = jdbc.queryForObject("SELECT after::text FROM audit_events WHERE entity_id = ? "
-                + "AND action = 'SHORTCODE_CREDENTIALS_ROTATED'", String.class, draft.uuid().toString());
+                + "AND action = 'SHORTCODE_CREDENTIALS_UPDATED'", String.class, draft.uuid().toString());
         assertThat(audit).contains("consumer_secret").contains("[REDACTED]").doesNotContain("new-secret-ZZ99");
-        assertThatThrownBy(() -> service.rotateCredentials(draft.uuid(),
-                new RotateShortcodeCredentialsRequest(" ", null, null, null, null, null)))
+        assertThatThrownBy(() -> service.updateCredentials(draft.uuid(),
+                new UpdateShortcodeCredentialsRequest(" ", null, null, null, null, null)))
                 .isInstanceOf(InvalidRequestException.class);
     }
 
@@ -340,6 +342,65 @@ class ShortcodeAdminIntegrationTest {
         when(daraja.initiateSTKPush(any(), anyString(), any(), anyString(), anyString()))
                 .thenReturn(MpesaApiResponse.error("INVALID_REQUEST", "Bad phone", 400));
         assertThatThrownBy(() -> c2b.testStk(code.uuid(), oneShilling)).isInstanceOf(UpstreamException.class);
+    }
+
+    @Test
+    void theListNamesEachShortcodesProductsAndFiltersByProduct() {
+        signIn("mpesa-operator");
+        String tag = "Prod" + next();
+        ShortcodeDetailDto fees = service.create(named(tag + " Fees", ShortcodeType.PAYBILL));
+        ShortcodeDetailDto shop = service.create(named(tag + " Shop", ShortcodeType.TILL));
+        grant("elimika-backend", "Elimika", fees.uuid(), true);
+        grant("zz-shop", null, fees.uuid(), true);
+        grant("elimika-backend", "Elimika", shop.uuid(), false);
+
+        List<ShortcodeSummaryDto> rows = service.list(query(null, tag), PageRequest.of(0, 25,
+                Sort.by("businessName"))).getContent();
+        List<ShortcodeSummaryDto> forElimika = service.list(new ShortcodeAdminService.ShortcodeQuery(null, null, null,
+                null, tag, "elimika-backend"), PageRequest.of(0, 25)).getContent();
+
+        assertThat(rows.getFirst().products()).containsExactly(
+                new ShortcodeSummaryDto.ProductRef("elimika-backend", "Elimika"),
+                new ShortcodeSummaryDto.ProductRef("zz-shop", null));
+        assertThat(rows.get(1).products()).isEmpty();
+        assertThat(forElimika).extracting(ShortcodeSummaryDto::uuid).containsExactly(fees.uuid());
+    }
+
+    @Test
+    void anInvalidInitiatorResultAsksForNewCredentialsAndTodaysPayoutsAreSummed() {
+        signIn("mpesa-operator");
+        ShortcodeDetailDto code = service.create(named("Payouts " + next(), ShortcodeType.PAYBILL));
+        payout(code.uuid(), "1000.00");
+        jdbc.update("INSERT INTO mpesa_outgoing_payments (shortcode_uuid, payment_type, originator_conversation_id, "
+                + "recipient_phone_number, amount, command_id, initiator_name, status, result_code, processed_at) "
+                + "VALUES (?, 'B2C', ?, '254712345678', 50, 'BusinessPayment', 'api', 'FAILED', 2001, NOW())",
+                code.uuid(), "sar-" + UUID.randomUUID());
+
+        ShortcodeDetailDto after = service.get(code.uuid());
+
+        assertThat(after.health().credentialsHint()).contains("Update the credentials");
+        assertThat(after.health().paidOutToday()).isEqualByComparingTo("100");
+        assertThat(service.totals().initiatorErrors24h()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void onlyAnAdminRepointsAProductionShortcodesCallbacks() {
+        signIn("mpesa-admin");
+        ShortcodeDetailDto live = service.create(request(next(), ShortcodeType.PAYBILL, Environment.PRODUCTION));
+        signIn("mpesa-operator");
+
+        assertThatThrownBy(() -> service.update(live.uuid(), new UpdateShortcodeRequest(null, null, null, null, null,
+                "https://evil.example/cb", null, null))).isInstanceOf(AccessDeniedException.class);
+        assertThat(service.update(live.uuid(), new UpdateShortcodeRequest("Renamed", null, null, null, null,
+                live.callbackUrl(), null, null)).businessName()).isEqualTo("Renamed");
+        signIn("mpesa-admin");
+        assertThat(service.update(live.uuid(), new UpdateShortcodeRequest(null, null, null, null, null,
+                "https://pay.example.test/other", null, null)).callbackUrl()).isEqualTo("https://pay.example.test/other");
+    }
+
+    private void grant(String clientId, String name, UUID shortcode, boolean active) {
+        jdbc.update("INSERT INTO client_shortcode_grants (client_id, display_name, shortcode_uuid, operations, active) "
+                + "VALUES (?, ?, ?, 'STK_PUSH', ?)", clientId, name, shortcode, active);
     }
 
     private static String next() {

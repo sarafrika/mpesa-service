@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import com.sarafrika.apps.mpesaservice.utils.converters.EncryptedSecretConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -16,6 +18,8 @@ import lombok.Setter;
 /** Where a product wants its payment events posted, signed with its own secret. */
 @Entity
 @Table(name = "webhook_subscriptions")
+@SQLDelete(sql = "UPDATE webhook_subscriptions SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor

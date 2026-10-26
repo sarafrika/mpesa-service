@@ -19,6 +19,8 @@ import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantReposito
 import com.sarafrika.apps.mpesaservice.repositories.WebhookDeliveryRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
+import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
 import com.sarafrika.apps.mpesaservice.utils.enums.WebhookDeliveryStatus;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Duration;
@@ -59,6 +61,7 @@ public class WebhookAdminService {
     private final WebhookDispatcher dispatcher;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final OutboundUrlGuard urlGuard;
 
     /** Optional exact-match filters for the delivery list; blank values are ignored. */
     public record DeliveryQuery(String clientId, UUID subscriptionUuid, WebhookDeliveryStatus status,
@@ -83,7 +86,7 @@ public class WebhookAdminService {
     public WebhookSecretResponse create(CreateWebhookSubscriptionRequest request) {
         WebhookSubscription subscription = new WebhookSubscription();
         subscription.setClientId(request.clientId().trim());
-        subscription.setUrl(WebhookUrls.validated("url", request.url()));
+        subscription.setUrl(WebhookUrls.validated("url", request.url(), urlGuard));
         subscription.setEventTypeSet(WebhookEvents.validated(request.eventTypes()));
         String secret = WebhookSigner.newSecret();
         subscription.setSecret(secret);
@@ -99,7 +102,7 @@ public class WebhookAdminService {
         WebhookSubscription subscription = find(uuid);
         WebhookSubscriptionDto before = toDto(subscription, Map.of());
         if (request.url() != null) {
-            subscription.setUrl(WebhookUrls.validated("url", request.url()));
+            subscription.setUrl(WebhookUrls.validated("url", request.url(), urlGuard));
         }
         if (request.eventTypes() != null) {
             subscription.setEventTypeSet(WebhookEvents.validated(request.eventTypes()));
@@ -217,7 +220,13 @@ public class WebhookAdminService {
                 names.getOrDefault(delivery.getClientId(), delivery.getClientId()), delivery.getEventId(),
                 delivery.getEventType(), delivery.getReference(), delivery.getAttempt(), delivery.getStatus(),
                 delivery.getResponseCode(), delivery.getLatencyMs(), delivery.getNextAttemptAt(), delivery.getError(),
-                delivery.getDeliveredAt(), delivery.getCreatedAt(), withPayload ? parse(delivery.getPayload()) : null);
+                delivery.getDeliveredAt(), delivery.getCreatedAt(), withPayload ? payload(delivery) : null);
+    }
+
+    /** The payload as sent; phone numbers and names are masked for people without mpesa-finance. */
+    private JsonNode payload(WebhookDelivery delivery) {
+        JsonNode payload = parse(delivery.getPayload());
+        return PersonalData.visible() ? payload : PersonalData.redact(payload);
     }
 
     /** Display names from the products' grants, keyed by client id. */

@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.repositories;
 
 import com.sarafrika.apps.mpesaservice.models.ClientShortcodeGrant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,4 +22,6 @@ public interface ClientShortcodeGrantRepository extends JpaRepository<ClientShor
     List<ClientShortcodeGrant> findByClientIdAndActiveTrue(String clientId);
 
     List<ClientShortcodeGrant> findByShortcodeUuidAndActiveTrue(UUID shortcodeUuid);
+
+    List<ClientShortcodeGrant> findByShortcodeUuidInAndActiveTrue(Collection<UUID> shortcodeUuids);
 }

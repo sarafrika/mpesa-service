@@ -1,6 +1,9 @@
 package com.sarafrika.apps.mpesaservice.exceptions.handlers;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sarafrika.apps.mpesaservice.controllers.B2CB2BCallbackController;
+import com.sarafrika.apps.mpesaservice.controllers.C2BCallbackController;
+import com.sarafrika.apps.mpesaservice.controllers.STKCallbackController;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +21,8 @@ import java.time.LocalDateTime;
  * to M-Pesa, even when errors occur, to prevent callback retries
  * </p>
  */
-@RestControllerAdvice(basePackages = "com.sarafrika.apps.mpesaservice.controllers.callbacks")
+@RestControllerAdvice(assignableTypes = {STKCallbackController.class, C2BCallbackController.class,
+        B2CB2BCallbackController.class})
 @Slf4j
 public class CallbackExceptionHandler {
 

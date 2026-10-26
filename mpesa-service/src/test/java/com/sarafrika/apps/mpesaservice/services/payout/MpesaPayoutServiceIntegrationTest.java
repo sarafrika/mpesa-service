@@ -9,6 +9,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sarafrika.apps.mpesaservice.config.ClientIpResolver;
+import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import com.sarafrika.apps.mpesaservice.dtos.B2CPaymentResponse;
 import com.sarafrika.apps.mpesaservice.dtos.B2CPayoutRequest;
 import com.sarafrika.apps.mpesaservice.dtos.B2CResult;
@@ -53,7 +58,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"})
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({MpesaPayoutService.class, SecretCipher.class})
+@Import({MpesaPayoutService.class, SecretCipher.class, AuditService.class, MpesaPayoutServiceIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @RecordApplicationEvents
 class MpesaPayoutServiceIntegrationTest {
@@ -61,6 +66,39 @@ class MpesaPayoutServiceIntegrationTest {
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine");
+
+    @TestConfiguration
+    static class Beans {
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper().findAndRegisterModules();
+        }
+
+        @Bean
+        ClientIpResolver clientIpResolver() {
+            return new ClientIpResolver(List.of());
+        }
+
+        @Bean
+        SettledEvents settledEvents() {
+            return new SettledEvents();
+        }
+    }
+
+    /** Counts events from every thread; ApplicationEvents only sees the test thread's. */
+    static class SettledEvents {
+        final java.util.Queue<PaymentEvent> all = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+        @org.springframework.context.event.EventListener
+        void on(PaymentEvent event) {
+            all.add(event);
+        }
+    }
+
+    @Autowired
+    private SettledEvents settledEvents;
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Autowired
     private MpesaPayoutService service;
@@ -192,6 +230,85 @@ class MpesaPayoutServiceIntegrationTest {
                 .containsEntry("transaction_id", "TJE4K9L2Q9");
     }
 
+    @Test
+    void noAnswerFromSafaricomKeepsThePayoutPendingAndFlagged() {
+        when(darajaService.sendB2CPayout(any(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(MpesaApiResponse.error("NETWORK_ERROR", "Read timed out", 503));
+
+        MpesaOutgoingPayment payment = service.initiate("elimika-backend", request("WD-20", "1500"));
+
+        assertThat(payment.getStatus()).isEqualTo(OutgoingPaymentStatus.PENDING);
+        assertThat(payment.isOutcomeUnknown()).isTrue();
+        assertThat(payment.getResultDesc()).contains("do not send it again");
+
+        when(darajaService.sendB2CPayout(any(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(MpesaApiResponse.error("SERVER_ERROR", "Server error: 500", 502));
+        assertThat(service.initiate("elimika-backend", request("WD-21", "1500")).isOutcomeUnknown()).isTrue();
+        when(darajaService.sendB2CPayout(any(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(MpesaApiResponse.error("NOT_SENT", "No certificate", 422));
+        assertThat(service.initiate("elimika-backend", request("WD-22", "1500")).getStatus())
+                .isEqualTo(OutgoingPaymentStatus.FAILED);
+
+        service.applyResult(success(payment.getOriginatorConversationId(), "TJE4K9L220"), "{}");
+        MpesaOutgoingPayment paid = service.findForClient("elimika-backend", "WD-20").orElseThrow();
+        assertThat(paid.getStatus()).isEqualTo(OutgoingPaymentStatus.SUCCESS);
+        assertThat(paid.isOutcomeUnknown()).isFalse();
+    }
+
+    @Test
+    void aTimeoutFlagsTheOutcomeUnknown() {
+        accept();
+        MpesaOutgoingPayment waiting = service.initiate("elimika-backend", request("WD-23", "1500"));
+        service.applyTimeout(new B2CTimeoutCallback(0, 1, "The service request has timed out.",
+                waiting.getOriginatorConversationId(), "AG_1"));
+        assertThat(service.findForClient("elimika-backend", "WD-23").orElseThrow().isOutcomeUnknown()).isTrue();
+    }
+
+    @Test
+    void aSuccessAfterASubmitRefusalSettlesItPaidAuditedWithOnlyACompletedEvent() {
+        when(darajaService.sendB2CPayout(any(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(MpesaApiResponse.error("400.002.02", "Bad Request - Invalid Amount", 400));
+        MpesaOutgoingPayment refused = service.initiate("elimika-backend", request("WD-24", "1500"));
+        assertThat(refused.getStatus()).isEqualTo(OutgoingPaymentStatus.FAILED);
+
+        service.applyResult(success(refused.getOriginatorConversationId(), "TJE4K9L224"), "{\"Result\":{}}");
+        service.applyResult(success(refused.getOriginatorConversationId(), "TJE4K9L224"), "{\"Result\":{}}");
+
+        MpesaOutgoingPayment paid = service.findForClient("elimika-backend", "WD-24").orElseThrow();
+        assertThat(paid.getStatus()).isEqualTo(OutgoingPaymentStatus.SUCCESS);
+        assertThat(paid.getTransactionId()).isEqualTo("TJE4K9L224");
+        assertThat(events.stream(PaymentEvent.class).filter(e -> refused.getUuid().equals(e.paymentUuid())))
+                .extracting(PaymentEvent::type).containsExactly(PaymentEvent.B2C_COMPLETED);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events WHERE entity_id = ? AND action = ?",
+                Long.class, refused.getUuid().toString(), MpesaPayoutService.AUDIT_LATE_SUCCESS)).isEqualTo(1);
+    }
+
+    @Test
+    void twoCopiesOfOneResultArrivingTogetherSettleItOnce() throws Exception {
+        accept();
+        MpesaOutgoingPayment payment = service.initiate("elimika-backend", request("WD-25", "1500"));
+        B2CResult result = success(payment.getOriginatorConversationId(), "TJE4K9L225");
+        java.util.concurrent.CyclicBarrier start = new java.util.concurrent.CyclicBarrier(2);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            List<java.util.concurrent.Future<?>> runs = new java.util.ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                runs.add(pool.submit(() -> {
+                    start.await();
+                    return service.applyResult(result, "{}");
+                }));
+            }
+            for (java.util.concurrent.Future<?> run : runs) {
+                run.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(settledEvents.all.stream().filter(e -> payment.getUuid().equals(e.paymentUuid())))
+                .extracting(PaymentEvent::type).containsExactly(PaymentEvent.B2C_COMPLETED);
+    }
+
     private void accept() {
         when(darajaService.sendB2CPayout(any(), anyString(), anyString(), any(), any(), any()))
                 .thenReturn(MpesaApiResponse.success(new B2CPaymentResponse("AG_1", "orig", "0",
@@ -204,9 +321,13 @@ class MpesaPayoutServiceIntegrationTest {
     }
 
     private static B2CResult success(String originator) {
-        return new B2CResult(0, 0, "The service request is processed successfully.", originator, "AG_1", "TJE4K9L2QX",
+        return success(originator, "TJE4K9L2QX");
+    }
+
+    private static B2CResult success(String originator, String receipt) {
+        return new B2CResult(0, 0, "The service request is processed successfully.", originator, "AG_1", receipt,
                 new B2CResultParameters(List.of(
-                        new B2CResultParameter("TransactionReceipt", "TJE4K9L2QX"),
+                        new B2CResultParameter("TransactionReceipt", receipt),
                         new B2CResultParameter("TransactionAmount", "1500"),
                         new B2CResultParameter("B2CChargesPaidAmount", "15.00"),
                         new B2CResultParameter("ReceiverPartyPublicName", "254712345678 - JANE WANJIRU KAMAU"),

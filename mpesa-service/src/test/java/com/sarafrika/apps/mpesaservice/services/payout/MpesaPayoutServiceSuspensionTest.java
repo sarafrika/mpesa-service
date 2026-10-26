@@ -11,6 +11,7 @@ import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
+import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,7 +27,7 @@ class MpesaPayoutServiceSuspensionTest {
     private final MpesaDarajaService daraja = mock(MpesaDarajaService.class);
     private final TransactionTemplate transactions = mock(TransactionTemplate.class);
     private final MpesaPayoutService service = new MpesaPayoutService(payments, shortcodes, daraja, transactions,
-            mock(ApplicationEventPublisher.class));
+            mock(ApplicationEventPublisher.class), mock(AuditService.class));
 
     @Test
     void aSuspendedShortcodeRefusesPayoutsBeforeAnythingIsSaved() {

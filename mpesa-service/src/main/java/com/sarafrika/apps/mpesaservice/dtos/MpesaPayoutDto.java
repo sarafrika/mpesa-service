@@ -13,7 +13,8 @@ public record MpesaPayoutDto(
         @JsonProperty("uuid") UUID uuid,
         @JsonProperty("client_reference") String clientReference,
         @JsonProperty("shortcode_uuid") UUID shortcodeUuid,
-        @Schema(description = "PENDING until Safaricom's result arrives, then SUCCESS or FAILED")
+        @Schema(description = "PENDING until Safaricom's result arrives, then SUCCESS or FAILED. FAILED in the "
+                + "send response means Daraja refused it; a later success result can still turn it SUCCESS")
         @JsonProperty("status") OutgoingPaymentStatus status,
         @JsonProperty("amount") BigDecimal amount,
         @JsonProperty("phone_number") String phoneNumber,
@@ -26,6 +27,9 @@ public record MpesaPayoutDto(
         @JsonProperty("result_desc") String resultDesc,
         @Schema(description = "Set when Safaricom reported a queue timeout; the outcome is still unknown")
         @JsonProperty("timed_out_at") LocalDateTime timedOutAt,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "true while PENDING when Safaricom never "
+                + "confirmed receiving the payout: it may still be paid, so wait for the result and do not retry")
+        @JsonProperty("outcome_unknown") boolean outcomeUnknown,
         @JsonProperty("transaction_date") LocalDateTime transactionDate,
         @JsonProperty("created_at") LocalDateTime createdAt,
         @JsonProperty("processed_at") LocalDateTime processedAt
@@ -35,6 +39,6 @@ public record MpesaPayoutDto(
         return new MpesaPayoutDto(payment.getUuid(), payment.getClientReference(), payment.getShortcodeUuid(),
                 payment.getStatus(), payment.getAmount(), payment.getRecipientPhoneNumber(), payment.getTransactionId(),
                 payment.getRecipientName(), payment.getChargesPaid(), payment.getResultCode(), payment.getResultDesc(),
-                payment.getTimedOutAt(), payment.getTransactionDate(), payment.getCreatedAt(), payment.getProcessedAt());
+                payment.getTimedOutAt(), payment.isOutcomeUnknown(), payment.getTransactionDate(), payment.getCreatedAt(), payment.getProcessedAt());
     }
 }

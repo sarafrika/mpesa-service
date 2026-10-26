@@ -6,9 +6,9 @@ import { useState } from "react";
 import { type Path, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
-import { useRotateShortcodeCredentials } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
+import { useUpdateShortcodeCredentials } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import type { ShortcodeDetail } from "@/api/generated/model";
-import { RotateShortcodeCredentialsBody } from "@/api/generated/zod/admin-shortcodes/admin-shortcodes.zod";
+import { UpdateShortcodeCredentialsBody } from "@/api/generated/zod/admin-shortcodes/admin-shortcodes.zod";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,7 +22,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { applyFieldErrors } from "@/lib/api-errors";
-import { toastApiError, useInvalidateShortcodes } from "./api";
+import { okData, toastApiError, useInvalidateShortcodes } from "./api";
 import { FormRootError, TextField } from "./form-fields";
 
 const FIELDS = [
@@ -34,19 +34,20 @@ const FIELDS = [
   "security_credential",
 ] as const;
 
-const schema = RotateShortcodeCredentialsBody.refine(
+const schema = UpdateShortcodeCredentialsBody.refine(
   (values) => FIELDS.some((field) => (values[field] ?? "").trim() !== ""),
   { path: ["root"], message: "Enter at least one new credential" },
 );
 type Values = z.infer<typeof schema>;
 const EMPTY: Values = Object.fromEntries(FIELDS.map((field) => [field, ""])) as Values;
 
-/** mpesa-admin only. Values are write-only: they leave the browser once and are never shown again. */
-export function RotateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
+/** mpesa-admin only. Daraja has no API to change credentials, so this stores values already changed at
+ * Safaricom. They are write-only: they leave the browser once and are never shown again. */
+export function UpdateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
   const [open, setOpen] = useState(false);
   const invalidate = useInvalidateShortcodes();
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: EMPTY });
-  const rotate = useRotateShortcodeCredentials({ mutation: { meta: { errorToast: false } } });
+  const update = useUpdateShortcodeCredentials({ mutation: { meta: { errorToast: false } } });
   const { errors } = form.formState;
   const b2c = shortcode.shortcode_type === "B2C";
 
@@ -55,10 +56,15 @@ export function RotateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
       FIELDS.map((field) => [field, values[field]?.trim() || undefined]),
     ) as Values;
     try {
-      await rotate.mutateAsync({ uuid: shortcode.uuid, data });
-      toast.success("Credentials rotated", {
-        description: "Run the checks again so Daraja confirms the new credentials.",
-      });
+      const saved = okData(await update.mutateAsync({ uuid: shortcode.uuid, data }));
+      if (saved?.health.token_ok) {
+        toast.success("Credentials updated", { description: "Daraja issued a token for them." });
+      } else {
+        toast.warning("Credentials saved, but the connection check failed", {
+          description:
+            saved?.health.token_error ?? "Daraja did not issue a token for these credentials.",
+        });
+      }
       await invalidate();
       setOpen(false);
     } catch (error) {
@@ -79,15 +85,16 @@ export function RotateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
     >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <KeyRound /> Rotate…
+          <KeyRound /> Update credentials
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Rotate Daraja credentials</DialogTitle>
+          <DialogTitle>Update Daraja credentials</DialogTitle>
           <DialogDescription>
-            Fill in only what changed; empty fields keep the stored value. The change is audited and
-            the token check must pass again.
+            Change these at Safaricom first (Daraja portal or M-Pesa org portal), then save the new
+            values here. Saving re-checks the connection. Fill in only what changed; empty fields
+            keep the stored value.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-4" noValidate>
@@ -144,9 +151,9 @@ export function RotateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
             />
           </div>
           <div className="flex flex-col gap-2 font-medium text-sm">
-            <label htmlFor="rotate-security-credential">Security credential (optional)</label>
+            <label htmlFor="update-security-credential">Security credential (optional)</label>
             <Textarea
-              id="rotate-security-credential"
+              id="update-security-credential"
               rows={3}
               autoComplete="off"
               className="font-mono text-xs"
@@ -167,7 +174,7 @@ export function RotateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
             </Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting && <Spinner />}
-              Rotate credentials
+              Save credentials
             </Button>
           </DialogFooter>
         </form>

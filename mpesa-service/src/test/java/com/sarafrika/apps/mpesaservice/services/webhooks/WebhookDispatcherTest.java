@@ -13,6 +13,7 @@ import com.sarafrika.apps.mpesaservice.models.WebhookDelivery;
 import com.sarafrika.apps.mpesaservice.models.WebhookSubscription;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookDeliveryRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
+import com.sarafrika.apps.mpesaservice.services.security.TestUrlGuards;
 import com.sarafrika.apps.mpesaservice.utils.enums.WebhookDeliveryStatus;
 import java.net.URI;
 import java.net.http.HttpTimeoutException;
@@ -38,7 +39,8 @@ class WebhookDispatcherTest {
     private final WebhookSubscriptionRepository subscriptions = mock(WebhookSubscriptionRepository.class);
     private final WebhookTransport transport = mock(WebhookTransport.class);
     private final WebhookDispatcher dispatcher = new WebhookDispatcher(deliveries, subscriptions, transport,
-            new TransactionTemplate(mock(PlatformTransactionManager.class)), true, 20, Duration.ofMinutes(2));
+            new TransactionTemplate(mock(PlatformTransactionManager.class)), TestUrlGuards.publicDns(), true, 20,
+            Duration.ofMinutes(2));
     private WebhookSubscription subscription;
     private WebhookDelivery delivery;
 
@@ -112,6 +114,35 @@ class WebhookDispatcherTest {
         assertThat(delivery.getStatus()).isEqualTo(WebhookDeliveryStatus.PENDING);
         assertThat(delivery.getResponseCode()).isNull();
         assertThat(delivery.getError()).isEqualTo("Timed out waiting for the receiver");
+    }
+
+    @Test
+    void aUrlNowPointingInsideIsRefusedAtSendTime() throws Exception {
+        subscription.setUrl("https://10.0.0.7/hooks");
+
+        dispatcher.attempt(delivery);
+
+        verify(transport, never()).post(any(), anyMap(), anyString());
+        assertThat(delivery.getStatus()).isEqualTo(WebhookDeliveryStatus.FAILED);
+        assertThat(delivery.getError()).contains("not allowed");
+    }
+
+    @Test
+    void anAttemptThatLostItsClaimDoesNotOverwriteTheNewOne() throws Exception {
+        when(transport.post(any(), anyMap(), anyString())).thenReturn(200);
+        WebhookDelivery stale = new WebhookDelivery();
+        stale.setId(7L);
+        stale.setUuid(delivery.getUuid());
+        stale.setSubscriptionUuid(subscription.getUuid());
+        stale.setEventType("c2b.confirmed");
+        stale.setPayload(delivery.getPayload());
+        stale.setClaimToken(UUID.randomUUID());
+        delivery.setClaimToken(UUID.randomUUID());
+
+        dispatcher.attempt(stale);
+
+        assertThat(delivery.getAttempt()).isZero();
+        assertThat(delivery.getStatus()).isEqualTo(WebhookDeliveryStatus.PENDING);
     }
 
     @Test

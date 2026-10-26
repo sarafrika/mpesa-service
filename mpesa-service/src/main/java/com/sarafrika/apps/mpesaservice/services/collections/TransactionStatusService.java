@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.services.collections;
 
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
+import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
 import com.sarafrika.apps.mpesaservice.dtos.StkStatusResponse;
 import com.sarafrika.apps.mpesaservice.dtos.TransactionStatusResponse;
 import com.sarafrika.apps.mpesaservice.dtos.TransactionStatusResultData;
@@ -22,6 +23,7 @@ import com.sarafrika.apps.mpesaservice.repositories.TransactionStatusQueryReposi
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
@@ -52,7 +54,8 @@ public class TransactionStatusService {
 
     static final String AUDIT_ACTION = "TRANSACTION_STATUS_QUERIED";
     private static final Set<String> CLIENT_SIDE = Set.of("CLIENT_ERROR", "AUTH_FAILED", "INVALID_ARGUMENT",
-            "SERVER_ERROR", "INVALID_CONFIG", "API_ERROR");
+            "SERVER_ERROR", "INVALID_CONFIG", "API_ERROR", MpesaErrorResponse.NOT_SENT);
+    private static final java.util.regex.Pattern DARAJA_CODE = java.util.regex.Pattern.compile("\\d{3}\\.\\d{3}\\.\\d+");
 
     private final MpesaIncomingPaymentRepository incomingRepository;
     private final MpesaOutgoingPaymentRepository outgoingRepository;
@@ -60,7 +63,7 @@ public class TransactionStatusService {
     private final TransactionStatusQueryRepository queryRepository;
     private final MpesaDarajaService darajaService;
     private final MpesaIncomingPaymentService incomingPaymentService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final MpesaPayoutService payoutService;
     private final AuditService auditService;
 
     /** From the console: an STK request without a receipt gets an STK query, anything else Transaction Status. */
@@ -99,7 +102,8 @@ public class TransactionStatusService {
                                                      boolean failOnError) {
         MpesaApiResponse<StkStatusResponse> response =
                 darajaService.queryStkPushStatus(shortcode.getUuid(), payment.getCheckoutRequestId());
-        if (!response.success() || response.data() == null || response.data().resultCode() == null) {
+        if (!response.success() || response.data() == null || response.data().resultCode() == null
+                || !isFinalStkResult(response.data().resultCode())) {
             if (failOnError) {
                 throw upstream(response, "Safaricom has no final answer for this STK request yet");
             }
@@ -128,6 +132,12 @@ public class TransactionStatusService {
             incomingPaymentService.processStkPushCallback(payment.getCheckoutRequestId(), callback);
         }
         return Optional.of(saved);
+    }
+
+    // 4999 "The transaction is still under processing" (Daraja M-Pesa Express Query result codes,
+    // developer.safaricom.co.ke/APIs/MpesaExpressQuery): the customer may still pay, so it is not an answer.
+    static boolean isFinalStkResult(Integer resultCode) {
+        return resultCode != null && resultCode != 4999;
     }
 
     /** Safaricom's Transaction Status result; settles the payment if it was still pending. */
@@ -171,11 +181,11 @@ public class TransactionStatusService {
         });
     }
 
+    // Only "Completed" settles: other answers are kept on the query for a person to read, since a payment
+    // Safaricom has not finished with must not be closed as failed here.
     private void settle(TransactionStatusQuery query) {
         String outcome = query.getTransactionStatus().trim().toLowerCase(Locale.ROOT);
-        boolean completed = outcome.equals("completed");
-        boolean cancelled = outcome.startsWith("cancel");
-        if (!completed && !outcome.equals("failed") && !cancelled && !outcome.equals("expired")) {
+        if (!outcome.equals("completed")) {
             return;
         }
         if (TransactionStatusQuery.IN.equals(query.getDirection())) {
@@ -185,9 +195,9 @@ public class TransactionStatusService {
                         Map<String, Object> callback = new LinkedHashMap<>();
                         callback.put("Source", "Transaction Status");
                         callback.put("CheckoutRequestID", p.getCheckoutRequestId());
-                        callback.put("ResultCode", completed ? 0 : cancelled ? 1032 : 1);
+                        callback.put("ResultCode", 0);
                         callback.put("ResultDesc", "Transaction Status: " + query.getTransactionStatus());
-                        if (completed && query.getReceipt() != null) {
+                        if (query.getReceipt() != null) {
                             callback.put("CallbackMetadata", Map.of("Item", List.of(
                                     Map.of("Name", "MpesaReceiptNumber", "Value", query.getReceipt()))));
                         }
@@ -195,29 +205,7 @@ public class TransactionStatusService {
                     });
             return;
         }
-        outgoingRepository.findByUuid(query.getPaymentUuid())
-                .filter(o -> o.getStatus() == OutgoingPaymentStatus.PENDING)
-                .ifPresent(o -> {
-                    o.setStatus(completed ? OutgoingPaymentStatus.SUCCESS
-                            : cancelled ? OutgoingPaymentStatus.CANCELLED : OutgoingPaymentStatus.FAILED);
-                    if (completed && query.getReceipt() != null) {
-                        o.setTransactionId(query.getReceipt());
-                    }
-                    o.setResultDesc("Transaction Status: " + query.getTransactionStatus());
-                    o.setProcessedAt(LocalDateTime.now());
-                    MpesaOutgoingPayment saved = outgoingRepository.save(o);
-                    if (saved.getPaymentType() == OutgoingPaymentType.B2C) {
-                        Map<String, Object> data = new LinkedHashMap<>();
-                        data.put("receipt", saved.getTransactionId());
-                        data.put("client_reference", saved.getClientReference());
-                        data.put("amount", saved.getAmount());
-                        data.put("status", saved.getStatus().name());
-                        data.put("source", "transaction_status");
-                        eventPublisher.publishEvent(new PaymentEvent(
-                                completed ? PaymentEvent.B2C_COMPLETED : PaymentEvent.B2C_FAILED,
-                                saved.getShortcodeUuid(), saved.getUuid(), saved.getClientId(), data));
-                    }
-                });
+        payoutService.settleFromStatusQuery(query.getPaymentUuid(), query.getReceipt(), query.getTransactionStatus());
     }
 
     private TransactionStatusQuery transactionStatus(UUID paymentUuid, String direction, MpesaShortCode shortcode,
@@ -279,7 +267,7 @@ public class TransactionStatusService {
     static UpstreamException upstream(MpesaApiResponse<?> response, String message) {
         String code = response.error() == null ? null : response.error().errorCode();
         String detail = response.error() == null ? null : response.error().errorMessage();
-        if (code != null && CLIENT_SIDE.contains(code)) {
+        if (code != null && (CLIENT_SIDE.contains(code) || DARAJA_CODE.matcher(code).matches())) {
             return UpstreamException.badGateway(detail == null ? message : message + " (" + detail + ")");
         }
         if (response.success()) {

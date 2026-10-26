@@ -17,6 +17,7 @@ import com.sarafrika.apps.mpesaservice.services.metrics.attention.AttentionScope
 import com.sarafrika.apps.mpesaservice.services.metrics.attention.AttentionService;
 import com.sarafrika.apps.mpesaservice.services.metrics.attention.PaybillAttentionSource;
 import com.sarafrika.apps.mpesaservice.services.metrics.attention.PendingStkAttentionSource;
+import com.sarafrika.apps.mpesaservice.services.metrics.attention.UnlinkedDepositsAttentionSource;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import java.math.BigDecimal;
@@ -56,6 +57,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({MetricsConfig.class, MetricsQueries.class, MetricsService.class, PaybillHealthService.class,
         AttentionService.class, PaybillAttentionSource.class, PendingStkAttentionSource.class,
+        UnlinkedDepositsAttentionSource.class,
         SecretCipher.class, MetricsIntegrationTest.FixedClock.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class MetricsIntegrationTest {
@@ -285,9 +287,28 @@ class MetricsIntegrationTest {
         assertThat(items.get(1).href()).isEqualTo("/paybills/" + lowFloat);
         assertThat(items.get(2).title()).endsWith("for 9 hours");
         assertThat(items.get(3).title()).isEqualTo("1 STK request pending over 5 minutes");
+        assertThat(items.get(3).href()).isEqualTo("/transactions?type=STK_PUSH&status=PENDING");
+        assertThat(attention.items(new AttentionScope(failing, null))).extracting(AttentionItemDto::href)
+                .contains("/transactions?type=STK_PUSH&status=PENDING&paybill=" + failing);
 
         assertThat(attention.items(new AttentionScope(lowFloat, null))).extracting(AttentionItemDto::kind)
                 .containsExactly("LOW_FLOAT");
+    }
+
+    @Test
+    void depositsToAnUnknownShortcodeCountInTotalsAndNeedAttention() {
+        UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
+        incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(1)));
+        incoming(null, "C2B", "SUCCESS", "40.00", NOW.minus(Duration.ofHours(2)));
+
+        assertThat(metrics.summary(WEEK_FROM, WEEK_TO, Filter.ALL).current().collectedAmount())
+                .isEqualByComparingTo("140.00");
+        assertThat(metrics.summary(WEEK_FROM, WEEK_TO, new Filter(null, Environment.PRODUCTION)).current()
+                .collectedAmount()).isEqualByComparingTo("100.00");
+        assertThat(attention.items(AttentionScope.ALL)).extracting(AttentionItemDto::kind)
+                .containsExactly("UNLINKED_DEPOSITS");
+        assertThat(attention.items(new AttentionScope(null, Environment.PRODUCTION))).isEmpty();
+        assertThat(metrics.latest(5, Filter.ALL)).hasSize(2);
     }
 
     @Test

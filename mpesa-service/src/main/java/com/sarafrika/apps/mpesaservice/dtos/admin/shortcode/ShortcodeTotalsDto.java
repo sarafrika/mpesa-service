@@ -28,8 +28,7 @@ public record ShortcodeTotalsDto(
         @JsonProperty("total_float") BigDecimal totalFloat,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Shortcodes with a known float")
         @JsonProperty("float_known") long floatKnown,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-        @JsonProperty("credentials_due") long credentialsDue,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "90")
-        @JsonProperty("rotation_days") int rotationDays) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "B2C results in the last 24 hours with ResultCode 2001 (invalid initiator)")
+        @JsonProperty("initiator_errors_24h") long initiatorErrors24h) {
 }

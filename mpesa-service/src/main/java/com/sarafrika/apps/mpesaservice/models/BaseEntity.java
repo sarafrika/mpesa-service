@@ -9,9 +9,8 @@ import org.hibernate.annotations.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+// Soft delete is declared on each entity with its literal table: Hibernate ignores it on a mapped superclass.
 @MappedSuperclass
-@SQLDelete(sql = "UPDATE #{#entityName} SET deleted_at = NOW() WHERE id = ?")
-@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor

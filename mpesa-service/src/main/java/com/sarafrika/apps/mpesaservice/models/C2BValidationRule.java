@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import com.sarafrika.apps.mpesaservice.utils.enums.LookupFailurePolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,6 +17,8 @@ import lombok.Setter;
 /** How one shortcode answers Safaricom's C2B validation request. */
 @Entity
 @Table(name = "c2b_validation_rules")
+@SQLDelete(sql = "UPDATE c2b_validation_rules SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor

@@ -6,7 +6,7 @@ import { displayStatus, healthChecks, initials, shortAge } from "./paybill-healt
 const NOW = Date.parse("2026-10-27T09:00:00Z");
 
 function health(overrides: Partial<ShortcodeHealth> = {}): ShortcodeHealth {
-  return { c2b_state: "REGISTERED", collected_today: 0, ...overrides };
+  return { c2b_state: "REGISTERED", collected_today: 0, paid_out_today: 0, ...overrides };
 }
 
 describe("shortAge", () => {

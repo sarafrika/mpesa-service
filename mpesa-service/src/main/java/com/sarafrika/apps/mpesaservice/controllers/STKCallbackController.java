@@ -39,11 +39,11 @@ public class STKCallbackController {
     public ResponseEntity<STKCallbackAcknowledgment> handleSTKCallback(
             @RequestBody STKCallbackPayload callbackPayload) {
 
-        log.info("Received STK Push callback for MerchantRequestID: {}, CheckoutRequestID: {}",
-                callbackPayload.body().stkCallback().merchantRequestId(),
-                callbackPayload.body().stkCallback().checkoutRequestId());
-
         try {
+            log.info("Received STK Push callback for MerchantRequestID: {}, CheckoutRequestID: {}",
+                    callbackPayload.body().stkCallback().merchantRequestId(),
+                    callbackPayload.body().stkCallback().checkoutRequestId());
+
             // Extract callback data
             STKCallback stkCallback = callbackPayload.body().stkCallback();
 

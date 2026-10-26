@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryMethod;
 import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryStatus;
 import jakarta.persistence.Column;
@@ -17,6 +19,8 @@ import org.hibernate.annotations.ColumnTransformer;
 /** One status query sent to Safaricom for a payment, and what came back. */
 @Entity
 @Table(name = "transaction_status_queries")
+@SQLDelete(sql = "UPDATE transaction_status_queries SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor

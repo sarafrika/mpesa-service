@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import com.sarafrika.apps.mpesaservice.utils.converters.EncryptedSecretConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.EnvironmentConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.ShortcodeTypeConverter;
@@ -18,6 +20,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "mpesa_shortcodes")
+@SQLDelete(sql = "UPDATE mpesa_shortcodes SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -102,8 +106,8 @@ public class MpesaShortCode extends BaseEntity {
     @Column(name = "suspended_at")
     private LocalDateTime suspendedAt;
 
-    @Column(name = "credentials_rotated_at")
-    private LocalDateTime credentialsRotatedAt;
+    @Column(name = "credentials_updated_at")
+    private LocalDateTime credentialsUpdatedAt;
 
     /** Outcome of the last Daraja OAuth token check run from the console. */
     @Column(name = "last_connection_ok")

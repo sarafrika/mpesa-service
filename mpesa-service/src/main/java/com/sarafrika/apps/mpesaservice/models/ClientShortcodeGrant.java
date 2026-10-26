@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import com.sarafrika.apps.mpesaservice.utils.converters.GrantOperationsConverter;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import jakarta.persistence.Column;
@@ -16,6 +18,8 @@ import lombok.Setter;
 /** One product's (Keycloak client's) access to one shortcode. */
 @Entity
 @Table(name = "client_shortcode_grants")
+@SQLDelete(sql = "UPDATE client_shortcode_grants SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
