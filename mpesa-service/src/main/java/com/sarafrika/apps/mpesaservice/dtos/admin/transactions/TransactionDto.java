@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.dtos.admin.transactions;
 
+import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
@@ -51,4 +52,12 @@ public record TransactionDto(
         @JsonProperty("processed_at") OffsetDateTime processedAt,
         @Schema(description = "When M-Pesa says it happened")
         @JsonProperty("transaction_date") OffsetDateTime transactionDate) {
+
+    /** The same row with the phone masked and the customer's name shortened. */
+    public TransactionDto masked() {
+        return new TransactionDto(uuid, direction, type, status, shortcodeUuid, shortcode, businessName, receipt,
+                checkoutRequestId, conversationId, originatorConversationId, accountReference,
+                PersonalData.maskPhone(phone), amount, resultCode, resultDesc, clientId,
+                PersonalData.shortName(customerName), c2bChannel, createdAt, processedAt, transactionDate);
+    }
 }

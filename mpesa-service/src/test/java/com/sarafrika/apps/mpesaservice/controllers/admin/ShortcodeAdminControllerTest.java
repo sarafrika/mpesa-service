@@ -360,7 +360,7 @@ class ShortcodeAdminControllerTest {
     private static ShortcodeHealthDto health() {
         return new ShortcodeHealthDto(true, LocalDateTime.now(), 312, null, C2bRegistrationState.REGISTERED,
                 LocalDateTime.now(), LocalDateTime.now(), new BigDecimal("902140.00"), new BigDecimal("1640210.00"),
-                BigDecimal.ZERO, LocalDateTime.now());
+                BigDecimal.ZERO, LocalDateTime.now(), BigDecimal.ZERO, null);
     }
 
     private static ShortcodeSummaryDto summary() {

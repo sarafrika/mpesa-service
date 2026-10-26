@@ -26,5 +26,9 @@ public record ShortcodeHealthDto(
         @Schema(description = "Utility account balance from the newest payout result; null when unknown")
         @JsonProperty("float_utility") BigDecimal floatUtility,
         @JsonProperty("float_working") BigDecimal floatWorking,
-        @JsonProperty("float_reported_at") LocalDateTime floatReportedAt) {
+        @JsonProperty("float_reported_at") LocalDateTime floatReportedAt,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Successful B2C payouts since midnight")
+        @JsonProperty("paid_out_today") BigDecimal paidOutToday,
+        @Schema(description = "Set when the newest payout result says the credentials are wrong (B2C ResultCode 2001)")
+        @JsonProperty("credentials_hint") String credentialsHint) {
 }

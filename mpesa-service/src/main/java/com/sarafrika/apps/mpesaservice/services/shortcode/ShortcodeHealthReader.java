@@ -62,6 +62,19 @@ public class ShortcodeHealthReader {
                 .setParameter("ids", ids).setParameter("status", OutgoingPaymentStatus.SUCCESS)
                 .getResultList().stream()
                 .collect(Collectors.toMap(MpesaOutgoingPayment::getShortcodeUuid, Function.identity(), (a, b) -> a));
+        Map<UUID, BigDecimal> paidOut = pairs(entityManager.createQuery("""
+                SELECT o.shortcodeUuid, SUM(o.amount) FROM MpesaOutgoingPayment o
+                WHERE o.shortcodeUuid IN :ids AND o.status = :status AND o.createdAt >= :start
+                GROUP BY o.shortcodeUuid""", Object[].class)
+                .setParameter("ids", ids).setParameter("status", OutgoingPaymentStatus.SUCCESS)
+                .setParameter("start", LocalDate.now(clock).atStartOfDay()).getResultList(), BigDecimal.class);
+        // The newest payout with a result: an invalid-initiator answer there means the credentials need updating.
+        Map<UUID, Integer> lastResult = pairs(entityManager.createQuery("""
+                SELECT o.shortcodeUuid, o.resultCode FROM MpesaOutgoingPayment o WHERE o.id IN (
+                    SELECT MAX(o2.id) FROM MpesaOutgoingPayment o2
+                    WHERE o2.shortcodeUuid IN :ids AND o2.resultCode IS NOT NULL
+                    GROUP BY o2.shortcodeUuid)""", Object[].class)
+                .setParameter("ids", ids).getResultList(), Integer.class);
         Map<UUID, C2bRegistration> c2b = registrations.findLatestFor(ids).stream()
                 .collect(Collectors.toMap(C2bRegistration::getShortcodeUuid, Function.identity(), (a, b) -> a));
 
@@ -76,7 +89,8 @@ public class ShortcodeHealthReader {
                     today.getOrDefault(id, BigDecimal.ZERO),
                     latestFloat != null ? latestFloat.getUtilityAccountAvailableFunds() : null,
                     latestFloat != null ? latestFloat.getWorkingAccountAvailableFunds() : null,
-                    latestFloat != null ? latestFloat.getProcessedAt() : null));
+                    latestFloat != null ? latestFloat.getProcessedAt() : null,
+                    paidOut.getOrDefault(id, BigDecimal.ZERO), DarajaHints.forPayout(lastResult.get(id))));
         }
         return result;
     }

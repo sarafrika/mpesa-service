@@ -43,5 +43,10 @@ public record TransactionDetailDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                 description = "Whether Safaricom can be asked for its status (a known shortcode, and a receipt, "
                         + "checkout id or conversation id to ask about)")
-        @JsonProperty("can_query_status") boolean canQueryStatus) {
+        @JsonProperty("can_query_status") boolean canQueryStatus,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "A pending payout Safaricom never "
+                + "confirmed receiving: it may still be paid, so it must not be sent again")
+        @JsonProperty("outcome_unknown") boolean outcomeUnknown,
+        @Schema(description = "What to do about a known failure, e.g. B2C ResultCode 2001 (invalid initiator)")
+        @JsonProperty("hint") String hint) {
 }

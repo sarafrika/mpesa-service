@@ -367,6 +367,22 @@ class ShortcodeAdminIntegrationTest {
     }
 
     @Test
+    void anInvalidInitiatorResultAsksForNewCredentialsAndTodaysPayoutsAreSummed() {
+        signIn("mpesa-operator");
+        ShortcodeDetailDto code = service.create(named("Payouts " + next(), ShortcodeType.PAYBILL));
+        payout(code.uuid(), "1000.00");
+        jdbc.update("INSERT INTO mpesa_outgoing_payments (shortcode_uuid, payment_type, originator_conversation_id, "
+                + "recipient_phone_number, amount, command_id, initiator_name, status, result_code, processed_at) "
+                + "VALUES (?, 'B2C', ?, '254712345678', 50, 'BusinessPayment', 'api', 'FAILED', 2001, NOW())",
+                code.uuid(), "sar-" + UUID.randomUUID());
+
+        ShortcodeDetailDto after = service.get(code.uuid());
+
+        assertThat(after.health().credentialsHint()).contains("Update the credentials");
+        assertThat(after.health().paidOutToday()).isEqualByComparingTo("100");
+    }
+
+    @Test
     void onlyAnAdminRepointsAProductionShortcodesCallbacks() {
         signIn("mpesa-admin");
         ShortcodeDetailDto live = service.create(request(next(), ShortcodeType.PAYBILL, Environment.PRODUCTION));

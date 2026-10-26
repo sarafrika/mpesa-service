@@ -172,6 +172,30 @@ class CollectionsIntegrationTest {
 
     // ---------- C2B confirmations ----------
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"mpesa-viewer,false", "mpesa-operator,false",
+            "mpesa-finance,true", "mpesa-admin,true"})
+    void onlyFinanceAndAdminSeeFullPhonesAndNames(String role, boolean full) {
+        String transId = unique("TJR");
+        UUID uuid = confirmationService.confirm(confirmation(transId, shortcode.getShortcode(), "Pay Bill"),
+                Map.of("TransID", transId, "MSISDN", "254712345612", "FirstName", "JANE")).payment().getUuid();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("jane", "n/a",
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role))));
+        try {
+            TransactionDetailDto detail = feedService.detail(uuid);
+            TransactionDto row = feedService.list(new TransactionFeedService.Filter(null, null, null, null, null,
+                    transId, null, null), org.springframework.data.domain.PageRequest.of(0, 5)).getContent().getFirst();
+
+            assertThat(row.phone()).isEqualTo(full ? "254712345612" : "2547•••••612");
+            assertThat(row.customerName()).isEqualTo(full ? "JANE W KAMAU" : "J. KAMAU");
+            assertThat(detail.firstName()).isEqualTo(full ? "JANE" : "J.");
+            assertThat(detail.rawCallback().get("MSISDN").asText()).isEqualTo(full ? "254712345612" : "2547•••••612");
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
     @Test
     void aRetriedConfirmationIsStoredOnceAndAnnouncedOnce() {
         String transId = unique("TJQ");

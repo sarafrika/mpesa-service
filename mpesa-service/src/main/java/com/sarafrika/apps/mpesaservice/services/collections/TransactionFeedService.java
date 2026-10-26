@@ -2,6 +2,8 @@ package com.sarafrika.apps.mpesaservice.services.collections;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.services.shortcode.DarajaHints;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.StatusQueryDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.TimelineEventDto;
@@ -65,7 +67,9 @@ public class TransactionFeedService {
 
     @Transactional(readOnly = true)
     public Page<TransactionDto> list(Filter filter, Pageable pageable) {
-        return feedRepository.findAll(matching(validated(filter)), pageable).map(TransactionFeedService::toDto);
+        boolean full = PersonalData.visible();
+        return feedRepository.findAll(matching(validated(filter)), pageable)
+                .map(TransactionFeedService::toDto).map(row -> full ? row : row.masked());
     }
 
     @Transactional(readOnly = true)
@@ -75,28 +79,35 @@ public class TransactionFeedService {
         List<TransactionStatusQuery> queries = queryRepository.findTop20ByPaymentUuidOrderByCreatedAtDesc(uuid);
         List<TimelineEventDto> timeline = new ArrayList<>();
         TransactionDetailDto detail;
+        boolean full = PersonalData.visible();
+        TransactionDto row = toDto(entry);
         if ("IN".equals(entry.getDirection())) {
             MpesaIncomingPayment p = incomingRepository.findByUuid(uuid)
                     .orElseThrow(() -> new NotFoundException("Transaction not found"));
             timeline.addAll(incomingTimeline(p));
-            detail = new TransactionDetailDto(toDto(entry), p.getMerchantRequestId(), p.getFirstName(),
-                    p.getMiddleName(), p.getLastName(), p.getInvoiceNumber(), p.getOrgAccountBalance(),
+            JsonNode raw = p.getRawCallbackData() == null ? null : objectMapper.valueToTree(p.getRawCallbackData());
+            detail = new TransactionDetailDto(full ? row : row.masked(), p.getMerchantRequestId(),
+                    full ? p.getFirstName() : PersonalData.firstInitial(p.getFirstName()),
+                    full ? p.getMiddleName() : null, p.getLastName(), p.getInvoiceNumber(), p.getOrgAccountBalance(),
                     p.getTransactionDesc(), null, null, null, null, null, null, null, null,
-                    p.getRawCallbackData() == null ? null : objectMapper.valueToTree(p.getRawCallbackData()),
+                    full ? raw : PersonalData.redact(raw),
                     timeline, queries.stream().map(StatusQueryDto::from).toList(),
                     p.getShortcodeUuid() != null && (p.getPaymentType() == IncomingPaymentType.STK_PUSH
-                            || TransactionStatusService.receipt(p) != null));
+                            || TransactionStatusService.receipt(p) != null), false, null);
         } else {
             MpesaOutgoingPayment o = outgoingRepository.findByUuid(uuid)
                     .orElseThrow(() -> new NotFoundException("Transaction not found"));
             timeline.addAll(outgoingTimeline(o));
-            detail = new TransactionDetailDto(toDto(entry), null, null, null, null, null, null, null,
+            JsonNode raw = parse(o.getRawCallbackData());
+            detail = new TransactionDetailDto(full ? row : row.masked(), null, null, null, null, null, null, null,
                     o.getCommandId(), o.getInitiatorName(), o.getRemarks(), o.getOccasion(), o.getChargesPaid(),
                     o.getUtilityAccountAvailableFunds(), o.getWorkingAccountAvailableFunds(),
-                    Times.offset(o.getTimedOutAt()), parse(o.getRawCallbackData()), timeline,
+                    Times.offset(o.getTimedOutAt()), full ? raw : PersonalData.redact(raw), timeline,
                     queries.stream().map(StatusQueryDto::from).toList(),
                     o.getShortcodeUuid() != null && (StringUtils.hasText(o.getTransactionId())
-                            || StringUtils.hasText(o.getOriginatorConversationId())));
+                            || StringUtils.hasText(o.getOriginatorConversationId())),
+                    o.getStatus() == OutgoingPaymentStatus.PENDING && o.isOutcomeUnknown(),
+                    DarajaHints.forPayout(o.getResultCode()));
         }
         queries.forEach(query -> timeline.addAll(queryTimeline(query)));
         contributors.orderedStream().forEach(contributor -> timeline.addAll(contributor.eventsFor(uuid)));
