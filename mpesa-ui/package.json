@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check .",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.ts\"",
     "format": "biome check --write .",
     "api:spec": "cd ../mpesa-service && ./gradlew exportOpenApi",
     "api:generate": "orval --config orval.config.ts"
