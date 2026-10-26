@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { ShortcodeDetail } from "@/api/generated/model";
 import { ValidationRulesEditor } from "@/components/collections/validation-rules-editor";
+import { FeaturesSection } from "@/components/daraja-products/features-section";
 import { C2bSection } from "@/components/paybills/sections/c2b-section";
 import { CredentialsSection } from "@/components/paybills/sections/credentials-section";
 import { FloatSection } from "@/components/paybills/sections/float-section";
@@ -33,7 +34,7 @@ function ProductAccessSection({ shortcode }: PaybillSectionProps) {
   return <ProductAccess shortcodeUuid={shortcode.uuid} />;
 }
 
-// One entry per tab; a later slice adds its tab here (features).
+// One entry per tab, in display order.
 export const PAYBILL_SECTIONS: readonly PaybillSection[] = [
   { id: "overview", label: "Overview", Component: OverviewSection },
   {
@@ -52,4 +53,5 @@ export const PAYBILL_SECTIONS: readonly PaybillSection[] = [
   { id: "credentials", label: "Credentials", Component: CredentialsSection },
   { id: "float", label: "Float", Component: FloatSection },
   { id: "transactions", label: "Transactions", Component: TransactionsSection },
+  { id: "features", label: "Features", Component: FeaturesSection },
 ];
