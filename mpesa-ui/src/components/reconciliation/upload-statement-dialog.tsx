@@ -150,7 +150,7 @@ export function UploadStatementDialog({
             className="sm:col-span-2"
           >
             <FieldLabel htmlFor={`${id}-paybill`}>Paybill</FieldLabel>
-            <Select value={shortcode} onValueChange={setShortcode}>
+            <Select value={shortcode ?? ""} onValueChange={setShortcode}>
               <SelectTrigger
                 id={`${id}-paybill`}
                 aria-invalid={Boolean(errors.shortcode_uuid) || undefined}

@@ -183,7 +183,7 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
               onChange={(event) => setSearch(event.target.value)}
             />
             <Select
-              value={shortcode}
+              value={shortcode ?? ""}
               onValueChange={(value) => {
                 setShortcode(value);
                 invalidate();
