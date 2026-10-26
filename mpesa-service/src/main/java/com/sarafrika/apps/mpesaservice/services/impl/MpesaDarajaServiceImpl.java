@@ -664,6 +664,54 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return new MpesaApiResponse<>(false, null, errorResponse, LocalDateTime.now(), httpStatus, processingTimeMs);
     }
 
+    // ==================== 9. PULL TRANSACTIONS IMPLEMENTATION ====================
+
+    private static final DateTimeFormatter PULL_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    @Override
+    public MpesaApiResponse<Map<String, Object>> registerPullTransactions(MpesaShortCode shortcode,
+                                                                         String nominatedNumber, String callbackUrl) {
+        long startTime = System.currentTimeMillis();
+        try {
+            String accessToken = getAccessToken(shortcode);
+            if (accessToken == null) {
+                return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+            }
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("ShortCode", shortcode.getShortcode());
+            payload.put("RequestType", "Pull");
+            payload.put("NominatedNumber", nominatedNumber);
+            payload.put("CallBackURL", callbackUrl);
+            Map<String, Object> response = getHttpClient(shortcode.getEnvironment())
+                    .registerPullTransactions("Bearer " + accessToken, payload);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
+        } catch (Exception e) {
+            return handleException(e, startTime, "Pull Transactions registration");
+        }
+    }
+
+    @Override
+    public MpesaApiResponse<Map<String, Object>> queryPullTransactions(MpesaShortCode shortcode, LocalDateTime start,
+                                                                      LocalDateTime end, int offset) {
+        long startTime = System.currentTimeMillis();
+        try {
+            String accessToken = getAccessToken(shortcode);
+            if (accessToken == null) {
+                return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+            }
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("ShortCode", shortcode.getShortcode());
+            payload.put("StartDate", start.format(PULL_TIME));
+            payload.put("EndDate", end.format(PULL_TIME));
+            payload.put("OffSetValue", String.valueOf(offset));
+            Map<String, Object> response = getHttpClient(shortcode.getEnvironment())
+                    .queryPullTransactions("Bearer " + accessToken, payload);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
+        } catch (Exception e) {
+            return handleException(e, startTime, "Pull Transactions query");
+        }
+    }
+
     // ==================== PAYLOAD BUILDERS ====================
 
     private Map<String, Object> buildSTKPushPayload(MpesaShortCode shortcode, String phoneNumber,

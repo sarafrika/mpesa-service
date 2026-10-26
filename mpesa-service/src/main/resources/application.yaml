@@ -25,6 +25,12 @@ spring:
       pool:
         size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:3}
 
+  # Uploads (statements, payout CSVs); each feature checks its own smaller limit for a clear error.
+  servlet:
+    multipart:
+      max-file-size: 6MB
+      max-request-size: 7MB
+
   # Flyway runs on boot; migrations live under db/migrations (non-default location).
   flyway:
     enabled: ${SPRING_FLYWAY_ENABLED:true}
@@ -91,6 +97,24 @@ mpesa:
     console-client-id: mpesa-console
     bulk-max-file-size: ${MPESA_APPROVALS_BULK_MAX_FILE_SIZE:512KB}
     bulk-max-rows: ${MPESA_APPROVALS_BULK_MAX_ROWS:1000}
+  # Reconciliation. All of these are this service's settings, not Safaricom's: statement upload limits, the
+  # longest period, and the words (in Reason Type or Details) that mark charge, reversal and transfer lines.
+  # The nightly run reconciles yesterday through Pull Transactions; it is off unless enabled.
+  reconciliation:
+    max-file-size: ${MPESA_RECONCILIATION_MAX_FILE_SIZE:5MB}
+    max-rows: ${MPESA_RECONCILIATION_MAX_ROWS:50000}
+    max-period-days: ${MPESA_RECONCILIATION_MAX_PERIOD_DAYS:31}
+    charge-markers: charge
+    reversal-markers: reversal
+    transfer-markers: settlement account, funds movement
+    nightly:
+      enabled: ${MPESA_RECONCILIATION_NIGHTLY_ENABLED:false}
+      cron: ${MPESA_RECONCILIATION_NIGHTLY_CRON:0 30 2 * * *}
+    pull:
+      # Sent as Register's CallBackURL; Safaricom does not document what it posts there. Blank uses
+      # <callback base-url>/pull-transactions/callback.
+      callback-url: ${MPESA_RECONCILIATION_PULL_CALLBACK_URL:}
+      max-pages: 50
 
   # Daraja base URLs and HTTP timeouts.
   daraja:
