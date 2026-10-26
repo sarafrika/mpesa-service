@@ -74,7 +74,7 @@ export function ApprovalsScreen() {
               aria-current={on ? "page" : undefined}
               onClick={() => changeTab(item.value)}
               className={cn(
-                "-mb-px inline-flex min-h-10 shrink-0 items-center gap-2 border-b-2 px-0.5 font-medium text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                "inline-flex min-h-10 shrink-0 items-center gap-2 border-b-2 px-0.5 font-medium text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
                 on
                   ? "border-foreground text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",

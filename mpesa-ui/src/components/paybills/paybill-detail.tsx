@@ -163,8 +163,9 @@ function DetailTabs({
 
   return (
     <Tabs value={current} onValueChange={select} className="gap-4">
+      {/* pb-1 keeps the active underline inside the scroller, so no vertical scrollbar. */}
       <div className="overflow-x-auto border-b">
-        <TabsList variant="line" aria-label="Paybill sections">
+        <TabsList variant="line" className="pb-1" aria-label="Paybill sections">
           {visible.map((section) => (
             <TabsTrigger key={section.id} value={section.id}>
               {section.label}
