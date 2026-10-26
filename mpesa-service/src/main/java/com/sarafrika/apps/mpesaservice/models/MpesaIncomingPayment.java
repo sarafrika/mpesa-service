@@ -1,5 +1,7 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import com.sarafrika.apps.mpesaservice.utils.converters.IncomingPaymentStatusConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.IncomingPaymentTypeConverter;
 import com.sarafrika.apps.mpesaservice.utils.enums.C2BChannel;
@@ -19,6 +21,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "mpesa_incoming_payments")
+@SQLDelete(sql = "UPDATE mpesa_incoming_payments SET deleted_at = NOW() WHERE id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
