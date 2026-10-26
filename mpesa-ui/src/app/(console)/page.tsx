@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { SectionBoundary } from "@/components/error-boundary";
+import { PageHeader } from "@/components/page-header";
 import { PaymentLookup } from "./payment-lookup";
 
 export const metadata: Metadata = { title: "Overview" };
@@ -6,14 +8,13 @@ export const metadata: Metadata = { title: "Overview" };
 export default function OverviewPage() {
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <h1 className="font-semibold text-2xl tracking-tight">Overview</h1>
-        <p className="text-muted-foreground text-sm">
-          Collections, payouts and paybill health arrive with the admin API. Payment lookup works
-          today.
-        </p>
-      </div>
-      <PaymentLookup />
+      <PageHeader
+        title="Overview"
+        description="Collections, payouts and paybill health arrive with the admin API. Payment lookup works today."
+      />
+      <SectionBoundary title="Find a payment">
+        <PaymentLookup />
+      </SectionBoundary>
     </>
   );
 }
