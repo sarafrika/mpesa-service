@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "mpesa_shortcodes")
@@ -93,4 +94,27 @@ public class MpesaShortCode extends BaseEntity {
 
     @Column(name = "b2c_timeout_url")
     private String b2cTimeoutUrl;
+
+    /** First activation; a shortcode never activated is still a draft. */
+    @Column(name = "activated_at")
+    private LocalDateTime activatedAt;
+
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
+
+    @Column(name = "credentials_rotated_at")
+    private LocalDateTime credentialsRotatedAt;
+
+    /** Outcome of the last Daraja OAuth token check run from the console. */
+    @Column(name = "last_connection_ok")
+    private Boolean lastConnectionOk;
+
+    @Column(name = "last_connection_checked_at")
+    private LocalDateTime lastConnectionCheckedAt;
+
+    @Column(name = "last_connection_latency_ms")
+    private Integer lastConnectionLatencyMs;
+
+    @Column(name = "last_connection_error")
+    private String lastConnectionError;
 }
