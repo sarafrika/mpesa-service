@@ -1,10 +1,9 @@
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { proxyTarget } from "@/lib/proxy-path";
 import { UNREACHABLE_HEADER } from "@/lib/service-status";
 
 const SERVICE_URL = process.env.MPESA_SERVICE_URL ?? "http://localhost:8080";
-// Only the machine and admin APIs are reachable; Safaricom callbacks never go through the console.
-const ALLOWED = [/^api\/v1\/mpesa\//, /^api\/v1\/admin\//];
 const FORWARDED_HEADERS = ["accept", "content-type", "idempotency-key"];
 
 // Same shape as the service's own ApiError body, so the browser parses one format.
@@ -14,8 +13,8 @@ function apiError(status: number, error: string, message: string, headers?: Head
 
 async function forward(request: NextRequest, ctx: RouteContext<"/api/mpesa/[...path]">) {
   const { path } = await ctx.params;
-  const target = path.join("/");
-  if (!ALLOWED.some((rule) => rule.test(`${target}/`))) {
+  const target = proxyTarget(path, request.nextUrl.search, SERVICE_URL);
+  if (!target) {
     return apiError(404, "Not Found", "Not proxied");
   }
 
@@ -33,7 +32,7 @@ async function forward(request: NextRequest, ctx: RouteContext<"/api/mpesa/[...p
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   let upstream: Response;
   try {
-    upstream = await fetch(`${SERVICE_URL}/${target}${request.nextUrl.search}`, {
+    upstream = await fetch(target, {
       method: request.method,
       headers,
       body: hasBody ? await request.arrayBuffer() : undefined,
