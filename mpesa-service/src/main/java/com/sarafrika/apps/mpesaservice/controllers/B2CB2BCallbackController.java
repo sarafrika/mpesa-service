@@ -8,7 +8,9 @@ import com.sarafrika.apps.mpesaservice.services.treasury.B2bTransferService;
 import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sarafrika.apps.mpesaservice.services.approvals.reversal.ReversalCallbackService;
 
 import com.sarafrika.apps.mpesaservice.dtos.*;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,7 @@ public class B2CB2BCallbackController {
     private final TransactionStatusService transactionStatusService;
     private final BalanceService balanceService;
     private final B2bTransferService b2bTransferService;
+    private final ReversalCallbackService reversalCallbacks;
     private final ObjectMapper objectMapper;
 
     // ==================== B2C CALLBACKS ====================
@@ -222,108 +225,37 @@ public class B2CB2BCallbackController {
 
     // ==================== TRANSACTION REVERSAL CALLBACKS ====================
 
-    /**
-     * Handle transaction reversal result callback
-     * Called when transaction reversal processing completes
-     */
+    /** Safaricom's reversal result settles the reversal and, when reversed, marks the original payment. */
+    // ResultCode may be "0", a number or a string such as "R000002", so the body is read as JSON.
     @PostMapping("/reversal/result")
-    public ResponseEntity<CallbackAcknowledgment> handleReversalResult(
-            @RequestBody TransactionReversalResult reversalResult) {
-
+    public ResponseEntity<CallbackAcknowledgment> handleReversalResult(@RequestBody JsonNode body) {
         try {
+            JsonNode result = body.path("Result");
             log.info("Received reversal result - ConversationID: {}, ResultCode: {}",
-                    reversalResult.result().conversationId(),
-                    reversalResult.result().resultCode());
-
-            TransactionReversalResultData result = reversalResult.result();
-
-            if (result.isSuccessful()) {
-                handleSuccessfulReversal(result);
-            } else if (result.isTransactionNotFound()) {
-                handleReversalTransactionNotFound(result);
-            } else if (result.isRejected()) {
-                handleReversalRejected(result);
-            } else {
-                handleReversalError(result);
-            }
-
+                    result.path("ConversationID").asText(null), result.path("ResultCode").asText(null));
+            reversalCallbacks.applyResult(body, objectMapper.writeValueAsString(body));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
-
         } catch (Exception e) {
             log.error("Error processing reversal result callback", e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
 
-    /**
-     * Handle transaction reversal timeout callback
-     * Called when reversal request times out
-     */
+    /** A queue timeout leaves the reversal's outcome unknown; it is flagged and never resent. */
+    // Accepts both the flat timeout shape and one wrapped in "Result", as for status queries.
     @PostMapping("/reversal/timeout")
-    public ResponseEntity<CallbackAcknowledgment> handleReversalTimeout(
-            @RequestBody TransactionReversalTimeoutCallback timeoutCallback) {
-
+    public ResponseEntity<CallbackAcknowledgment> handleReversalTimeout(@RequestBody JsonNode body) {
+        JsonNode result = body.has("Result") ? body.get("Result") : body;
+        String conversationId = result.path("ConversationID").asText(null);
+        log.warn("Received reversal timeout - ConversationID: {}", conversationId);
         try {
-            log.warn("Received reversal timeout - ConversationID: {}, ResultDesc: {}",
-                    timeoutCallback.conversationId(),
-                    timeoutCallback.resultDesc());
-
-            // Handle reversal timeout
-            // TODO: Mark reversal as timed out
-            // TODO: Implement manual intervention process
-
-            log.info("Processed reversal timeout for ConversationID: {}", timeoutCallback.conversationId());
+            reversalCallbacks.applyTimeout(result.path("OriginatorConversationID").asText(null), conversationId,
+                    result.path("ResultDesc").asText(null));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
-
         } catch (Exception e) {
             log.error("Error processing reversal timeout callback", e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
-    }
-
-    // ==================== CALLBACK PROCESSING METHODS ====================
-
-
-
-    private void handleSuccessfulReversal(TransactionReversalResultData result) {
-        log.info("Processing successful reversal - TransactionID: {}", result.transactionId());
-
-        // Extract reversal details
-        TransactionReversalResultParameters params = result.resultParameters();
-        if (params != null) {
-            String amount = params.getAmount();
-            String reversalType = params.getReversalType();
-            String receiverName = params.getReceiverPartyPublicName();
-            String completedDateTime = params.getTransactionCompletedDateTime();
-
-            log.info("Reversal Details - Amount: {}, Type: {}, Receiver: {}, Completed: {}",
-                    amount, reversalType, receiverName, completedDateTime);
-
-            // TODO: Update original transaction status to reversed
-            // TODO: Update account balances
-            // TODO: Send reversal confirmation to affected parties
-        }
-    }
-
-    private void handleReversalTransactionNotFound(TransactionReversalResultData result) {
-        log.warn("Reversal failed - Transaction not found: {}", result.resultDesc());
-
-        // TODO: Mark reversal as failed - transaction not found
-        // TODO: Notify requesting party
-    }
-
-    private void handleReversalRejected(TransactionReversalResultData result) {
-        log.warn("Reversal rejected - ResultDesc: {}", result.resultDesc());
-
-        // TODO: Mark reversal as rejected
-        // TODO: Notify requesting party with rejection reason
-    }
-
-    private void handleReversalError(TransactionReversalResultData result) {
-        log.error("Reversal error - ResultDesc: {}", result.resultDesc());
-
-        // TODO: Mark reversal as failed
-        // TODO: Implement retry logic or manual intervention
     }
 
     // ==================== HELPER CLASSES ====================

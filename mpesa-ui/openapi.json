@@ -140,6 +140,138 @@
         "required" : [ "field", "message" ],
         "type" : "object"
       },
+      "ApprovalDto" : {
+        "properties" : {
+          "amount" : {
+            "example" : 15000.0,
+            "type" : "number"
+          },
+          "batch_uuid" : {
+            "description" : "BULK_PAYOUT: the batch of payouts",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "business_name" : {
+            "type" : "string"
+          },
+          "checker" : {
+            "type" : "string"
+          },
+          "checker_name" : {
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "daraja_call" : {
+            "description" : "The Daraja request approving it sends",
+            "example" : "POST /mpesa/reversal/v1/request · TransactionReversal",
+            "type" : "string"
+          },
+          "decided_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "decision_note" : {
+            "type" : "string"
+          },
+          "executed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "expires_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "maker" : {
+            "type" : "string"
+          },
+          "maker_name" : {
+            "type" : "string"
+          },
+          "outcome_message" : {
+            "description" : "What happened when it ran, or what Safaricom answered later",
+            "type" : "string"
+          },
+          "own_request" : {
+            "description" : "The caller raised this request, so they cannot approve or reject it",
+            "type" : "boolean"
+          },
+          "pre_checks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PreCheckDto"
+            },
+            "type" : "array"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "reversal" : {
+            "$ref" : "#/components/schemas/ReversalDto",
+            "description" : "REVERSAL: where the reversal stands at Safaricom"
+          },
+          "shortcode" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "WAITING", "APPROVED", "REJECTED", "EXPIRED", "EXECUTING", "EXECUTED", "FAILED" ],
+            "type" : "string"
+          },
+          "title" : {
+            "example" : "Reverse TJQ4K2L1MX",
+            "type" : "string"
+          },
+          "transaction_uuid" : {
+            "description" : "REVERSAL: the payment being reversed",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "type" : {
+            "description" : "REVERSAL, BULK_PAYOUT or B2B_SWEEP",
+            "example" : "REVERSAL",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "created_at", "expires_at", "maker", "own_request", "pre_checks", "reason", "status", "title", "type", "uuid" ],
+        "type" : "object"
+      },
+      "ApprovalSummaryDto" : {
+        "properties" : {
+          "waiting" : {
+            "example" : 3,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "waiting_raised_by_you" : {
+            "description" : "Waiting requests the caller raised, which someone else must decide",
+            "example" : 1,
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "waiting", "waiting_raised_by_you" ],
+        "type" : "object"
+      },
+      "ApproveApprovalRequest" : {
+        "properties" : {
+          "note" : {
+            "description" : "Optional note to the maker",
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AttentionItemDto" : {
         "properties" : {
           "description" : {
@@ -743,6 +875,75 @@
         "required" : [ "accounts", "requested_at", "shortcode_uuid", "source", "status", "uuid" ],
         "type" : "object"
       },
+      "BulkPayoutRowDto" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "line" : {
+            "description" : "Line in the file",
+            "example" : 2,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "description" : "Normalised to 2547XXXXXXXX when valid; masked unless the caller has mpesa-finance",
+            "type" : "string"
+          },
+          "problems" : {
+            "items" : {
+              "example" : "amount must be a whole number of shillings"
+            },
+            "type" : "array"
+          },
+          "reference" : {
+            "type" : "string"
+          },
+          "valid" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "line", "problems", "valid" ],
+        "type" : "object"
+      },
+      "BulkPayoutUploadDto" : {
+        "properties" : {
+          "approval_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "batch_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "invalid_count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "preview" : {
+            "type" : "boolean"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BulkPayoutRowDto"
+            },
+            "type" : "array"
+          },
+          "valid_count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "valid_total" : {
+            "description" : "Sum of the valid rows",
+            "type" : "number"
+          }
+        },
+        "required" : [ "invalid_count", "preview", "rows", "valid_count", "valid_total" ],
+        "type" : "object"
+      },
       "C2BConfirmationAcknowledgment" : {
         "properties" : {
           "ResultCode" : {
@@ -1323,6 +1524,7 @@
         "required" : [ "shortcodes_reporting" ],
         "type" : "object"
       },
+      "JsonNode" : { },
       "LatestTransactionDto" : {
         "properties" : {
           "account_reference" : {
@@ -1671,6 +1873,38 @@
         "required" : [ "outcome_unknown" ],
         "type" : "object"
       },
+      "PageResponseApprovalDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ApprovalDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
       "PageResponseAuditEventDto" : {
         "properties" : {
           "items" : {
@@ -1804,6 +2038,38 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/CallbackDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponsePayoutBatchItemDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PayoutBatchItemDto"
             },
             "type" : "array"
           },
@@ -2139,6 +2405,152 @@
         "required" : [ "active", "business_name", "collected_today_amount", "collected_today_count", "environment", "failed_last_hour", "low_float_threshold", "paid_out_today_amount", "paid_out_today_count", "settled_last_hour", "shortcode", "shortcode_type", "shortcode_uuid", "state" ],
         "type" : "object"
       },
+      "PayoutBatchCounts" : {
+        "properties" : {
+          "failed" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "paid" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pending" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "queued" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "refused" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "unknown" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "failed", "paid", "pending", "queued", "refused", "unknown" ],
+        "type" : "object"
+      },
+      "PayoutBatchDto" : {
+        "properties" : {
+          "approval_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "business_name" : {
+            "type" : "string"
+          },
+          "counts" : {
+            "$ref" : "#/components/schemas/PayoutBatchCounts"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "file_name" : {
+            "type" : "string"
+          },
+          "finished_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "invalid_count" : {
+            "description" : "Rows left out of the file as invalid",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "item_count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "paid_amount" : {
+            "type" : "number"
+          },
+          "processed_count" : {
+            "description" : "Items handed to the payout service so far",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "shortcode" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "started_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "WAITING", "REJECTED", "EXPIRED", "RUNNING", "COMPLETED" ],
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "total_amount" : {
+            "type" : "number"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "approval_uuid", "counts", "created_at", "invalid_count", "item_count", "paid_amount", "processed_count", "shortcode_uuid", "status", "title", "total_amount", "uuid" ],
+        "type" : "object"
+      },
+      "PayoutBatchItemDto" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "line" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "outcome" : {
+            "description" : "UNKNOWN: Safaricom never confirmed receiving it, so it may still be paid",
+            "enum" : [ "QUEUED", "PENDING", "PAID", "FAILED", "UNKNOWN", "REFUSED", "ERROR" ],
+            "type" : "string"
+          },
+          "payout_uuid" : {
+            "description" : "The B2C payout, a transaction in the feed",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "phone" : {
+            "description" : "Masked unless the caller has mpesa-finance",
+            "type" : "string"
+          },
+          "processed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "receipt" : {
+            "type" : "string"
+          },
+          "reference" : {
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "line", "outcome", "phone", "reference", "uuid" ],
+        "type" : "object"
+      },
       "PayoutFloatDto" : {
         "description" : "A shortcode's float as Safaricom last reported it on a payout result",
         "properties" : {
@@ -2222,6 +2634,20 @@
           }
         },
         "required" : [ "cancelled_count", "collected_amount", "collected_by_type", "collected_count", "failed_count", "payouts_amount", "payouts_count", "pending_count", "settled_count", "successful_count" ],
+        "type" : "object"
+      },
+      "PreCheckDto" : {
+        "properties" : {
+          "state" : {
+            "enum" : [ "OK", "WARN", "FAIL" ],
+            "type" : "string"
+          },
+          "text" : {
+            "example" : "Not reversed before",
+            "type" : "string"
+          }
+        },
+        "required" : [ "state", "text" ],
         "type" : "object"
       },
       "Product" : {
@@ -2444,6 +2870,18 @@
         "required" : [ "response_type" ],
         "type" : "object"
       },
+      "RejectApprovalRequest" : {
+        "properties" : {
+          "note" : {
+            "description" : "Why it was rejected, for the maker",
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "note" ],
+        "type" : "object"
+      },
       "RequestB2bSweepRequest" : {
         "properties" : {
           "amount" : {
@@ -2463,6 +2901,75 @@
           }
         },
         "required" : [ "amount", "destination_uuid", "reason" ],
+        "type" : "object"
+      },
+      "RequestReversalRequest" : {
+        "properties" : {
+          "amount" : {
+            "description" : "Defaults to the original amount; never more than it",
+            "example" : 15000,
+            "type" : "number"
+          },
+          "reason" : {
+            "example" : "Parent paid twice for invoice ELM-004512",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "transaction_uuid" : {
+            "description" : "The received payment to reverse",
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "reason", "transaction_uuid" ],
+        "type" : "object"
+      },
+      "ReversalDto" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "completed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "original_amount" : {
+            "type" : "number"
+          },
+          "receipt" : {
+            "description" : "Receipt of the payment being reversed",
+            "example" : "TJQ4K2L1MX",
+            "type" : "string"
+          },
+          "result_code" : {
+            "type" : "string"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "reversal_receipt" : {
+            "description" : "Safaricom's receipt for the reversal itself",
+            "type" : "string"
+          },
+          "sent_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "WAITING_APPROVAL", "CANCELLED", "SENDING", "SENT", "OUTCOME_UNKNOWN", "REVERSED", "FAILED" ],
+            "type" : "string"
+          },
+          "transaction_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "original_amount", "receipt", "status", "transaction_uuid", "uuid" ],
         "type" : "object"
       },
       "STKCallback" : {
@@ -3367,156 +3874,6 @@
         "required" : [ "amount", "created_at", "direction", "status", "type", "uuid" ],
         "type" : "object"
       },
-      "TransactionReversalResult" : {
-        "description" : "Transaction reversal result callback from Daraja API",
-        "properties" : {
-          "Result" : {
-            "$ref" : "#/components/schemas/TransactionReversalResultData",
-            "description" : "Result parameters containing reversal details"
-          }
-        },
-        "type" : "object"
-      },
-      "TransactionReversalResultData" : {
-        "description" : "Transaction reversal result data",
-        "properties" : {
-          "ConversationID" : {
-            "description" : "Conversation ID",
-            "example" : "AG_20230727_2010400e808f7bb5f4",
-            "type" : "string"
-          },
-          "OriginatorConversationID" : {
-            "description" : "Originator conversation ID",
-            "example" : "21605-295434-4",
-            "type" : "string"
-          },
-          "ResultCode" : {
-            "description" : "Result code (0 = success)",
-            "example" : 0,
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "ResultDesc" : {
-            "description" : "Result description",
-            "example" : "The service request is processed successfully.",
-            "type" : "string"
-          },
-          "ResultParameters" : {
-            "$ref" : "#/components/schemas/TransactionReversalResultParameters",
-            "description" : "Result parameters with reversal details"
-          },
-          "ResultType" : {
-            "description" : "Result type",
-            "example" : "Result",
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "TransactionID" : {
-            "description" : "Transaction ID",
-            "example" : "LGR019G3J2",
-            "type" : "string"
-          },
-          "rejected" : {
-            "type" : "boolean"
-          },
-          "successful" : {
-            "type" : "boolean"
-          },
-          "transactionNotFound" : {
-            "type" : "boolean"
-          }
-        },
-        "type" : "object"
-      },
-      "TransactionReversalResultParameter" : {
-        "description" : "Individual transaction reversal result parameter",
-        "properties" : {
-          "Key" : {
-            "description" : "Parameter name",
-            "example" : "Amount",
-            "type" : "string"
-          },
-          "Value" : {
-            "description" : "Parameter value",
-            "example" : 100.0,
-            "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
-      "TransactionReversalResultParameters" : {
-        "description" : "Transaction reversal result parameters",
-        "properties" : {
-          "ResultParameter" : {
-            "description" : "List of result parameter items",
-            "items" : {
-              "$ref" : "#/components/schemas/TransactionReversalResultParameter"
-            },
-            "type" : "array"
-          },
-          "amount" : {
-            "type" : "string"
-          },
-          "chargesPaidAccountAvailableFunds" : {
-            "type" : "string"
-          },
-          "creditPartyCharges" : {
-            "type" : "string"
-          },
-          "debitAccountCurrentBalance" : {
-            "type" : "string"
-          },
-          "debitPartyCharges" : {
-            "type" : "string"
-          },
-          "originatorAccountCurrentBalance" : {
-            "type" : "string"
-          },
-          "receiverPartyPublicName" : {
-            "type" : "string"
-          },
-          "reversalType" : {
-            "type" : "string"
-          },
-          "transactionCompletedDateTime" : {
-            "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
-      "TransactionReversalTimeoutCallback" : {
-        "description" : "Transaction reversal timeout callback from Daraja API",
-        "properties" : {
-          "ConversationID" : {
-            "description" : "Conversation ID",
-            "example" : "AG_20230727_2010400e808f7bb5f4",
-            "type" : "string"
-          },
-          "OriginatorConversationID" : {
-            "description" : "Originator conversation ID",
-            "example" : "21605-295434-4",
-            "type" : "string"
-          },
-          "ResultCode" : {
-            "description" : "Result code",
-            "example" : 1,
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "ResultDesc" : {
-            "description" : "Result description",
-            "example" : "The service request has timed out.",
-            "type" : "string"
-          },
-          "ResultType" : {
-            "description" : "Result type",
-            "example" : "Result",
-            "format" : "int32",
-            "type" : "integer"
-          }
-        },
-        "type" : "object"
-      },
       "TransactionStatusResult" : {
         "description" : "Transaction status result callback from Daraja API",
         "properties" : {
@@ -4154,6 +4511,659 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/v1/admin/approvals" : {
+      "get" : {
+        "operationId" : "listApprovals",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, amount, expires_at. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "description" : "Any of these statuses; repeat or comma-separate",
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "enum" : [ "WAITING", "APPROVED", "REJECTED", "EXPIRED", "EXECUTING", "EXECUTED", "FAILED" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "REVERSAL", "BULK_PAYOUT", "B2B_SWEEP" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseApprovalDto"
+                }
+              }
+            },
+            "description" : "A page of requests"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad paging, sort or filter value"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "List approval requests, newest first",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/bulk-payouts" : {
+      "post" : {
+        "operationId" : "uploadBulkPayout",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Shown to the checker, and on recipients' M-Pesa statements",
+          "in" : "query",
+          "name" : "title",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Why the batch is paid; required unless preview",
+          "in" : "query",
+          "name" : "reason",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only check the file; nothing is saved",
+          "in" : "query",
+          "name" : "preview",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "description" : "CSV with a header row: phone, amount, reference, and optionally name",
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BulkPayoutUploadDto"
+                }
+              }
+            },
+            "description" : "Every row with its problems, and the totals"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Unreadable or oversized file, or no valid rows"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such paybill"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The paybill is suspended or has no B2C initiator"
+          }
+        },
+        "summary" : "Check a payout CSV (phone, amount, reference, name); without preview its valid rows become a BULK_PAYOUT request waiting for a checker",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/bulk-payouts/{uuid}" : {
+      "get" : {
+        "operationId" : "getBulkPayoutBatch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayoutBatchDto"
+                }
+              }
+            },
+            "description" : "The batch"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such batch"
+          }
+        },
+        "summary" : "A bulk payout with its progress and totals",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/bulk-payouts/{uuid}/items" : {
+      "get" : {
+        "operationId" : "listBulkPayoutItems",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: line, amount. Default line,asc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "line,asc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "outcome",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "QUEUED", "PENDING", "PAID", "FAILED", "UNKNOWN", "REFUSED", "ERROR" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponsePayoutBatchItemDto"
+                }
+              }
+            },
+            "description" : "A page of rows"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad paging, sort or outcome"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such batch"
+          }
+        },
+        "summary" : "The rows of a bulk payout with each one's outcome",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/reversals" : {
+      "post" : {
+        "operationId" : "requestReversal",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RequestReversalRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovalDto"
+                }
+              }
+            },
+            "description" : "The REVERSAL request, waiting for a checker"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing reason, or more than the original amount"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such transaction"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not a settled incoming payment with a receipt, already reversed or being reversed, or its paybill has no initiator"
+          }
+        },
+        "summary" : "Ask for a received payment to be reversed; a finance user must approve it",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/summary" : {
+      "get" : {
+        "operationId" : "getApprovalSummary",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovalSummaryDto"
+                }
+              }
+            },
+            "description" : "The counts"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "How many requests wait for a checker",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/{uuid}" : {
+      "get" : {
+        "operationId" : "getApproval",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovalDto"
+                }
+              }
+            },
+            "description" : "The request"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such request"
+          }
+        },
+        "summary" : "One approval request with its pre-checks and outcome",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/{uuid}/approve" : {
+      "post" : {
+        "operationId" : "approveApproval",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApproveApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovalDto"
+                }
+              }
+            },
+            "description" : "Approved; status moves on to EXECUTING and EXECUTED"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance, and the checker cannot be the maker"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such request"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Already decided, or expired"
+          }
+        },
+        "summary" : "Approve a waiting request; it then runs against Daraja in the background",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
+    "/api/v1/admin/approvals/{uuid}/reject" : {
+      "post" : {
+        "operationId" : "rejectApproval",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RejectApprovalRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovalDto"
+                }
+              }
+            },
+            "description" : "Rejected"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The note is missing"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance, and the checker cannot be the maker"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such request"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Already decided, or expired"
+          }
+        },
+        "summary" : "Reject a waiting request with a note to the maker",
+        "tags" : [ "Admin: Approvals" ]
+      }
+    },
     "/api/v1/admin/audit" : {
       "get" : {
         "operationId" : "listAuditEvents",
@@ -8608,7 +9618,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/TransactionReversalResult"
+                "$ref" : "#/components/schemas/JsonNode"
               }
             }
           },
@@ -8636,7 +9646,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/TransactionReversalTimeoutCallback"
+                "$ref" : "#/components/schemas/JsonNode"
               }
             }
           },
@@ -8954,14 +9964,29 @@
     }
   },
   "tags" : [ {
+    "description" : "Maker-checker for reversals, bulk payouts and B2B sweeps",
+    "name" : "Admin: Approvals"
+  }, {
+    "description" : "Float: Account Balance queries, low-float threshold and B2B sweeps",
+    "name" : "Admin: Treasury"
+  }, {
+    "description" : "Sarafrika products (Keycloak clients) and the paybills and operations granted to them",
+    "name" : "Admin: Products"
+  }, {
+    "description" : "Signed payment events sent to products, and every delivery attempt",
+    "name" : "Admin: Webhooks"
+  }, {
+    "description" : "How a paybill answers Safaricom's C2B validation request",
+    "name" : "Admin: C2B validation"
+  }, {
+    "description" : "Send B2C payouts and poll their outcome",
+    "name" : "M-Pesa Payouts"
+  }, {
     "description" : "Daraja Dynamic QR codes customers scan to pay a paybill or till",
     "name" : "Admin: QR codes"
   }, {
     "description" : "Every deposit, STK request and payout across all paybills",
     "name" : "Admin: Transactions"
-  }, {
-    "description" : "Float: Account Balance queries, low-float threshold and B2B sweeps",
-    "name" : "Admin: Treasury"
   }, {
     "description" : "Initiate STK Push payments and poll incoming payment status",
     "name" : "M-Pesa Payments"
@@ -8972,22 +9997,10 @@
     "description" : "Every request Safaricom sent to a callback URL, and replaying failures",
     "name" : "Admin: Inbox"
   }, {
-    "description" : "Sarafrika products (Keycloak clients) and the paybills and operations granted to them",
-    "name" : "Admin: Products"
-  }, {
-    "description" : "Signed payment events sent to products, and every delivery attempt",
-    "name" : "Admin: Webhooks"
-  }, {
     "description" : "Figures for the console Overview",
     "name" : "Admin: Metrics"
   }, {
     "description" : "Paybills, tills and B2C shortcodes: onboarding, health and lifecycle",
     "name" : "Admin: Shortcodes"
-  }, {
-    "description" : "How a paybill answers Safaricom's C2B validation request",
-    "name" : "Admin: C2B validation"
-  }, {
-    "description" : "Send B2C payouts and poll their outcome",
-    "name" : "M-Pesa Payouts"
   } ]
 }

@@ -150,6 +150,10 @@ public interface MpesaDarajaService {
     MpesaApiResponse<TransactionReversalResponse> reverseTransaction(UUID shortcodeUuid, String transactionId,
                                                                      BigDecimal amount, String remarks);
 
+    /** Results go to the reversal callbacks; a failure to prepare the request is NOT_SENT (final). */
+    MpesaApiResponse<TransactionReversalResponse> reverseTransaction(MpesaShortCode shortcode, String transactionId,
+                                                                     BigDecimal amount, String remarks);
+
     // ==================== 8. DYNAMIC QR CODE GENERATION ====================
 
     /**

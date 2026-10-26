@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.controllers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.sarafrika.apps.mpesaservice.config.CallbackSecurityConfig;
+import com.sarafrika.apps.mpesaservice.services.approvals.reversal.ReversalCallbackService;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionStatusService;
 import com.sarafrika.apps.mpesaservice.dtos.AccountBalanceResultData;
 import com.sarafrika.apps.mpesaservice.dtos.B2BResult;
@@ -43,6 +45,8 @@ class B2CB2BCallbackControllerTest {
     private BalanceService balanceService;
     @MockitoBean
     private B2bTransferService b2bTransferService;
+    @MockitoBean
+    private ReversalCallbackService reversalCallbacks;
 
     @ParameterizedTest
     @ValueSource(strings = {"/b2c/result", "/b2b/result", "/transaction-status/result", "/account-balance/result",
@@ -99,5 +103,28 @@ class B2CB2BCallbackControllerTest {
 
         verify(b2bTransferService).applyTimeout(eq("OC-1"), eq("AG_1"), eq("timed out"));
         verify(balanceService).applyTimeout(isNull(), eq("AG_2"), isNull());
+    }
+
+    @Test
+    void aReversalResultWithAStringResultCodeReachesTheService() throws Exception {
+        String body = """
+                {"Result": {"ResultType": 0, "ResultCode": "R000002", "ResultDesc": "The OriginalTransactionID is invalid.",
+                  "OriginatorConversationID": "3124-481d", "ConversationID": "AG_2021", "TransactionID": "SKE0000000"}}
+                """;
+        mockMvc.perform(post("/api/v1/callbacks/reversal/result").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        verify(reversalCallbacks).applyResult(argThat(node -> "R000002".equals(node.path("Result")
+                .path("ResultCode").asText())), anyString());
+    }
+
+    @Test
+    void aReversalTimeoutIsMatchedByItsConversationIds() throws Exception {
+        String body = """
+                {"Result": {"ResultType": 1, "ResultCode": 1, "ResultDesc": "The service request has timed out.",
+                  "OriginatorConversationID": "3124-481d", "ConversationID": "AG_2021"}}
+                """;
+        mockMvc.perform(post("/api/v1/callbacks/reversal/timeout").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        verify(reversalCallbacks).applyTimeout(eq("3124-481d"), eq("AG_2021"), eq("The service request has timed out."));
     }
 }

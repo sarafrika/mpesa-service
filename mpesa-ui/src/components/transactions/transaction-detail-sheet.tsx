@@ -1,7 +1,8 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, CircleHelp, Lightbulb, RefreshCw } from "lucide-react";
+import { ChevronDown, CircleHelp, Lightbulb, RefreshCw, Undo2 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   getGetTransactionQueryKey,
@@ -10,6 +11,7 @@ import {
   useQueryTransactionStatus,
 } from "@/api/generated/endpoints/admin-transactions/admin-transactions";
 import type { TransactionDetailDto } from "@/api/generated/model";
+import { RequestReversalDialog } from "@/components/approvals/request-reversal-dialog";
 import { ErrorState } from "@/components/error-state";
 import { type KeyValueItem, KeyValueList } from "@/components/key-value-list";
 import { MaskedPhone } from "@/components/masked-phone";
@@ -92,6 +94,9 @@ function DetailContent({
   const canQuery = useHasRole("mpesa-operator");
   // The service masks these for viewers too; this keeps the panel safe if a field slips through.
   const canSeePersonal = useHasRole("mpesa-finance");
+  const [reversing, setReversing] = useState(false);
+  // Daraja's Reversal API reverses money received; the service re-checks everything when asked.
+  const receipt = tx.direction === "in" && tx.status === "SUCCESS" ? tx.receipt : undefined;
   const statusQuery = useQueryTransactionStatus({
     mutation: {
       meta: { requiredRole: "mpesa-operator" },
@@ -240,6 +245,11 @@ function DetailContent({
               <RefreshCw className={statusQuery.isPending ? "animate-spin" : undefined} />
               {statusQuery.isPending ? "Asking Safaricom…" : "Query status"}
             </Button>
+            {receipt && (
+              <Button variant="outline" size="lg" onClick={() => setReversing(true)}>
+                <Undo2 /> Request reversal
+              </Button>
+            )}
             {!detail.can_query_status && (
               <p className="text-muted-foreground text-xs">
                 There is nothing Safaricom can be asked about for this transaction.
@@ -252,6 +262,15 @@ function DetailContent({
           </p>
         )}
       </SheetFooter>
+      {receipt && (
+        <RequestReversalDialog
+          transactionUuid={tx.uuid}
+          receipt={receipt}
+          amount={tx.amount}
+          open={reversing}
+          onOpenChange={setReversing}
+        />
+      )}
     </>
   );
 }
