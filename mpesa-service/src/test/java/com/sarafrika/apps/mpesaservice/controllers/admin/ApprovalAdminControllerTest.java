@@ -106,6 +106,16 @@ class ApprovalAdminControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "mpesa-viewer")
+    void aCallerWithoutTheRoleIsRefusedBeforeTheBodyIsValidated() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/approvals/reversals").contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.field_errors").isEmpty());
+        verifyNoInteractions(reversals);
+    }
+
+    @Test
     @WithMockUser(roles = "mpesa-admin")
     void adminImpliesFinanceAndApproves() throws Exception {
         when(approvals.approve(eq(ID), isNull())).thenReturn(dto());
