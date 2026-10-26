@@ -21,6 +21,10 @@ mpesa:
   security:
     # Fixed development key, never used outside tests and local runs.
     encryption-key: ZGV2LW9ubHktbXBlc2EtZW5jcnlwdGlvbi1rZXktMzI=
+  webhooks:
+    # Tests drive the dispatcher directly; its claim query is Postgres-only.
+    dispatcher:
+      enabled: false
   callback:
     ip-whitelist:
       enabled: false

@@ -16,6 +16,7 @@ import com.sarafrika.apps.mpesaservice.dtos.B2CResultParameter;
 import com.sarafrika.apps.mpesaservice.dtos.B2CResultParameters;
 import com.sarafrika.apps.mpesaservice.dtos.B2CTimeoutCallback;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
+import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
@@ -35,6 +36,8 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -52,6 +55,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({MpesaPayoutService.class, SecretCipher.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
+@RecordApplicationEvents
 class MpesaPayoutServiceIntegrationTest {
 
     @Container
@@ -65,6 +69,8 @@ class MpesaPayoutServiceIntegrationTest {
 
     @MockitoBean
     private MpesaDarajaService darajaService;
+    @Autowired
+    private ApplicationEvents events;
 
     private MpesaShortCode shortcode;
 
@@ -161,6 +167,29 @@ class MpesaPayoutServiceIntegrationTest {
         MpesaOutgoingPayment timedOut = service.findForClient("elimika-backend", "WD-8").orElseThrow();
         assertThat(timedOut.getStatus()).isEqualTo(OutgoingPaymentStatus.PENDING);
         assertThat(timedOut.getTimedOutAt()).isNotNull();
+    }
+
+    @Test
+    void settlingAPayoutPublishesOneEventForThePayingClient() {
+        accept();
+        MpesaOutgoingPayment paid = service.initiate("elimika-backend", request("WD-9", "1500"));
+        MpesaOutgoingPayment refused = service.initiate("elimika-backend", request("WD-10", "1500"));
+
+        B2CResult result = new B2CResult(0, 0, "The service request is processed successfully.",
+                paid.getOriginatorConversationId(), "AG_9", "TJE4K9L2Q9", new B2CResultParameters(List.of(
+                new B2CResultParameter("TransactionReceipt", "TJE4K9L2Q9"))));
+        service.applyResult(result, "{}");
+        service.applyResult(result, "{}");
+        service.applyResult(failure(refused.getOriginatorConversationId()), "{}");
+
+        List<PaymentEvent> published = events.stream(PaymentEvent.class).toList();
+        assertThat(published).extracting(PaymentEvent::type)
+                .containsExactly(PaymentEvent.B2C_COMPLETED, PaymentEvent.B2C_FAILED);
+        assertThat(published.get(0).clientId()).isEqualTo("elimika-backend");
+        assertThat(published.get(0).paymentUuid()).isEqualTo(paid.getUuid());
+        assertThat(published.get(0).shortcodeUuid()).isEqualTo(shortcode.getUuid());
+        assertThat(published.get(0).data()).containsEntry("client_reference", "WD-9")
+                .containsEntry("transaction_id", "TJE4K9L2Q9");
     }
 
     private void accept() {
