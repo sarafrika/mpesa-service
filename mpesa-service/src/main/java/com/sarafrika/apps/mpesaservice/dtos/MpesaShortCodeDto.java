@@ -11,12 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * Data Transfer Object for M-Pesa Shortcode Configuration
- *
- * This record represents the complete configuration for an M-Pesa shortcode,
- * including all necessary API credentials, URLs, and business settings.
- */
+/** An M-Pesa shortcode's configuration; credentials are write-only, never serialised in responses. */
 @Schema(
         name = "MpesaShortCodeDto",
         description = "M-Pesa shortcode configuration containing API credentials, URLs, and business settings"
@@ -67,14 +62,15 @@ public record MpesaShortCodeDto(
         String businessName,
 
         @Schema(
-                description = "M-Pesa API consumer key for authentication",
+                description = "M-Pesa API consumer key for authentication (write-only, encrypted in storage)",
                 example = "9v38Dtu5u2BpsITPmLcXNWGMsjZRWSTG",
                 requiredMode = Schema.RequiredMode.REQUIRED,
-                maxLength = 255
+                maxLength = 255,
+                accessMode = Schema.AccessMode.WRITE_ONLY
         )
         @NotBlank(message = "Consumer key is required")
         @Size(max = 255, message = "Consumer key cannot exceed 255 characters")
-        @JsonProperty("consumer_key")
+        @JsonProperty(value = "consumer_key", access = JsonProperty.Access.WRITE_ONLY)
         String consumerKey,
 
         @Schema(
@@ -86,7 +82,7 @@ public record MpesaShortCodeDto(
         )
         @NotBlank(message = "Consumer secret is required")
         @Size(max = 500, message = "Consumer secret cannot exceed 500 characters")
-        @JsonProperty("consumer_secret")
+        @JsonProperty(value = "consumer_secret", access = JsonProperty.Access.WRITE_ONLY)
         String consumerSecret,
 
         @Schema(
@@ -96,7 +92,7 @@ public record MpesaShortCodeDto(
                 accessMode = Schema.AccessMode.WRITE_ONLY
         )
         @Size(max = 500, message = "Passkey cannot exceed 500 characters")
-        @JsonProperty("passkey")
+        @JsonProperty(value = "passkey", access = JsonProperty.Access.WRITE_ONLY)
         String passkey,
 
         @Schema(

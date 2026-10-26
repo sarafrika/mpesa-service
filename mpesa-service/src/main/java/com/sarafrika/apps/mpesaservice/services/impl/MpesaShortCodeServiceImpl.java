@@ -149,7 +149,7 @@ public class MpesaShortCodeServiceImpl implements MpesaShortCodeService {
                 entity.getShortcode(),
                 entity.getShortcodeType(),
                 entity.getBusinessName(),
-                entity.getConsumerKey(),
+                null, // Credentials never leave the service
                 null, // Don't expose consumer secret in reads
                 null, // Don't expose passkey in reads
                 entity.getCallbackUrl(),
