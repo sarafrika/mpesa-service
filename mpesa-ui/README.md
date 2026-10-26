@@ -17,7 +17,7 @@ cp .env.example .env.local
 pnpm install
 pnpm dev          # regenerates the API client, then starts on :3000
 pnpm lint         # Biome lint and format check
-pnpm test         # unit tests for src/lib (Node's test runner)
+pnpm test         # unit tests for the pure helpers (src/**/*.test.ts, Node's test runner)
 pnpm format       # Biome fixes
 pnpm api:spec     # re-exports openapi.json from mpesa-service
 ```
@@ -28,7 +28,7 @@ Signing out ends the Keycloak session too. The user menu asks `src/app/api/auth/
 
 ## Shared pieces
 
-Screens build on the components beside `src/components/ui/`: `PageHeader`, `SectionCard`, `StatCard`, `StatusBadge`, `Money`, `MaskedPhone`, `KeyValueList`, `Timeline`, `FilterChips`, `SearchInput`, `DataTablePagination`, `ConfirmDialog`, `EmptyState`, `ErrorState` and `RoleGate` (with the `useHasRole` hook). Formatting lives in `src/lib/format.ts` and the role hierarchy in `src/lib/roles.ts`; `pnpm test` runs their unit tests with Node's own test runner. Charts take `moneyChartConfig` from `src/lib/chart.ts`, so money in is always `--chart-1` and money out `--chart-2`.
+Screens build on the components beside `src/components/ui/`: `PageHeader`, `SectionCard`, `StatCard`, `StatusBadge`, `Money`, `MaskedPhone`, `KeyValueList`, `Timeline`, `FilterChips`, `SearchInput`, `DataTablePagination`, `ConfirmDialog`, `EmptyState`, `ErrorState` and `RoleGate` (with the `useHasRole` hook). Formatting lives in `src/lib/format.ts` and the role hierarchy in `src/lib/roles.ts`; `pnpm test` runs every `*.test.ts` under `src` (these and the screens' pure helpers) with Node's own test runner, so a test file may only import modules without `@/` paths. Charts take `moneyChartConfig` from `src/lib/chart.ts`, so money in is always `--chart-1` and money out `--chart-2`.
 
 ## Paged tables
 
