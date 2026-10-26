@@ -34,6 +34,9 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationConfig;
+import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger;
+import com.sarafrika.apps.mpesaservice.services.reconciliation.StkCandidates;
 import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentServiceImpl;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.PageRequests;
@@ -83,6 +86,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Import({C2BConfirmationService.class, TransactionFeedService.class, TransactionStatusService.class,
         ValidationRuleService.class, C2BValidationService.class, AccountLookupClient.class, StkStatusReconciler.class,
         MpesaIncomingPaymentServiceImpl.class, AuditService.class, SecretCipher.class, MpesaPayoutService.class,
+        StkCandidates.class, ReconciliationLedger.class, ReconciliationConfig.class,
         CollectionsIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @RecordApplicationEvents
@@ -495,6 +499,131 @@ class CollectionsIntegrationTest {
         MpesaIncomingPayment stored = incomingRepository.findByUuid(uuid).orElseThrow();
         assertThat(stored.getLastName()).isEqualTo("KAMAU");
         assertThat(stored.getRawCallbackData()).containsKey("C2BConfirmation");
+    }
+
+    // ---------- an STK payment settled by the status query, then its C2B confirmation ----------
+
+    @Test
+    void aC2bConfirmationOfAnStkPaymentSettledWithoutAReceiptBecomesItsReceipt() {
+        UUID uuid = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(2));
+        String receipt = unique("TQ");
+        allEvents.seen.clear();
+
+        C2BConfirmationService.Confirmation result = confirmationService.confirm(
+                liveConfirmation(receipt, "4500.00", "2547 ***** 333"), Map.of("TransID", receipt, "FirstName", "JANE"));
+        C2BConfirmationService.Confirmation retry = confirmationService.confirm(
+                liveConfirmation(receipt, "4500.00", "2547 ***** 333"), Map.of("TransID", receipt));
+
+        assertThat(result.payment().getUuid()).isEqualTo(uuid);
+        assertThat(result.stkPayment()).isTrue();
+        assertThat(result.duplicate()).isFalse();
+        assertThat(retry.duplicate()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM mpesa_incoming_payments WHERE shortcode_uuid = ?",
+                Long.class, shortcode.getUuid())).isEqualTo(1);
+        MpesaIncomingPayment stored = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(stored.getPaymentType()).isEqualTo(IncomingPaymentType.STK_PUSH);
+        assertThat(stored.getTransactionId()).isEqualTo(receipt);
+        assertThat(stored.getFirstName()).isEqualTo("JANE");
+        assertThat(stored.getC2bChannel()).isEqualTo(C2BChannel.PAYBILL);
+        assertThat(stored.getPossibleStkDuplicates()).isNull();
+        assertThat(stored.getRawCallbackData()).containsKey("C2BConfirmation").containsEntry("Source", "STK push query");
+        assertThat(allEvents.seen).isEmpty();
+        assertThat(events.stream(PaymentEvent.class).filter(e -> uuid.equals(e.paymentUuid())))
+                .extracting(PaymentEvent::type).containsExactly(PaymentEvent.STK_COMPLETED);
+    }
+
+    @Test
+    void twoDeliveriesOfThatConfirmationTogetherStillLeaveOnePayment() throws Exception {
+        UUID uuid = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(2));
+        String receipt = unique("TQ");
+        allEvents.seen.clear();
+        java.util.concurrent.CyclicBarrier start = new java.util.concurrent.CyclicBarrier(2);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            List<java.util.concurrent.Future<?>> runs = new java.util.ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                runs.add(pool.submit(() -> {
+                    start.await();
+                    try {
+                        return confirmationService.confirm(liveConfirmation(receipt, "4500.00", "254722000333"), null);
+                    } catch (org.springframework.dao.DataIntegrityViolationException raced) {
+                        return null; // the unique receipt refused the loser; the controller acknowledges it
+                    }
+                }));
+            }
+            for (java.util.concurrent.Future<?> run : runs) {
+                run.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM mpesa_incoming_payments WHERE shortcode_uuid = ?",
+                Long.class, shortcode.getUuid())).isEqualTo(1);
+        assertThat(incomingRepository.findByUuid(uuid).orElseThrow().getTransactionId()).isEqualTo(receipt);
+        assertThat(allEvents.seen).isEmpty();
+    }
+
+    @Test
+    void aConfirmationSeveralReceiptlessStkPaymentsMayBeIsStoredButFlagged() {
+        UUID first = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(3));
+        UUID second = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(1));
+        String receipt = unique("TA");
+
+        C2BConfirmationService.Confirmation result = confirmationService.confirm(
+                liveConfirmation(receipt, "4500.00", "2547 ***** 333"), Map.of("TransID", receipt));
+
+        assertThat(result.stkPayment()).isFalse();
+        MpesaIncomingPayment stored = incomingRepository.findByTransactionId(receipt).orElseThrow();
+        assertThat(stored.getPaymentType()).isEqualTo(IncomingPaymentType.C2B);
+        assertThat(stored.getPossibleStkDuplicates()).isEqualTo(2);
+        assertThat(stored.getRawCallbackData()).containsEntry("PossibleStkPayments",
+                List.of(first.toString(), second.toString()));
+        assertThat(incomingRepository.findByUuid(first).orElseThrow().getTransactionId()).startsWith("ws_CO_");
+        assertThat(incomingRepository.findByUuid(second).orElseThrow().getTransactionId()).startsWith("ws_CO_");
+        assertThat(events.stream(PaymentEvent.class).filter(e -> stored.getUuid().equals(e.paymentUuid())))
+                .extracting(PaymentEvent::type).containsExactly(PaymentEvent.C2B_CONFIRMED);
+    }
+
+    @Test
+    void aConfirmationNoReceiptlessStkPaymentFitsIsStoredAsBefore() {
+        UUID otherAmount = settledByQuery("4400.00", LocalDateTime.now().minusMinutes(2));
+        UUID otherPhone = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID tooEarly = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(40));
+        String receipt = unique("TB");
+
+        C2BConfirmationService.Confirmation result = confirmationService.confirm(
+                liveConfirmation(receipt, "4500.00", "254711000999"), Map.of("TransID", receipt));
+
+        assertThat(result.stkPayment()).isFalse();
+        assertThat(result.payment().getPaymentType()).isEqualTo(IncomingPaymentType.C2B);
+        assertThat(result.payment().getPossibleStkDuplicates()).isNull();
+        for (UUID stk : List.of(otherAmount, otherPhone, tooEarly)) {
+            assertThat(incomingRepository.findByUuid(stk).orElseThrow().getTransactionId()).startsWith("ws_CO_");
+        }
+        assertThat(events.stream(PaymentEvent.class).filter(e -> result.payment().getUuid().equals(e.paymentUuid())))
+                .extracting(PaymentEvent::type).containsExactly(PaymentEvent.C2B_CONFIRMED);
+    }
+
+    /** An STK payment whose callback was lost, settled by the STK query (whose reply has no receipt). */
+    private UUID settledByQuery(String amount, LocalDateTime requestedAt) {
+        UUID uuid = stk(amount, requestedAt);
+        String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
+        when(darajaService.queryStkPushStatus(eq(shortcode.getUuid()), eq(checkout)))
+                .thenReturn(MpesaApiResponse.success(new StkStatusResponse("m-1", checkout, 0,
+                        "The service request is processed successfully.", null, null, null, null), 200));
+        statusService.request(uuid);
+        MpesaIncomingPayment settled = incomingRepository.findByUuid(uuid).orElseThrow();
+        assertThat(settled.getStatus()).isEqualTo(IncomingPaymentStatus.SUCCESS);
+        assertThat(settled.getTransactionId()).isEqualTo(checkout);
+        return uuid;
+    }
+
+    private C2BConfirmationCallback liveConfirmation(String transId, String amount, String msisdn) {
+        return new C2BConfirmationCallback("Pay Bill", transId,
+                LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")),
+                new BigDecimal(amount), shortcode.getShortcode(), "ORDER-7731", "", null, null, msisdn, "JANE", null,
+                "KAMAU");
     }
 
     private static Map<String, Object> stkSuccess(String checkout, String receipt) {

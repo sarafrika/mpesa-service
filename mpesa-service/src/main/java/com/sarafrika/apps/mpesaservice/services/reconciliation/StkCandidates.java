@@ -2,6 +2,7 @@ package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
 import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger.StkCandidate;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +19,17 @@ public class StkCandidates {
     private final ReconciliationProperties properties;
 
     public List<StkCandidate> find(UUID shortcodeUuid, StatementLine line, BigDecimal amount) {
-        if (line == null || line.completedAt() == null) {
+        return line == null ? List.of() : find(shortcodeUuid, line.completedAt(), line.otherParty(), amount);
+    }
+
+    /** The same match for a deposit seen at a time, from a party shown as Safaricom shows it (a C2B MSISDN that
+     * is masked or hashed fits any phone, since nothing in it can be compared). */
+    public List<StkCandidate> find(UUID shortcodeUuid, LocalDateTime at, String otherParty, BigDecimal amount) {
+        if (at == null) {
             return List.of();
         }
-        return ledger.stkCandidates(shortcodeUuid, amount, line.completedAt(), properties.stkMatchWindow()).stream()
-                .filter(c -> phoneFits(line.otherParty(), c.phoneNumber())).toList();
+        return ledger.stkCandidates(shortcodeUuid, amount, at, properties.stkMatchWindow()).stream()
+                .filter(c -> phoneFits(otherParty, c.phoneNumber())).toList();
     }
 
     /** False only when both numbers are known and the digits Safaricom shows differ from ours. */

@@ -198,6 +198,15 @@ public class MetricsQueries {
                 MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
     }
 
+    /** C2B confirmations since a time that several receiptless STK payments may also be. */
+    public PendingStk possibleStkDuplicates(Instant since, Filter filter) {
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.toStorage(since));
+        String sql = "SELECT COUNT(*) AS n, MIN(p.created_at) AS oldest " + from(Direction.IN)
+                + " AND p.possible_stk_duplicates IS NOT NULL AND p.created_at >= :since" + scope(filter, params);
+        return jdbc.queryForObject(sql, params, (rs, i) -> new PendingStk(rs.getLong("n"),
+                MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
+    }
+
     /** C2B confirmations since a time that reached a shortcode not configured here. */
     public PendingStk unlinkedDeposits(Instant since) {
         MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.toStorage(since));

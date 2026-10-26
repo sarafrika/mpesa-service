@@ -17,6 +17,7 @@ import com.sarafrika.apps.mpesaservice.services.metrics.attention.AttentionScope
 import com.sarafrika.apps.mpesaservice.services.metrics.attention.AttentionService;
 import com.sarafrika.apps.mpesaservice.services.metrics.attention.PaybillAttentionSource;
 import com.sarafrika.apps.mpesaservice.services.metrics.attention.PendingStkAttentionSource;
+import com.sarafrika.apps.mpesaservice.services.metrics.attention.PossibleStkDuplicatesAttentionSource;
 import com.sarafrika.apps.mpesaservice.services.metrics.attention.UnlinkedDepositsAttentionSource;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
@@ -57,7 +58,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({MetricsConfig.class, MetricsQueries.class, MetricsService.class, PaybillHealthService.class,
         AttentionService.class, PaybillAttentionSource.class, PendingStkAttentionSource.class,
-        UnlinkedDepositsAttentionSource.class,
+        UnlinkedDepositsAttentionSource.class, PossibleStkDuplicatesAttentionSource.class,
         SecretCipher.class, MetricsIntegrationTest.FixedClock.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class MetricsIntegrationTest {
@@ -351,6 +352,24 @@ class MetricsIntegrationTest {
                 .containsExactly("UNLINKED_DEPOSITS");
         assertThat(attention.items(new AttentionScope(null, Environment.PRODUCTION))).isEmpty();
         assertThat(metrics.latest(5, Filter.ALL)).hasSize(2);
+    }
+
+    @Test
+    void aC2bDepositSeveralStkPaymentsMayBeNeedsAttentionOnItsPaybill() {
+        UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
+        UUID other = shortcode("Elimika Shop", "PRODUCTION", true);
+        UUID flagged = incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(1)));
+        incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(2)));
+        UUID old = incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofDays(9)));
+        jdbc.update("UPDATE mpesa_incoming_payments SET possible_stk_duplicates = 2 WHERE uuid IN (?, ?)", flagged, old);
+
+        List<AttentionItemDto> items = attention.items(new AttentionScope(fees, null)).stream()
+                .filter(i -> i.kind().equals("POSSIBLE_STK_DUPLICATES")).toList();
+        assertThat(items).hasSize(1);
+        assertThat(items.getFirst().title()).isEqualTo("1 C2B deposit may repeat an STK payment");
+        assertThat(items.getFirst().href()).isEqualTo("/transactions?type=C2B&paybill=" + fees);
+        assertThat(attention.items(new AttentionScope(other, null))).extracting(AttentionItemDto::kind)
+                .doesNotContain("POSSIBLE_STK_DUPLICATES");
     }
 
     @Test

@@ -24,6 +24,7 @@ const ACTION: Record<string, string> = {
   PAYBILL_STALE: "Open paybill",
   PAYBILL_FAILING: "Open paybill",
   STK_PENDING: "View",
+  POSSIBLE_STK_DUPLICATES: "View",
   APPROVALS_WAITING: "Review",
   CALLBACKS_FAILING: "Open inbox",
 };

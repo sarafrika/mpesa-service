@@ -9,6 +9,8 @@ import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentServiceImpl;
+import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger.StkCandidate;
+import com.sarafrika.apps.mpesaservice.services.reconciliation.StkCandidates;
 import com.sarafrika.apps.mpesaservice.utils.enums.C2BChannel;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
@@ -17,7 +19,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /** Stores each C2B confirmation once, keyed by TransID, and announces it as {@link PaymentEvent#C2B_CONFIRMED}.
- * An unknown BusinessShortCode is still stored (unlinked): the money has moved and Daraja expects an ack. */
+ * An unknown BusinessShortCode is still stored (unlinked): the money has moved and Daraja expects an ack. A
+ * confirmation that is a receiptless STK payment (StkCandidates) becomes that payment's receipt instead. */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -39,9 +44,14 @@ public class C2BConfirmationService {
     private final MpesaShortCodeRepository shortCodeRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final StkCandidates stkCandidates;
 
-    /** duplicate is true when this TransID was already stored; nothing is changed or published then. */
-    public record Confirmation(MpesaIncomingPayment payment, boolean duplicate) {
+    /** duplicate is true when this TransID was already stored; nothing is changed or published then. stkPayment
+     * is true when the TransID became the receipt of an STK payment settled without one (nothing published). */
+    public record Confirmation(MpesaIncomingPayment payment, boolean duplicate, boolean stkPayment) {
+        public Confirmation(MpesaIncomingPayment payment, boolean duplicate) {
+            this(payment, duplicate, false);
+        }
     }
 
     /** Where a deposit came from: Daraja's live confirmation, or a backfill from Safaricom's own record. */
@@ -89,6 +99,22 @@ public class C2BConfirmationService {
         payment.setTransactionDesc(callback.transType());
         payment.setRawCallbackData(raw != null ? raw
                 : objectMapper.convertValue(callback, new TypeReference<Map<String, Object>>() {}));
+        List<StkCandidate> candidates = shortcode.isEmpty() || !SOURCE_CONFIRMATION.equals(source) ? List.of()
+                : stkCandidates.find(shortcode.get().getUuid(), payment.getTransactionDate() != null
+                        ? payment.getTransactionDate() : LocalDateTime.now(), callback.msisdn(), payment.getAmount());
+        if (candidates.size() == 1) {
+            Optional<Confirmation> attached = attachToStk(candidates.getFirst(), payment);
+            if (attached.isPresent()) {
+                return attached.get();
+            }
+        } else if (candidates.size() > 1) {
+            log.warn("C2B confirmation {} may be any of {} STK payments settled without a receipt; flagging it",
+                    transId, candidates.size());
+            payment.setPossibleStkDuplicates(candidates.size());
+            Map<String, Object> flagged = new LinkedHashMap<>(payment.getRawCallbackData());
+            flagged.put("PossibleStkPayments", candidates.stream().map(c -> c.uuid().toString()).toList());
+            payment.setRawCallbackData(flagged);
+        }
         payment.setStatus(IncomingPaymentStatus.SUCCESS);
         payment.setResultCode(0);
         payment.setProcessedAt(LocalDateTime.now());
@@ -98,6 +124,34 @@ public class C2BConfirmationService {
         eventPublisher.publishEvent(new PaymentEvent(PaymentEvent.C2B_CONFIRMED, saved.getShortcodeUuid(),
                 saved.getUuid(), null, eventData(saved, source == null ? SOURCE_CONFIRMATION : source)));
         return new Confirmation(saved, false);
+    }
+
+    /** The one STK payment settled by a status query (no receipt) that this confirmation fits takes its TransID as
+     * the receipt. c2b.confirmed is not published: the product already heard of this money as stk.completed. Empty
+     * when, under the lock, the payment no longer fits; the confirmation is then stored as any other. */
+    private Optional<Confirmation> attachToStk(StkCandidate candidate, MpesaIncomingPayment c2b) {
+        Optional<MpesaIncomingPayment> locked = paymentRepository.lockByCheckoutRequestId(candidate.checkoutRequestId())
+                .filter(p -> p.getUuid().equals(candidate.uuid()) && !p.isDeleted());
+        if (locked.isEmpty()) {
+            return Optional.empty();
+        }
+        MpesaIncomingPayment stk = locked.get();
+        if (c2b.getTransactionId().equals(stk.getTransactionId())) {
+            return Optional.of(new Confirmation(stk, true, true)); // a concurrent retry attached it first
+        }
+        if (stk.getStatus() != IncomingPaymentStatus.SUCCESS
+                || !Objects.equals(stk.getTransactionId(), stk.getCheckoutRequestId())) {
+            return Optional.empty();
+        }
+        log.info("C2B confirmation {} is STK payment {} settled without a receipt; attaching the receipt",
+                c2b.getTransactionId(), stk.getCheckoutRequestId());
+        MpesaIncomingPaymentServiceImpl.copyC2bDetails(c2b, stk);
+        Map<String, Object> merged = new LinkedHashMap<>(
+                stk.getRawCallbackData() == null ? Map.of() : stk.getRawCallbackData());
+        merged.put("C2BConfirmation", c2b.getRawCallbackData());
+        stk.setRawCallbackData(merged);
+        stk.setTransactionId(c2b.getTransactionId());
+        return Optional.of(new Confirmation(paymentRepository.saveAndFlush(stk), false, true));
     }
 
     private static MpesaIncomingPayment fromCallback(C2BConfirmationCallback callback, String transId,

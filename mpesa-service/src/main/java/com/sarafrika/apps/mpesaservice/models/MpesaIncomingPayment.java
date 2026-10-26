@@ -114,4 +114,8 @@ public class MpesaIncomingPayment extends BaseEntity {
 
     @Column(name = "status_checks", nullable = false)
     private int statusChecks;
+
+    /** For C2B: how many receiptless STK payments this deposit may also be, when more than one fit; else null. */
+    @Column(name = "possible_stk_duplicates")
+    private Integer possibleStkDuplicates;
 }
