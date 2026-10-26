@@ -286,7 +286,7 @@
             "type" : "string"
           },
           "target_uuid" : {
-            "description" : "The B2B transfer or reversal (uuid from the candidates list) the result belongs to",
+            "description" : "The B2B transfer, reversal or product payment (uuid from the candidates list) the result belongs to",
             "format" : "uuid",
             "type" : "string"
           }
@@ -308,7 +308,7 @@
             "type" : "boolean"
           },
           "kind" : {
-            "enum" : [ "B2B_TRANSFER", "REVERSAL" ],
+            "enum" : [ "B2B_TRANSFER", "REVERSAL", "TAX_REMITTANCE", "BUSINESS_TO_POCHI" ],
             "type" : "string"
           },
           "label" : {
@@ -1725,7 +1725,7 @@
             "type" : "string"
           },
           "payment_type" : {
-            "description" : "STK_PUSH or C2B for money in; B2C or B2B for money out",
+            "description" : "STK_PUSH, C2B or B2B_EXPRESS_CHECKOUT for money in; B2C or B2B for money out",
             "example" : "C2B",
             "type" : "string"
           },
@@ -2895,7 +2895,7 @@
             "type" : "number"
           },
           "collected_by_type" : {
-            "description" : "Successful incoming payments per payment type (STK_PUSH, C2B), zero when none",
+            "description" : "Successful incoming payments per payment type (STK_PUSH, C2B, B2B_EXPRESS_CHECKOUT), zero when none",
             "items" : {
               "$ref" : "#/components/schemas/TypeTotalDto"
             },
@@ -4740,7 +4740,7 @@
             "type" : "string"
           },
           "type" : {
-            "enum" : [ "C2B", "STK_PUSH", "B2C", "B2B" ],
+            "enum" : [ "C2B", "STK_PUSH", "B2B_EXPRESS_CHECKOUT", "B2C", "B2B" ],
             "type" : "string"
           },
           "uuid" : {
@@ -6496,7 +6496,7 @@
             "description" : "Not attachable, the target is settled, or the result names another conversation, amount or receiver"
           }
         },
-        "summary" : "Apply a failed B2B or reversal result to the transfer or reversal it belongs to (audited)",
+        "summary" : "Apply a failed B2B, reversal, Tax Remittance or Pochi result to the record it belongs to (audited)",
         "tags" : [ "Admin: Inbox" ]
       }
     },
@@ -6548,7 +6548,7 @@
             "description" : "No such callback"
           }
         },
-        "summary" : "Open B2B transfers or reversals a failed result could belong to, those that fit it first",
+        "summary" : "Open B2B transfers, reversals or Tax Remittance and Pochi payments a failed result could belong to, those that fit it first",
         "tags" : [ "Admin: Inbox" ]
       }
     },
@@ -11317,7 +11317,7 @@
           "name" : "type",
           "required" : false,
           "schema" : {
-            "enum" : [ "C2B", "STK_PUSH", "B2C", "B2B" ],
+            "enum" : [ "C2B", "STK_PUSH", "B2B_EXPRESS_CHECKOUT", "B2C", "B2B" ],
             "type" : "string"
           }
         }, {
