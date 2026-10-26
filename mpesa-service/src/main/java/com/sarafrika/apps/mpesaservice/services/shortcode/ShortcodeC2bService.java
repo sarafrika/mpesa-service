@@ -6,11 +6,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarafrika.apps.mpesaservice.dtos.C2BRegistrationResponse;
 import com.sarafrika.apps.mpesaservice.dtos.C2BSimulationResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
+import com.sarafrika.apps.mpesaservice.dtos.StkPushResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bResponseType;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeCallbackUrlsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bResultDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkResultDto;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.models.C2bRegistration;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
@@ -20,6 +24,7 @@ import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -30,7 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Registers C2B URLs with Safaricom (keeping every attempt) and runs sandbox C2B simulations. */
+/** Registers C2B URLs with Safaricom (keeping every attempt), runs sandbox C2B simulations and test STK pushes. */
 @Service
 @Slf4j
 public class ShortcodeC2bService {
@@ -130,6 +135,34 @@ public class ShortcodeC2bService {
         C2BSimulationResponse data = response.data();
         return new SimulateC2bResultDto(data.conversationId(), data.originatorConversationId(),
                 data.responseDescription());
+    }
+
+    /** Calls Daraja directly, so the console needs no product grant; live shortcodes only, at most KES 10. */
+    public TestStkResultDto testStk(UUID shortcodeUuid, TestStkRequest request) {
+        MpesaShortCode code = transaction.execute(status -> shortcodes.find(shortcodeUuid));
+        if (code.getShortcodeType() == ShortcodeType.B2C) {
+            throw new ConflictException("A B2C shortcode cannot take STK push payments");
+        }
+        if (ShortcodeViews.status(code) != ShortcodeStatus.ACTIVE) {
+            throw new ConflictException("Activate the shortcode before sending a test STK push");
+        }
+        BigDecimal amount = request.amountOrDefault();
+        String account = code.getAccountReference() == null || code.getAccountReference().isBlank()
+                ? "TEST" : code.getAccountReference();
+        MpesaApiResponse<StkPushResponse> response = darajaService.initiateSTKPush(shortcodeUuid,
+                request.phoneNumber(), amount, account, "Console test");
+        boolean ok = response != null && response.success() && response.data() != null;
+        Map<String, Object> after = new LinkedHashMap<>();
+        after.put("amount", amount);
+        after.put("accepted", ok);
+        after.put("checkout_request_id", ok ? response.data().checkoutRequestId() : null);
+        transaction.executeWithoutResult(status -> auditService.record("SHORTCODE_TEST_STK_SENT",
+                ShortcodeAdminService.ENTITY, shortcodeUuid.toString(), null, after));
+        if (!ok) {
+            throw DarajaErrors.toUpstream(response != null ? response.error() : null, "send the test STK push");
+        }
+        StkPushResponse data = response.data();
+        return new TestStkResultDto(data.checkoutRequestId(), data.merchantRequestId(), data.customerMessage());
     }
 
     private String json(Object value) {

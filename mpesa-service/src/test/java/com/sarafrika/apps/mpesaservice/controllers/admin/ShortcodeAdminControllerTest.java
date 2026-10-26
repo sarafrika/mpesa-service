@@ -28,6 +28,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeTotalsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bResultDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkResultDto;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
@@ -328,6 +329,27 @@ class ShortcodeAdminControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.field_errors[?(@.field == 'phone_number')]").exists())
                 .andExpect(jsonPath("$.field_errors[?(@.field == 'amount')]").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-operator")
+    void aTestStkDefaultsToOneShillingAndRefusesMoreThanTen() throws Exception {
+        when(c2b.testStk(eq(ID), any())).thenReturn(new TestStkResultDto("ws_CO_1", "m-1", "Check your phone"));
+
+        mockMvc.perform(json(post(BASE + "/" + ID + "/test-stk"), "{\"phone_number\":\"254708374149\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checkout_request_id").value("ws_CO_1"));
+        mockMvc.perform(json(post(BASE + "/" + ID + "/test-stk"), "{\"phone_number\":\"254708374149\",\"amount\":11}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field_errors[0].field").value("amount"));
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-viewer")
+    void aViewerCannotSendATestStk() throws Exception {
+        mockMvc.perform(json(post(BASE + "/" + ID + "/test-stk"), "{\"phone_number\":\"254708374149\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(c2b);
     }
 
     private static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder builder, String body) {

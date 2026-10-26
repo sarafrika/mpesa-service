@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarafrika.apps.mpesaservice.config.ClientIpResolver;
 import com.sarafrika.apps.mpesaservice.dtos.C2BRegistrationResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
+import com.sarafrika.apps.mpesaservice.dtos.StkPushResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationState;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bResponseType;
@@ -22,6 +23,8 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeRequest;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
@@ -313,6 +316,30 @@ class ShortcodeAdminIntegrationTest {
         assertThatThrownBy(() -> c2b.simulate(code.uuid(),
                 new SimulateC2bRequest("254708374149", BigDecimal.TEN, "ELM-1")))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void aTestStkGoesStraightToDarajaOnlyForActiveShortcodesAndIsAudited() {
+        signIn("mpesa-admin");
+        ShortcodeDetailDto code = service.create(request(next(), ShortcodeType.PAYBILL, Environment.SANDBOX));
+        TestStkRequest oneShilling = new TestStkRequest("254708374149", null);
+        assertThatThrownBy(() -> c2b.testStk(code.uuid(), oneShilling)).isInstanceOf(ConflictException.class);
+
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 200, null, LocalDateTime.now()));
+        service.testConnection(code.uuid());
+        service.activate(code.uuid());
+        when(daraja.initiateSTKPush(eq(code.uuid()), eq("254708374149"), eq(BigDecimal.ONE), eq("ELIMIKA"),
+                anyString())).thenReturn(MpesaApiResponse.success(
+                        new StkPushResponse("m-1", "ws_CO_1", "0", "Accepted", "Check your phone"), 200, 5L));
+
+        TestStkResultDto sent = c2b.testStk(code.uuid(), oneShilling);
+
+        assertThat(sent.checkoutRequestId()).isEqualTo("ws_CO_1");
+        assertThat(jdbc.queryForObject("SELECT after::text FROM audit_events WHERE entity_id = ? "
+                + "AND action = 'SHORTCODE_TEST_STK_SENT'", String.class, code.uuid().toString())).contains("ws_CO_1");
+        when(daraja.initiateSTKPush(any(), anyString(), any(), anyString(), anyString()))
+                .thenReturn(MpesaApiResponse.error("INVALID_REQUEST", "Bad phone", 400));
+        assertThatThrownBy(() -> c2b.testStk(code.uuid(), oneShilling)).isInstanceOf(UpstreamException.class);
     }
 
     private static String next() {

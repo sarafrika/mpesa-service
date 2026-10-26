@@ -15,6 +15,8 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeTotalsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SuspendShortcodeRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeRequest;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeAdminService;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeC2bService;
@@ -239,5 +241,22 @@ public class ShortcodeAdminController {
     public SimulateC2bResultDto simulateShortcodeC2b(@PathVariable UUID uuid,
                                                      @Valid @RequestBody SimulateC2bRequest request) {
         return c2b.simulate(uuid, request);
+    }
+
+    @PostMapping("/{uuid}/test-stk")
+    @PreAuthorize("hasRole('mpesa-operator')")
+    @Operation(operationId = "sendShortcodeTestStk", summary = "Send a test STK push (KES 1 by default, at most 10)",
+            description = "Calls Daraja directly, so no product grant is needed. Only for ACTIVE paybills and tills.")
+    @ApiResponse(responseCode = "200", description = "Safaricom sent the prompt to the phone")
+    @ApiResponse(responseCode = "404", description = "No such shortcode",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "Not active, or a B2C shortcode",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "502", description = "Safaricom refused the push",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "503", description = "Safaricom could not be reached",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public TestStkResultDto sendShortcodeTestStk(@PathVariable UUID uuid, @Valid @RequestBody TestStkRequest request) {
+        return c2b.testStk(uuid, request);
     }
 }
