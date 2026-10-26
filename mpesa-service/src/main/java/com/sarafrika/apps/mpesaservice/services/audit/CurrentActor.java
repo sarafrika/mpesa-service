@@ -1,4 +1,4 @@
-package com.sarafrika.apps.mpesaservice.services.shortcode;
+package com.sarafrika.apps.mpesaservice.services.audit;
 
 import com.sarafrika.apps.mpesaservice.config.KeycloakRealmRoles;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -7,33 +7,38 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.util.StringUtils;
 
-/** Who is calling, named the way the audit trail names them (preferred_username, then subject). */
-final class CurrentActor {
+// Who is acting, for the audit trail and every created_by/updated_by column: preferred_username,
+// then the token subject, then the principal name; "system" for scheduled jobs.
+public final class CurrentActor {
 
-    private static final String SYSTEM = "system";
+    public static final String SYSTEM = "system";
+    private static final int MAX_LENGTH = 100;
 
     private CurrentActor() {
     }
 
-    static String name() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    public static String name() {
+        return name(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    public static String name(Authentication authentication) {
         if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
             return SYSTEM;
         }
+        String name = authentication.getName();
         if (authentication instanceof JwtAuthenticationToken jwt) {
             String username = jwt.getToken().getClaimAsString("preferred_username");
-            if (StringUtils.hasText(username)) {
-                return username;
-            }
-            if (StringUtils.hasText(jwt.getToken().getSubject())) {
-                return jwt.getToken().getSubject();
-            }
+            name = StringUtils.hasText(username) ? username
+                    : StringUtils.hasText(jwt.getToken().getSubject()) ? jwt.getToken().getSubject() : name;
         }
-        return StringUtils.hasText(authentication.getName()) ? authentication.getName() : SYSTEM;
+        if (!StringUtils.hasText(name)) {
+            return SYSTEM;
+        }
+        return name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name;
     }
 
     /** mpesa-admin sits at the top of the hierarchy, so only the role itself grants it. */
-    static boolean isAdmin() {
+    public static boolean isAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication != null && authentication.getAuthorities().stream()
                 .anyMatch(a -> ("ROLE_" + KeycloakRealmRoles.ADMIN).equals(a.getAuthority()));

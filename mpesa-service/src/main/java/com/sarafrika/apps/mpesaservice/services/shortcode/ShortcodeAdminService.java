@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.shortcode;
 
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationState;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.CreateShortcodeRequest;

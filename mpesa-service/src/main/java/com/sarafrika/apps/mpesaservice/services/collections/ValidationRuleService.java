@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.collections;
 
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.UpdateValidationRulesRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.ValidationDryRunRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.ValidationDryRunResult;
@@ -45,7 +46,7 @@ public class ValidationRuleService {
         C2BValidationRule rule = ruleRepository.findByShortcodeUuid(shortcodeUuid).orElseGet(() -> {
             C2BValidationRule created = new C2BValidationRule();
             created.setShortcodeUuid(shortcodeUuid);
-            created.setCreatedBy(Actors.current());
+            created.setCreatedBy(CurrentActor.name());
             return created;
         });
         ValidationRulesDto before = rule.getId() == null ? null : toDto(rule);
@@ -57,7 +58,7 @@ public class ValidationRuleService {
         rule.setLookupTimeoutMs(request.lookupTimeoutMs() == null ? C2BValidationRule.DEFAULT_LOOKUP_TIMEOUT_MS
                 : request.lookupTimeoutMs());
         rule.setOnLookupFailure(request.onLookupFailure());
-        rule.setUpdatedBy(Actors.current());
+        rule.setUpdatedBy(CurrentActor.name());
         ValidationRulesDto after = toDto(ruleRepository.saveAndFlush(rule));
         auditService.record(AUDIT_ACTION, "SHORTCODE", shortcodeUuid.toString(), before, after);
         return after;

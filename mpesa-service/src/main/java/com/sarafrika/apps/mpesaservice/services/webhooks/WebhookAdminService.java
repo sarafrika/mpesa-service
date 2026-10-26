@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.webhooks;
 
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +19,6 @@ import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantReposito
 import com.sarafrika.apps.mpesaservice.repositories.WebhookDeliveryRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
-import com.sarafrika.apps.mpesaservice.services.products.CallerIdentity;
 import com.sarafrika.apps.mpesaservice.utils.enums.WebhookDeliveryStatus;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Duration;
@@ -87,7 +87,7 @@ public class WebhookAdminService {
         subscription.setEventTypeSet(WebhookEvents.validated(request.eventTypes()));
         String secret = WebhookSigner.newSecret();
         subscription.setSecret(secret);
-        subscription.setCreatedBy(CallerIdentity.actor());
+        subscription.setCreatedBy(CurrentActor.name());
         WebhookSubscription saved = subscriptions.save(subscription);
         WebhookSubscriptionDto dto = toDto(saved, Map.of());
         auditService.record("WEBHOOK_SUBSCRIPTION_CREATED", ENTITY_SUBSCRIPTION, saved.getUuid().toString(), null, dto);
@@ -107,7 +107,7 @@ public class WebhookAdminService {
         if (request.active() != null) {
             subscription.setActive(request.active());
         }
-        subscription.setUpdatedBy(CallerIdentity.actor());
+        subscription.setUpdatedBy(CurrentActor.name());
         WebhookSubscription saved = subscriptions.save(subscription);
         WebhookSubscriptionDto after = toDto(saved, health(List.of(saved)));
         auditService.record("WEBHOOK_SUBSCRIPTION_UPDATED", ENTITY_SUBSCRIPTION, uuid.toString(), before, after);
@@ -129,7 +129,7 @@ public class WebhookAdminService {
         String secret = WebhookSigner.newSecret();
         subscription.setSecret(secret);
         subscription.setSecretRotatedAt(LocalDateTime.now());
-        subscription.setUpdatedBy(CallerIdentity.actor());
+        subscription.setUpdatedBy(CurrentActor.name());
         WebhookSubscription saved = subscriptions.save(subscription);
         WebhookSubscriptionDto dto = toDto(saved, health(List.of(saved)));
         auditService.record("WEBHOOK_SECRET_ROTATED", ENTITY_SUBSCRIPTION, uuid.toString(), null,

@@ -19,7 +19,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -35,7 +34,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class AuditService {
 
     static final String REDACTED = "[REDACTED]";
-    static final String SYSTEM = "system";
+    static final String SYSTEM = CurrentActor.SYSTEM;
     private static final Set<String> SECRET_KEYS = Set.of(
             "consumerkey", "consumersecret", "passkey", "initiatorpassword", "securitycredential");
 
@@ -86,20 +85,7 @@ public class AuditService {
     }
 
     static String actor(Authentication authentication) {
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            return SYSTEM;
-        }
-        if (authentication instanceof JwtAuthenticationToken jwt) {
-            String username = jwt.getToken().getClaimAsString("preferred_username");
-            if (StringUtils.hasText(username)) {
-                return username;
-            }
-            String subject = jwt.getToken().getSubject();
-            if (StringUtils.hasText(subject)) {
-                return subject;
-            }
-        }
-        return StringUtils.hasText(authentication.getName()) ? authentication.getName() : SYSTEM;
+        return CurrentActor.name(authentication);
     }
 
     private static String actorName(Authentication authentication) {

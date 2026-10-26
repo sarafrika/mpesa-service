@@ -5,7 +5,6 @@ import java.util.Set;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 /** Who is calling the machine API: the Keycloak client (azp) and whether it is a person using the console. */
@@ -41,21 +40,5 @@ public final class CallerIdentity {
         }
         return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority)
                 .anyMatch(CONSOLE_AUTHORITIES::contains);
-    }
-
-    /** The signed-in person for created_by/updated_by: preferred_username, else the principal name. */
-    public static String actor() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            return "system";
-        }
-        if (authentication instanceof JwtAuthenticationToken jwt) {
-            String username = jwt.getToken().getClaimAsString("preferred_username");
-            if (username != null && !username.isBlank()) {
-                return username;
-            }
-        }
-        String name = authentication.getName();
-        return name == null || name.isBlank() ? "system" : name.length() > 100 ? name.substring(0, 100) : name;
     }
 }

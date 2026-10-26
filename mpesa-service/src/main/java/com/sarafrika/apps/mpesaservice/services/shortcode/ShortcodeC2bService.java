@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.shortcode;
 
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarafrika.apps.mpesaservice.dtos.C2BRegistrationResponse;

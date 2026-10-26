@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.collections;
 
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.StkStatusResponse;
 import com.sarafrika.apps.mpesaservice.dtos.TransactionStatusResponse;
@@ -247,7 +248,7 @@ public class TransactionStatusService {
         query.setDirection(direction);
         query.setShortcodeUuid(shortcode.getUuid());
         query.setMethod(method);
-        query.setCreatedBy(Actors.current());
+        query.setCreatedBy(CurrentActor.name());
         return query;
     }
 

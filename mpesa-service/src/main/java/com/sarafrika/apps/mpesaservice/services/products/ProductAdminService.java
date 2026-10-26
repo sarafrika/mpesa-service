@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.products;
 
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.CreateWebhookSubscriptionRequest;
@@ -121,7 +122,7 @@ public class ProductAdminService {
             grant.setDisplayName(request.displayName().trim());
             grant.setShortcodeUuid(input.shortcodeUuid());
             grant.setOperations(EnumSet.copyOf(input.operations()));
-            grant.setCreatedBy(CallerIdentity.actor());
+            grant.setCreatedBy(CurrentActor.name());
             created.add(grants.save(grant));
         }
         Map<String, Object> after = new LinkedHashMap<>();
@@ -156,13 +157,13 @@ public class ProductAdminService {
             grant = new ClientShortcodeGrant();
             grant.setClientId(clientId);
             grant.setShortcodeUuid(shortcodeUuid);
-            grant.setCreatedBy(CallerIdentity.actor());
+            grant.setCreatedBy(CurrentActor.name());
             grant.setDisplayName(existing.stream().map(ClientShortcodeGrant::getDisplayName)
                     .filter(StringUtils::hasText).findFirst().orElse(clientId));
         }
         grant.setOperations(EnumSet.copyOf(request.operations()));
         grant.setActive(request.active() == null || request.active());
-        grant.setUpdatedBy(CallerIdentity.actor());
+        grant.setUpdatedBy(CurrentActor.name());
         if (StringUtils.hasText(request.displayName())) {
             String name = request.displayName().trim();
             existing.forEach(other -> other.setDisplayName(name));
