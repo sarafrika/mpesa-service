@@ -51,4 +51,8 @@ To run everything in containers instead, use `docker compose --profile apps up -
 
 Each folder has its own CI job in `.github/workflows`, triggered only by changes under that folder. Merging to `main` publishes `mpesa-service` and `mpesa-ui` as separate Docker images.
 
-The plan for the console and its admin API, and the screen designs, live outside the repo. The console currently has Overview with payment lookup; the other screens wait on the admin API.
+The plan for the console and its admin API, and the screen designs, live outside the repo.
+
+## What the console covers
+
+The admin API under `/api/v1/admin/**` now backs four areas. Overview shows money in and out, paybill health, float and what needs attention. Paybills is where I onboard a paybill, till or B2C shortcode through a four-step wizard, rotate its encrypted credentials, register its C2B URLs, set its C2B validation rules and send a small test STK push. Transactions is one paged feed of STK, C2B and B2C payments with a timeline per payment, including the webhooks sent about it. Products grants each Keycloak client the paybills and operations it may use and manages its signed webhooks. Every change lands in the audit trail, and the settings for all of this are documented with their defaults in `mpesa-service/src/main/resources/application.yaml`.
