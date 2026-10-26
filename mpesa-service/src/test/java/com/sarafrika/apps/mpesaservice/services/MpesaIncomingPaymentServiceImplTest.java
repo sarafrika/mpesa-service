@@ -7,6 +7,7 @@ import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentService
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -17,19 +18,25 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
+import org.mockito.ArgumentCaptor;
 
 class MpesaIncomingPaymentServiceImplTest {
 
     private MpesaIncomingPaymentRepository repository;
     private MpesaIncomingPaymentServiceImpl service;
+    private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
 
     private static final String CHECKOUT_ID = "ws_CO_04112017184930742";
 
     @BeforeEach
     void setUp() {
         repository = mock(MpesaIncomingPaymentRepository.class);
-        service = new MpesaIncomingPaymentServiceImpl(repository, new ObjectMapper());
+        service = new MpesaIncomingPaymentServiceImpl(repository, new ObjectMapper(), publisher);
         // save returns the passed entity
         when(repository.save(any(MpesaIncomingPayment.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -105,6 +112,35 @@ class MpesaIncomingPaymentServiceImplTest {
 
         assertThat(result.getStatus()).isEqualTo(IncomingPaymentStatus.FAILED);
         assertThat(result.getResultCode()).isEqualTo(1);
+    }
+
+    @Test
+    void processStkPushCallback_publishesOneEventPerSettlement() {
+        MpesaIncomingPayment payment = pendingStkPayment();
+        payment.setClientId("elimika-backend");
+        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(payment));
+
+        service.processStkPushCallback(CHECKOUT_ID, successCallback());
+        service.processStkPushCallback(CHECKOUT_ID, successCallback());
+
+        ArgumentCaptor<PaymentEvent> event = ArgumentCaptor.forClass(PaymentEvent.class);
+        verify(publisher, times(1)).publishEvent(event.capture());
+        assertThat(event.getValue().type()).isEqualTo(PaymentEvent.STK_COMPLETED);
+        assertThat(event.getValue().clientId()).isEqualTo("elimika-backend");
+        assertThat(event.getValue().data()).containsEntry("receipt", "QDR123ABCD");
+    }
+
+    @Test
+    void processStkPushCallback_cancelledAndFailedHaveTheirOwnEvents() {
+        when(repository.findByCheckoutRequestId(CHECKOUT_ID)).thenReturn(Optional.of(pendingStkPayment()));
+        service.processStkPushCallback(CHECKOUT_ID, Map.of("ResultCode", 1032, "ResultDesc", "Cancelled"));
+        when(repository.findByCheckoutRequestId("other")).thenReturn(Optional.of(pendingStkPayment()));
+        service.processStkPushCallback("other", Map.of("ResultCode", 2001, "ResultDesc", "Wrong PIN"));
+
+        ArgumentCaptor<PaymentEvent> event = ArgumentCaptor.forClass(PaymentEvent.class);
+        verify(publisher, times(2)).publishEvent(event.capture());
+        assertThat(event.getAllValues()).extracting(PaymentEvent::type)
+                .containsExactly(PaymentEvent.STK_CANCELLED, PaymentEvent.STK_FAILED);
     }
 
     @Test
