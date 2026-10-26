@@ -140,6 +140,38 @@
         "required" : [ "field", "message" ],
         "type" : "object"
       },
+      "AttentionItemDto" : {
+        "properties" : {
+          "description" : {
+            "example" : "Utility account KES 38,420.00.",
+            "type" : "string"
+          },
+          "href" : {
+            "description" : "Console path that deals with the item",
+            "example" : "/paybills/550e8400-e29b-41d4-a716-446655440000",
+            "type" : "string"
+          },
+          "kind" : {
+            "description" : "What kind of item this is, e.g. LOW_FLOAT, STK_PENDING, PAYBILL_STALE, PAYBILL_FAILING",
+            "example" : "LOW_FLOAT",
+            "type" : "string"
+          },
+          "level" : {
+            "enum" : [ "critical", "warning", "info" ],
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "title" : {
+            "example" : "Elimika Payouts float below KES 50,000",
+            "type" : "string"
+          }
+        },
+        "required" : [ "description", "href", "kind", "level", "title" ],
+        "type" : "object"
+      },
       "AuditEventDto" : {
         "properties" : {
           "action" : {
@@ -692,6 +724,139 @@
         },
         "type" : "object"
       },
+      "FloatSummaryDto" : {
+        "properties" : {
+          "lowest" : {
+            "$ref" : "#/components/schemas/ShortcodeFloatDto",
+            "description" : "The shortcode with the least float"
+          },
+          "shortcodes_reporting" : {
+            "description" : "How many shortcodes have reported a balance",
+            "example" : 3,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_amount" : {
+            "description" : "Null until at least one shortcode has reported a balance",
+            "example" : 2410000.0,
+            "type" : "number"
+          }
+        },
+        "required" : [ "shortcodes_reporting" ],
+        "type" : "object"
+      },
+      "LatestTransactionDto" : {
+        "properties" : {
+          "account_reference" : {
+            "example" : "ELM-004512",
+            "type" : "string"
+          },
+          "amount" : {
+            "example" : 4500.0,
+            "type" : "number"
+          },
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "direction" : {
+            "enum" : [ "IN", "OUT" ],
+            "type" : "string"
+          },
+          "payment_type" : {
+            "description" : "STK_PUSH or C2B for money in; B2C or B2B for money out",
+            "example" : "C2B",
+            "type" : "string"
+          },
+          "reference" : {
+            "description" : "M-Pesa receipt, or the request id while there is none yet",
+            "example" : "TJQ4K2L9XA",
+            "type" : "string"
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "example" : "SUCCESS",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "business_name", "created_at", "direction", "payment_type", "shortcode", "shortcode_uuid", "status", "uuid" ],
+        "type" : "object"
+      },
+      "MetricsSummaryDto" : {
+        "properties" : {
+          "current" : {
+            "$ref" : "#/components/schemas/PeriodMetricsDto"
+          },
+          "float" : {
+            "$ref" : "#/components/schemas/FloatSummaryDto"
+          },
+          "from" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "previous" : {
+            "$ref" : "#/components/schemas/PeriodMetricsDto"
+          },
+          "previous_from" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "previous_to" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "to" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "current", "float", "from", "previous", "previous_from", "previous_to", "to" ],
+        "type" : "object"
+      },
+      "MetricsTimeseriesDto" : {
+        "properties" : {
+          "bucket" : {
+            "enum" : [ "hour", "day" ],
+            "type" : "string"
+          },
+          "from" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "points" : {
+            "description" : "Oldest bucket first",
+            "items" : {
+              "$ref" : "#/components/schemas/TimeseriesPointDto"
+            },
+            "type" : "array"
+          },
+          "time_zone" : {
+            "example" : "Africa/Nairobi",
+            "type" : "string"
+          },
+          "to" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "bucket", "from", "points", "time_zone", "to" ],
+        "type" : "object"
+      },
       "MpesaApiResponseMpesaPayoutDto" : {
         "description" : "Generic M-Pesa API response wrapper",
         "properties" : {
@@ -955,6 +1120,85 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PaybillHealthDto" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "collected_today_amount" : {
+            "example" : 902140.0,
+            "type" : "number"
+          },
+          "collected_today_count" : {
+            "example" : 2400,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "environment" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "example" : "PRODUCTION",
+            "type" : "string"
+          },
+          "failed_last_hour" : {
+            "description" : "Payments in either direction that failed in the last hour",
+            "example" : 0,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "float_amount" : {
+            "description" : "B2C utility account balance last reported",
+            "example" : 38420.0,
+            "type" : "number"
+          },
+          "float_reported_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "last_activity_at" : {
+            "description" : "Newest payment or callback on this shortcode; null when none yet",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "paid_out_today_amount" : {
+            "example" : 0.0,
+            "type" : "number"
+          },
+          "paid_out_today_count" : {
+            "example" : 0,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "settled_last_hour" : {
+            "description" : "Payments in either direction that settled in the last hour",
+            "example" : 40,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "type" : "string"
+          },
+          "shortcode_type" : {
+            "enum" : [ "PAYBILL", "TILL" ],
+            "example" : "PAYBILL",
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "state" : {
+            "enum" : [ "SUSPENDED", "SANDBOX", "LOW_FLOAT", "STALE", "HEALTHY" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "business_name", "collected_today_amount", "collected_today_count", "environment", "failed_last_hour", "paid_out_today_amount", "paid_out_today_count", "settled_last_hour", "shortcode", "shortcode_type", "shortcode_uuid", "state" ],
+        "type" : "object"
+      },
       "PayoutFloatDto" : {
         "description" : "A shortcode's float as Safaricom last reported it on a payout result",
         "properties" : {
@@ -974,6 +1218,70 @@
             "type" : "number"
           }
         },
+        "type" : "object"
+      },
+      "PeriodMetricsDto" : {
+        "properties" : {
+          "cancelled_count" : {
+            "example" : 31,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "collected_amount" : {
+            "description" : "Sum of successful incoming payments",
+            "example" : 1284350.0,
+            "type" : "number"
+          },
+          "collected_by_type" : {
+            "description" : "Successful incoming payments per payment type (STK_PUSH, C2B), zero when none",
+            "items" : {
+              "$ref" : "#/components/schemas/TypeTotalDto"
+            },
+            "type" : "array"
+          },
+          "collected_count" : {
+            "example" : 3412,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "failed_count" : {
+            "example" : 71,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "payouts_amount" : {
+            "description" : "Sum of successful outgoing payments",
+            "example" : 412900.0,
+            "type" : "number"
+          },
+          "payouts_count" : {
+            "example" : 186,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "pending_count" : {
+            "example" : 12,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "settled_count" : {
+            "example" : 3700,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "success_rate" : {
+            "description" : "successful_count / settled_count between 0 and 1; null when nothing settled",
+            "example" : 0.9724,
+            "format" : "double",
+            "type" : "number"
+          },
+          "successful_count" : {
+            "example" : 3598,
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "cancelled_count", "collected_amount", "collected_by_type", "collected_count", "failed_count", "payouts_amount", "payouts_count", "pending_count", "settled_count", "successful_count" ],
         "type" : "object"
       },
       "STKCallback" : {
@@ -1029,6 +1337,32 @@
             "$ref" : "#/components/schemas/STKCallbackBody"
           }
         },
+        "type" : "object"
+      },
+      "ShortcodeFloatDto" : {
+        "properties" : {
+          "amount" : {
+            "example" : 38420.0,
+            "type" : "number"
+          },
+          "business_name" : {
+            "example" : "Elimika Payouts",
+            "type" : "string"
+          },
+          "reported_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "shortcode" : {
+            "example" : 600200,
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "business_name", "shortcode", "shortcode_uuid" ],
         "type" : "object"
       },
       "StkPushRequest" : {
@@ -1092,6 +1426,35 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "TimeseriesPointDto" : {
+        "properties" : {
+          "bucket_start" : {
+            "description" : "Start of the bucket (an hour or a day in Africa/Nairobi)",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "collections_amount" : {
+            "example" : 1284350.0,
+            "type" : "number"
+          },
+          "collections_count" : {
+            "example" : 3412,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "payouts_amount" : {
+            "example" : 412900.0,
+            "type" : "number"
+          },
+          "payouts_count" : {
+            "example" : 186,
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "bucket_start", "collections_amount", "collections_count", "payouts_amount", "payouts_count" ],
         "type" : "object"
       },
       "TransactionReversalResult" : {
@@ -1369,6 +1732,25 @@
           }
         },
         "type" : "object"
+      },
+      "TypeTotalDto" : {
+        "properties" : {
+          "amount" : {
+            "example" : 902140.0,
+            "type" : "number"
+          },
+          "count" : {
+            "example" : 2986,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "payment_type" : {
+            "example" : "C2B",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "count", "payment_type" ],
+        "type" : "object"
       }
     }
   },
@@ -1479,6 +1861,354 @@
         },
         "summary" : "List audit events, newest first",
         "tags" : [ "Admin: Audit" ]
+      }
+    },
+    "/api/v1/admin/metrics/attention" : {
+      "get" : {
+        "operationId" : "listAttentionItems",
+        "parameters" : [ {
+          "description" : "Only this shortcode",
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only shortcodes in this environment",
+          "in" : "query",
+          "name" : "environment",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AttentionItemDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "At most 50 items"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "What needs someone's attention now, most severe first",
+        "tags" : [ "Admin: Metrics" ]
+      }
+    },
+    "/api/v1/admin/metrics/latest" : {
+      "get" : {
+        "operationId" : "listLatestTransactions",
+        "parameters" : [ {
+          "description" : "How many, 1 to 20",
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 6,
+            "format" : "int32",
+            "maximum" : 20,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Only this shortcode",
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only shortcodes in this environment",
+          "in" : "query",
+          "name" : "environment",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/LatestTransactionDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Up to limit payments"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "The newest payments in and out, newest first",
+        "tags" : [ "Admin: Metrics" ]
+      }
+    },
+    "/api/v1/admin/metrics/paybill-health" : {
+      "get" : {
+        "operationId" : "listPaybillHealth",
+        "parameters" : [ {
+          "description" : "Only shortcodes in this environment",
+          "in" : "query",
+          "name" : "environment",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PaybillHealthDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Active shortcodes first, then by name"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "Every shortcode with today's traffic, last activity, latest float and state",
+        "tags" : [ "Admin: Metrics" ]
+      }
+    },
+    "/api/v1/admin/metrics/summary" : {
+      "get" : {
+        "operationId" : "getMetricsSummary",
+        "parameters" : [ {
+          "description" : "Start of the period, inclusive (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "End of the period, exclusive; at most 400 days after from",
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only this shortcode",
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only shortcodes in this environment",
+          "in" : "query",
+          "name" : "environment",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MetricsSummaryDto"
+                }
+              }
+            },
+            "description" : "Key figures"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "Collected, paid out, success rate and float for a period, with the previous period",
+        "tags" : [ "Admin: Metrics" ]
+      }
+    },
+    "/api/v1/admin/metrics/timeseries" : {
+      "get" : {
+        "operationId" : "getMetricsTimeseries",
+        "parameters" : [ {
+          "description" : "Start of the period, inclusive (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "End of the period, exclusive; at most 400 days after from",
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Bucket size; hour allows at most 31 days",
+          "in" : "query",
+          "name" : "bucket",
+          "required" : false,
+          "schema" : {
+            "default" : "day",
+            "enum" : [ "hour", "day" ],
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only this shortcode",
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only shortcodes in this environment",
+          "in" : "query",
+          "name" : "environment",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "SANDBOX", "PRODUCTION" ],
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MetricsTimeseriesDto"
+                }
+              }
+            },
+            "description" : "One point per bucket, oldest first"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "Successful collections and payouts per hour or day (Africa/Nairobi), zero-filled",
+        "tags" : [ "Admin: Metrics" ]
       }
     },
     "/api/v1/callbacks/account-balance/result" : {
@@ -2002,6 +2732,9 @@
   }, {
     "description" : "The trail of changes made through the console",
     "name" : "Admin: Audit"
+  }, {
+    "description" : "Figures for the console Overview",
+    "name" : "Admin: Metrics"
   }, {
     "description" : "Send B2C payouts and poll their outcome",
     "name" : "M-Pesa Payouts"
