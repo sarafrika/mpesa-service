@@ -3,6 +3,7 @@ package com.sarafrika.apps.mpesaservice.controllers.admin;
 import com.sarafrika.apps.mpesaservice.dtos.admin.ApiError;
 import com.sarafrika.apps.mpesaservice.dtos.admin.PageResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.daraja.B2bCheckoutDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.CloseAsFailedRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.daraja.ProductPayoutDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.daraja.ProductPayoutSubmittedDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.daraja.RequestPochiPayoutRequest;
@@ -134,6 +135,22 @@ public class DarajaProductAdminController {
             @RequestParam(name = "status", required = false) ProductPayoutStatus status) {
         return PageResponse.from(payouts.list(uuid, DarajaFeature.BUSINESS_TO_POCHI, status,
                 PageRequests.of(page, size, sort, SORTABLE, DEFAULT_SORT)));
+    }
+
+    @PostMapping("/product-payouts/{payout_uuid}/close")
+    @PreAuthorize("hasRole('mpesa-finance')")
+    @Operation(operationId = "closeProductPayoutAsFailed",
+            summary = "Close a Tax Remittance or Pochi payment whose outcome stayed unknown as FAILED (audited)",
+            description = "Only for a PENDING payment whose outcome is unknown, after the statement shows nothing "
+                    + "moved. Nothing is sent to Safaricom; a result that arrives later still settles it.")
+    @ApiResponse(responseCode = "200", description = "The payment, now FAILED")
+    @ApiResponse(responseCode = "409", description = "The payment is settled or its outcome is known",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public ProductPayoutDto closeProductPayoutAsFailed(
+            @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
+            @Parameter(description = "Tax Remittance or Pochi payment uuid") @PathVariable("payout_uuid") UUID payoutUuid,
+            @Valid @RequestBody CloseAsFailedRequest request) {
+        return payouts.closeAsFailed(uuid, payoutUuid, request.note());
     }
 
     // ---- B2B Express Checkout

@@ -15,7 +15,7 @@ public record ApprovalDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("uuid") UUID uuid,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "REVERSAL",
-                description = "REVERSAL, BULK_PAYOUT or B2B_SWEEP")
+                description = "REVERSAL, BULK_PAYOUT, B2B_SWEEP, TAX_REMITTANCE or BUSINESS_TO_POCHI")
         @JsonProperty("type") String type,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                 allowableValues = {"WAITING", "APPROVED", "REJECTED", "EXPIRED", "EXECUTING", "EXECUTED", "FAILED"})

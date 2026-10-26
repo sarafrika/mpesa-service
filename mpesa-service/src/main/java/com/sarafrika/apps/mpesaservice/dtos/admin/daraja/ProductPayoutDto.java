@@ -46,7 +46,10 @@ public record ProductPayoutDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("created_at") OffsetDateTime createdAt,
         @JsonProperty("timed_out_at") OffsetDateTime timedOutAt,
-        @JsonProperty("completed_at") OffsetDateTime completedAt) {
+        @JsonProperty("completed_at") OffsetDateTime completedAt,
+        @Schema(description = "Who closed it as failed by hand after checking the statement")
+        @JsonProperty("closed_by") String closedBy,
+        @JsonProperty("close_note") String closeNote) {
 
     public static ProductPayoutDto from(ProductPayout p, boolean showPersonalData) {
         boolean pochi = p.getProduct() == DarajaFeature.BUSINESS_TO_POCHI;
@@ -54,19 +57,8 @@ public record ProductPayoutDto(
         return new ProductPayoutDto(p.getUuid(), p.getShortcodeUuid(), p.getProduct(), p.getApprovalRequestUuid(),
                 mask ? PersonalData.maskPhone(p.getPartyB()) : p.getPartyB(), p.getAccountReference(), p.getAmount(),
                 p.getRemarks(), p.getStatus(), p.isOutcomeUnknown(), p.getTransactionId(), p.getResultCode(),
-                p.getResultDesc(), mask ? maskedName(p.getReceiverName()) : p.getReceiverName(), p.getMaker(),
+                p.getResultDesc(), mask ? PersonalData.maskPublicName(p.getReceiverName()) : p.getReceiverName(), p.getMaker(),
                 p.getChecker(), Times.offset(p.getCreatedAt()), Times.offset(p.getTimedOutAt()),
-                Times.offset(p.getCompletedAt()));
-    }
-
-    // Safaricom's "254705912645 - NICHOLAS JOHN SONGOK": both halves masked.
-    private static String maskedName(String value) {
-        if (value == null) {
-            return null;
-        }
-        int dash = value.indexOf(" - ");
-        return dash < 0 ? PersonalData.shortName(value)
-                : PersonalData.maskPhone(value.substring(0, dash)) + " - "
-                + PersonalData.shortName(value.substring(dash + 3));
+                Times.offset(p.getCompletedAt()), p.getClosedBy(), p.getCloseNote());
     }
 }

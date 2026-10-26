@@ -95,7 +95,8 @@ public class ApprovalAdminController {
                             "REJECTED", "EXPIRED", "EXECUTING", "EXECUTED", "FAILED"})))
             @RequestParam(name = "status", required = false) List<String> status,
             @Parameter(description = "Only requests of this type",
-                    schema = @Schema(allowableValues = {"REVERSAL", "BULK_PAYOUT", "B2B_SWEEP"}))
+                    schema = @Schema(allowableValues = {"REVERSAL", "BULK_PAYOUT", "B2B_SWEEP",
+                            "TAX_REMITTANCE", "BUSINESS_TO_POCHI"}))
             @RequestParam(name = "type", required = false) String type,
             @Parameter(description = "Only requests against this shortcode")
             @RequestParam(name = "shortcode_uuid", required = false) UUID shortcodeUuid) {

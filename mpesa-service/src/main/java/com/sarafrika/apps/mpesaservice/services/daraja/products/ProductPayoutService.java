@@ -25,6 +25,7 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalExecutor.Outco
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalGateway;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.services.features.FeatureGate;
 import com.sarafrika.apps.mpesaservice.services.features.ShortcodeFeatures;
@@ -66,6 +67,7 @@ public class ProductPayoutService {
     public static final String TAX_TYPE = "TAX_REMITTANCE";
     public static final String POCHI_TYPE = "BUSINESS_TO_POCHI";
     static final String AUDIT_SENT = "PRODUCT_PAYOUT_SENT";
+    static final String AUDIT_CLOSED = "PRODUCT_PAYOUT_CLOSED_AS_FAILED";
     static final String UNKNOWN_OUTCOME = "Safaricom did not confirm it received this payment, so the money may "
             + "still move. Wait for the result or check the statement; do not raise it again.";
     static final String NO_MATCH = "No %s payment matches this result. Replay it later, or attach it to its "
@@ -135,7 +137,8 @@ public class ProductPayoutService {
         MpesaShortCode shortcode = ready(shortcodeUuid, DarajaFeature.BUSINESS_TO_POCHI, "Business to Pochi");
         BigDecimal amount = whole(request.amount());
         ObjectNode payload = objectMapper.createObjectNode();
-        payload.put("title", "Pochi payment of " + kes(amount) + " to " + PersonalData.maskPhone(request.phoneNumber()));
+        // The wallet stays out of the title (shown to every role); the summary shows it, masked unless finance.
+        payload.put("title", "Pochi payment of " + kes(amount) + " to a Pochi la Biashara wallet");
         payload.put("daraja_call", "Business to Pochi (BusinessPayToPochi) from " + shortcode.getShortcode());
         payload.put("shortcode", shortcode.getShortcode());
         payload.put("phone_number", request.phoneNumber());
@@ -155,6 +158,34 @@ public class ProductPayoutService {
         boolean visible = PersonalData.visible();
         return payouts.findForShortcode(shortcodeUuid, product, status, pageable)
                 .map(p -> ProductPayoutDto.from(p, visible));
+    }
+
+    /** Finance closes a payment whose outcome stayed unknown as FAILED once the statement shows nothing moved.
+     * Nothing is sent; a Safaricom result that still arrives settles it (see settle). */
+    @Transactional
+    public ProductPayoutDto closeAsFailed(UUID shortcodeUuid, UUID payoutUuid, String note) {
+        if (!StringUtils.hasText(note)) {
+            throw new InvalidRequestException("note", "is required: say what the statement showed");
+        }
+        ProductPayout payout = payouts.lockByUuid(payoutUuid).filter(p -> p.getShortcodeUuid().equals(shortcodeUuid))
+                .orElseThrow(() -> new NotFoundException("Payment not found"));
+        if (payout.getStatus() != ProductPayoutStatus.PENDING || !payout.isOutcomeUnknown()) {
+            throw new ConflictException("Only a pending payment whose outcome is unknown can be closed by hand.");
+        }
+        String actor = CurrentActor.name();
+        payout.setStatus(ProductPayoutStatus.FAILED);
+        payout.setOutcomeUnknown(false);
+        payout.setClosedBy(actor);
+        payout.setCloseNote(DarajaReplies.truncate(note.trim(), 500));
+        payout.setResultDesc(DarajaReplies.truncate("Closed as failed by " + actor + " after checking the statement: "
+                + note.trim(), 500));
+        payout.setCompletedAt(LocalDateTime.now());
+        ProductPayout saved = payouts.save(payout);
+        audit.record(AUDIT_CLOSED, "PRODUCT_PAYOUT", saved.getUuid().toString(),
+                Map.of("status", ProductPayoutStatus.PENDING.name(), "outcome_unknown", true),
+                Map.of("status", saved.getStatus().name(), "product", saved.getProduct().name(),
+                        "note", saved.getCloseNote()));
+        return ProductPayoutDto.from(saved, PersonalData.visible());
     }
 
     private MpesaShortCode ready(UUID shortcodeUuid, DarajaFeature feature, String label) {
@@ -205,7 +236,7 @@ public class ProductPayoutService {
     public Outcome execute(Approved request, DarajaFeature product) {
         Optional<ProductPayout> existing = payouts.findByApprovalRequestUuid(request.requestUuid());
         if (existing.isPresent()) {
-            return already(existing.get());
+            return resumed(existing.get());
         }
         MpesaShortCode shortcode = request.shortcodeUuid() == null ? null
                 : shortcodes.findByUuid(request.shortcodeUuid()).orElse(null);
@@ -234,7 +265,7 @@ public class ProductPayoutService {
             saved = newTransaction.execute(status -> payouts.saveAndFlush(pending));
         } catch (DataIntegrityViolationException ex) {
             // Another execution of the same approval won the race; that one was (or is being) sent.
-            return payouts.findByApprovalRequestUuid(request.requestUuid()).map(this::already).orElseThrow(() -> ex);
+            return payouts.findByApprovalRequestUuid(request.requestUuid()).map(this::resumed).orElseThrow(() -> ex);
         }
 
         MpesaApiResponse<JsonNode> response = send(shortcode, saved);
@@ -245,6 +276,7 @@ public class ProductPayoutService {
             }
             JsonNode data = response.data();
             if (response.success() && "0".equals(DarajaReplies.text(data, "ResponseCode"))) {
+                row.setOutcomeUnknown(false);
                 row.setConversationId(DarajaReplies.text(data, "ConversationID"));
                 if (row.getOriginatorConversationId() == null) {
                     row.setOriginatorConversationId(DarajaReplies.text(data, "OriginatorConversationID"));
@@ -328,6 +360,26 @@ public class ProductPayoutService {
         return payout;
     }
 
+    /** A row found on a second execution. One still PENDING with no reply stored was saved and then (maybe) sent
+     * when the first run stopped, so its outcome is unknown: it is marked so and never sent again. */
+    private Outcome resumed(ProductPayout payout) {
+        if (payout.getStatus() != ProductPayoutStatus.PENDING || payout.getConversationId() != null
+                || payout.isOutcomeUnknown()) {
+            return already(payout);
+        }
+        ProductPayout marked = newTransaction.execute(status -> {
+            ProductPayout row = payouts.lockByUuid(payout.getUuid()).orElseThrow();
+            if (row.getStatus() == ProductPayoutStatus.PENDING && row.getConversationId() == null
+                    && !row.isOutcomeUnknown()) {
+                row.setOutcomeUnknown(true);
+                row.setResultDesc(UNKNOWN_OUTCOME);
+                return payouts.save(row);
+            }
+            return row;
+        });
+        return marked.isOutcomeUnknown() ? new Outcome(true, UNKNOWN_OUTCOME) : already(marked);
+    }
+
     private Outcome already(ProductPayout payout) {
         return new Outcome(payout.getStatus() != ProductPayoutStatus.FAILED,
                 "Already sent as payment " + payout.getUuid() + " (" + payout.getStatus() + ")");
@@ -363,7 +415,7 @@ public class ProductPayoutService {
         }
         ProductPayout payout = payouts.lockByUuid(payoutUuid).filter(p -> p.getProduct() == product)
                 .orElseThrow(() -> new NotFoundException(label(product) + " payment not found"));
-        if (payout.getStatus() != ProductPayoutStatus.PENDING) {
+        if (payout.getStatus() != ProductPayoutStatus.PENDING && !closedByHand(payout)) {
             throw new ConflictException("This payment is already " + payout.getStatus() + "; nothing to attach.");
         }
         if (differs(payout.getOriginatorConversationId(), DarajaReplies.text(result, "OriginatorConversationID"))
@@ -394,11 +446,22 @@ public class ProductPayoutService {
         return product == DarajaFeature.TAX_REMITTANCE ? "Tax Remittance" : "Business to Pochi";
     }
 
+    private static boolean closedByHand(ProductPayout payout) {
+        return payout.getStatus() == ProductPayoutStatus.FAILED && payout.getClosedBy() != null
+                && payout.getRawResult() == null;
+    }
+
     private ProductPayout settle(ProductPayout payout, JsonNode result, String raw) {
-        if (payout.getStatus() != ProductPayoutStatus.PENDING) {
+        boolean closedByHand = closedByHand(payout);
+        if (payout.getStatus() != ProductPayoutStatus.PENDING && !closedByHand) {
             log.info("Ignoring repeat {} result for {} already {}", payout.getProduct(), payout.getUuid(),
                     payout.getStatus());
             return payout;
+        }
+        if (closedByHand) {
+            // Safaricom's answer is the truth, even after someone closed the payment by hand.
+            log.warn("{} result for {} that {} closed by hand", payout.getProduct(), payout.getUuid(),
+                    payout.getClosedBy());
         }
         String code = DarajaReplies.text(result, "ResultCode");
         boolean success = "0".equals(code);

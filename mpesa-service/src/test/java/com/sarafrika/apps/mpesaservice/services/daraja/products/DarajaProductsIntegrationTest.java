@@ -24,6 +24,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.daraja.StartB2bCheckoutRequest
 import com.sarafrika.apps.mpesaservice.dtos.admin.features.ShortcodeFeatureDto;
 import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
+import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.models.ProductPayout;
@@ -273,6 +274,58 @@ class DarajaProductsIntegrationTest {
         assertThat(payoutRepository.findByApprovalRequestUuid(later.requestUuid())).isEmpty();
     }
 
+    @Test
+    void aRunThatStoppedAfterSavingIsOutcomeUnknownOnResumeAndNeverResent() {
+        features.set(shortcode.getUuid(), DarajaFeature.TAX_REMITTANCE, true, "admin");
+        ApprovalExecutor.Approved approved = approve(() -> payouts.requestTax(shortcode.getUuid(), tax("900")));
+        when(daraja.callProduct(any(), any(), any())).thenThrow(new IllegalStateException("instance stopped"));
+        assertThatThrownBy(() -> taxExecutor.execute(approved)).isInstanceOf(IllegalStateException.class);
+
+        ApprovalExecutor.Outcome resumed = taxExecutor.execute(approved);
+
+        assertThat(resumed.sent()).isTrue();
+        assertThat(resumed.message()).contains("do not raise it again");
+        verify(daraja, times(1)).callProduct(any(), any(), any());
+        ProductPayout row = payoutRepository.findByApprovalRequestUuid(approved.requestUuid()).orElseThrow();
+        assertThat(row.getStatus()).isEqualTo(ProductPayoutStatus.PENDING);
+        assertThat(row.isOutcomeUnknown()).isTrue();
+    }
+
+    @Test
+    void financeClosesAnUnknownOutcomeAsFailedAndALateResultStillSettlesIt() throws Exception {
+        features.set(shortcode.getUuid(), DarajaFeature.TAX_REMITTANCE, true, "admin");
+        ApprovalExecutor.Approved approved = approve(() -> payouts.requestTax(shortcode.getUuid(), tax("190")));
+        when(daraja.callProduct(any(), any(), any())).thenReturn(
+                MpesaApiResponse.error(MpesaErrorResponse.NETWORK_ERROR, "read timed out", 503));
+        taxExecutor.execute(approved);
+        ProductPayout row = payoutRepository.findByApprovalRequestUuid(approved.requestUuid()).orElseThrow();
+
+        assertThatThrownBy(() -> payouts.closeAsFailed(UUID.randomUUID(), row.getUuid(), "nothing moved"))
+                .isInstanceOf(NotFoundException.class);
+        ProductPayoutDto closed = payouts.closeAsFailed(shortcode.getUuid(), row.getUuid(), "Statement shows no debit");
+        assertThat(closed.status()).isEqualTo(ProductPayoutStatus.FAILED);
+        assertThat(closed.outcomeUnknown()).isFalse();
+        assertThat(closed.closeNote()).isEqualTo("Statement shows no debit");
+        assertThatThrownBy(() -> payouts.closeAsFailed(shortcode.getUuid(), row.getUuid(), "again"))
+                .isInstanceOf(ConflictException.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events WHERE action = "
+                + "'PRODUCT_PAYOUT_CLOSED_AS_FAILED' AND entity_id = ?", Integer.class, row.getUuid().toString()))
+                .isEqualTo(1);
+
+        // Its reply was lost, so finance attaches Safaricom's result; it is the truth even after the close.
+        JsonNode result = objectMapper.readTree(TAX_SUCCESS.formatted("OC-LATE"));
+        payouts.attachResult(DarajaFeature.TAX_REMITTANCE, row.getUuid(), result, result.toString());
+        assertThat(payoutRepository.findByApprovalRequestUuid(approved.requestUuid()).orElseThrow().getStatus())
+                .isEqualTo(ProductPayoutStatus.SUCCESS);
+    }
+
+    @Test
+    void ratibaCannotBeSwitchedOn() {
+        assertThatThrownBy(() -> featureAdmin.update(shortcode.getUuid(), DarajaFeature.RATIBA, true))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("unconfirmed");
+        assertThat(featureAdmin.update(shortcode.getUuid(), DarajaFeature.RATIBA, false).enabled()).isFalse();
+    }
+
     // ---- Business to Pochi
 
     @Test
@@ -280,6 +333,7 @@ class DarajaProductsIntegrationTest {
         features.set(shortcode.getUuid(), DarajaFeature.BUSINESS_TO_POCHI, true, "admin");
         ApprovalExecutor.Approved approved = approve(() -> payouts.requestPochi(shortcode.getUuid(), pochi("1500")));
         assertThat(approved.payload().get("phone_number").asText()).isEqualTo("254705912645");
+        assertThat(approved.payload().get("title").asText()).doesNotContain("2547").doesNotContain("645");
         accept(null, "AG_POCHI_1");
 
         assertThat(pochiExecutor.execute(approved).sent()).isTrue();

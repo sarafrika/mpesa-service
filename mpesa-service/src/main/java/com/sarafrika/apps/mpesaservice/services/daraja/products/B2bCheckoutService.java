@@ -51,6 +51,8 @@ import org.springframework.util.StringUtils;
 @Service
 public class B2bCheckoutService {
 
+    private static final java.time.ZoneId NAIROBI = java.time.ZoneId.of("Africa/Nairobi");
+
     public static final String EVENT_COMPLETED = PaymentEvent.B2B_CHECKOUT_COMPLETED;
     static final String AUDIT_STARTED = "B2B_EXPRESS_CHECKOUT_STARTED";
     static final String RESULT_PATH = "/b2b-checkout/result";
@@ -215,7 +217,8 @@ public class B2bCheckoutService {
         payment.setResultCode(0);
         payment.setResultDesc(checkout.getResultDesc());
         payment.setStatus(IncomingPaymentStatus.SUCCESS);
-        payment.setTransactionDate(LocalDateTime.now());
+        // Transaction times are East Africa Time, as Daraja's own timestamps are.
+        payment.setTransactionDate(LocalDateTime.now(NAIROBI));
         payment.setProcessedAt(LocalDateTime.now());
         payment.setRawCallbackData(objectMapper.convertValue(body, new TypeReference<Map<String, Object>>() {}));
         MpesaIncomingPayment saved = incoming.saveAndFlush(payment);

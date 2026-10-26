@@ -98,4 +98,10 @@ public class ProductPayout extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    @Column(name = "closed_by")
+    private String closedBy;
+
+    @Column(name = "close_note")
+    private String closeNote;
 }
