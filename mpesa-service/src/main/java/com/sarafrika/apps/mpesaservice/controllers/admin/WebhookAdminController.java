@@ -101,6 +101,7 @@ public class WebhookAdminController {
     @GetMapping("/subscriptions/{uuid}")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getWebhookSubscription", summary = "One webhook subscription")
+    @ApiResponse(responseCode = "200", description = "The subscription")
     @ApiResponse(responseCode = "404", description = "Not found",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public WebhookSubscriptionDto getWebhookSubscription(@PathVariable UUID uuid) {
@@ -110,6 +111,7 @@ public class WebhookAdminController {
     @PatchMapping("/subscriptions/{uuid}")
     @PreAuthorize("hasRole('mpesa-admin')")
     @Operation(operationId = "updateWebhookSubscription", summary = "Change a webhook's URL, events or on/off state")
+    @ApiResponse(responseCode = "200", description = "The subscription as saved")
     @ApiResponse(responseCode = "400", description = "Invalid URL or event type",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "403", description = "Requires mpesa-admin",
@@ -193,6 +195,7 @@ public class WebhookAdminController {
     @GetMapping("/deliveries/{uuid}")
     @PreAuthorize("hasRole('mpesa-viewer')")
     @Operation(operationId = "getWebhookDelivery", summary = "One delivery with the exact payload sent")
+    @ApiResponse(responseCode = "200", description = "The delivery and its payload")
     @ApiResponse(responseCode = "404", description = "Not found",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public WebhookDeliveryDto getWebhookDelivery(@PathVariable UUID uuid) {

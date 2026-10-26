@@ -805,10 +805,44 @@
         "required" : [ "active", "business_name", "environment", "shortcode", "shortcode_type", "uuid" ],
         "type" : "object"
       },
-      "MpesaApiResponse" : {
+      "MpesaApiResponseMpesaPayoutDto" : {
         "description" : "Generic M-Pesa API response wrapper",
         "properties" : {
           "data" : {
+            "$ref" : "#/components/schemas/MpesaPayoutDto",
+            "description" : "Response data (null if error)"
+          },
+          "error" : {
+            "$ref" : "#/components/schemas/MpesaErrorResponse",
+            "description" : "Error details (null if successful)"
+          },
+          "httpStatus" : {
+            "description" : "HTTP status code",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "processingTimeMs" : {
+            "description" : "Request processing duration in milliseconds",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "success" : {
+            "description" : "Indicates if the request was successful",
+            "type" : "boolean"
+          },
+          "timestamp" : {
+            "description" : "Response timestamp",
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MpesaApiResponseStkPushResponse" : {
+        "description" : "Generic M-Pesa API response wrapper",
+        "properties" : {
+          "data" : {
+            "$ref" : "#/components/schemas/StkPushResponse",
             "description" : "Response data (null if error)"
           },
           "error" : {
@@ -873,6 +907,68 @@
           },
           "validationError" : {
             "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "MpesaIncomingPaymentDto" : {
+        "description" : "Incoming M-Pesa payment status view",
+        "properties" : {
+          "account_reference" : {
+            "type" : "string"
+          },
+          "amount" : {
+            "type" : "number"
+          },
+          "checkout_request_id" : {
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "merchant_request_id" : {
+            "type" : "string"
+          },
+          "payment_type" : {
+            "enum" : [ "STK_PUSH", "C2B" ],
+            "type" : "string"
+          },
+          "phone_number" : {
+            "type" : "string"
+          },
+          "processed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "result_code" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "transaction_date" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "transaction_desc" : {
+            "type" : "string"
+          },
+          "transaction_id" : {
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -1132,6 +1228,27 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PayoutFloatDto" : {
+        "description" : "A shortcode's float as Safaricom last reported it on a payout result",
+        "properties" : {
+          "reported_at" : {
+            "description" : "When Safaricom reported it; null when no payout has completed yet",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "utility_account_available_funds" : {
+            "type" : "number"
+          },
+          "working_account_available_funds" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
       "Product" : {
         "properties" : {
           "client_id" : {
@@ -1372,6 +1489,37 @@
           }
         },
         "required" : [ "amount", "phone_number", "shortcode_uuid" ],
+        "type" : "object"
+      },
+      "StkPushResponse" : {
+        "description" : "STK Push initiation response from Daraja API",
+        "properties" : {
+          "CheckoutRequestID" : {
+            "description" : "Checkout request ID used for status queries",
+            "example" : "ws_CO_04112017184930742",
+            "type" : "string"
+          },
+          "CustomerMessage" : {
+            "description" : "Customer message displayed on phone",
+            "example" : "Check your phone for the M-PESA pin prompt",
+            "type" : "string"
+          },
+          "MerchantRequestID" : {
+            "description" : "Merchant request ID generated by Safaricom",
+            "example" : "21605-295434-4",
+            "type" : "string"
+          },
+          "ResponseCode" : {
+            "description" : "Response code from Safaricom (0 = success)",
+            "example" : 0,
+            "type" : "string"
+          },
+          "ResponseDescription" : {
+            "description" : "Response description from Safaricom",
+            "example" : "Success. Request accepted for processing",
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "TransactionReversalResult" : {
@@ -2566,6 +2714,16 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WebhookDelivery"
+                }
+              }
+            },
+            "description" : "The delivery and its payload"
+          },
           "404" : {
             "content" : {
               "*/*" : {
@@ -2843,6 +3001,16 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WebhookSubscription"
+                }
+              }
+            },
+            "description" : "The subscription"
+          },
           "404" : {
             "content" : {
               "*/*" : {
@@ -2879,6 +3047,16 @@
           "required" : true
         },
         "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WebhookSubscription"
+                }
+              }
+            },
+            "description" : "The subscription as saved"
+          },
           "400" : {
             "content" : {
               "*/*" : {
@@ -3331,7 +3509,7 @@
     },
     "/api/v1/mpesa/b2c" : {
       "post" : {
-        "description" : "202 while Safaricom processes it; the same client_reference returns the first payout.",
+        "description" : "202 while Safaricom processes it; the same client_reference returns the first payout. 403 GRANT_REQUIRED unless the calling client holds B2C_PAYOUT on the shortcode.",
         "operationId" : "sendB2cPayout",
         "requestBody" : {
           "content" : {
@@ -3344,15 +3522,15 @@
           "required" : true
         },
         "responses" : {
-          "403" : {
+          "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaApiResponse"
+                  "$ref" : "#/components/schemas/MpesaApiResponseMpesaPayoutDto"
                 }
               }
             },
-            "description" : "The calling client is not granted B2C_PAYOUT on the shortcode"
+            "description" : "OK"
           }
         },
         "summary" : "Send a B2C payout",
@@ -3361,7 +3539,7 @@
     },
     "/api/v1/mpesa/payments" : {
       "get" : {
-        "description" : "A product sees only payments on shortcodes it holds STATUS_LOOKUP on.",
+        "description" : "A product sees only payments on shortcodes it holds STATUS_LOOKUP on, and gets 403 GRANT_REQUIRED without any such grant.",
         "operationId" : "listPayments",
         "parameters" : [ {
           "in" : "query",
@@ -3379,15 +3557,18 @@
           }
         } ],
         "responses" : {
-          "403" : {
+          "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaApiResponse"
+                  "items" : {
+                    "$ref" : "#/components/schemas/MpesaIncomingPaymentDto"
+                  },
+                  "type" : "array"
                 }
               }
             },
-            "description" : "A product without any STATUS_LOOKUP grant"
+            "description" : "OK"
           }
         },
         "summary" : "Fetch incoming payments by account reference or M-Pesa transaction id",
@@ -3396,6 +3577,7 @@
     },
     "/api/v1/mpesa/payments/by-checkout/{checkoutRequestId}" : {
       "get" : {
+        "description" : "Products need STATUS_LOOKUP on the payment's shortcode (403 GRANT_REQUIRED otherwise).",
         "operationId" : "getPaymentByCheckoutRequestId",
         "parameters" : [ {
           "in" : "path",
@@ -3406,15 +3588,15 @@
           }
         } ],
         "responses" : {
-          "403" : {
+          "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaApiResponse"
+                  "$ref" : "#/components/schemas/MpesaIncomingPaymentDto"
                 }
               }
             },
-            "description" : "A product without STATUS_LOOKUP on the payment's shortcode"
+            "description" : "OK"
           }
         },
         "summary" : "Fetch an incoming payment by STK Push checkout request id",
@@ -3478,6 +3660,7 @@
     },
     "/api/v1/mpesa/shortcodes/{uuid}/float" : {
       "get" : {
+        "description" : "Products need B2C_PAYOUT or STATUS_LOOKUP on the shortcode.",
         "operationId" : "getShortcodeFloat",
         "parameters" : [ {
           "in" : "path",
@@ -3489,15 +3672,15 @@
           }
         } ],
         "responses" : {
-          "403" : {
+          "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaApiResponse"
+                  "$ref" : "#/components/schemas/PayoutFloatDto"
                 }
               }
             },
-            "description" : "A product without B2C_PAYOUT or STATUS_LOOKUP on the shortcode"
+            "description" : "OK"
           }
         },
         "summary" : "A shortcode's float as last reported on a payout result",
@@ -3506,6 +3689,7 @@
     },
     "/api/v1/mpesa/stk-push" : {
       "post" : {
+        "description" : "403 GRANT_REQUIRED unless the calling client holds STK_PUSH on the shortcode.",
         "operationId" : "initiateStkPush",
         "requestBody" : {
           "content" : {
@@ -3518,15 +3702,15 @@
           "required" : true
         },
         "responses" : {
-          "403" : {
+          "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaApiResponse"
+                  "$ref" : "#/components/schemas/MpesaApiResponseStkPushResponse"
                 }
               }
             },
-            "description" : "The calling client is not granted STK_PUSH on the shortcode"
+            "description" : "OK"
           }
         },
         "summary" : "Initiate an STK Push payment for a configured shortcode",

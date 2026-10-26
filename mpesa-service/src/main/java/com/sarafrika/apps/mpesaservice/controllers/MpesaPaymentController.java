@@ -10,9 +10,6 @@ import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import com.sarafrika.apps.mpesaservice.services.products.ProductGrantGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,9 +49,8 @@ public class MpesaPaymentController {
      * Initiate an STK Push against a configured shortcode.
      */
     @PostMapping("/stk-push")
-    @Operation(operationId = "initiateStkPush", summary = "Initiate an STK Push payment for a configured shortcode")
-    @ApiResponse(responseCode = "403", description = "The calling client is not granted STK_PUSH on the shortcode",
-            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
+    @Operation(operationId = "initiateStkPush", summary = "Initiate an STK Push payment for a configured shortcode",
+            description = "403 GRANT_REQUIRED unless the calling client holds STK_PUSH on the shortcode.")
     public ResponseEntity<MpesaApiResponse<StkPushResponse>> initiateStkPush(
             @RequestBody StkPushRequest request, Authentication authentication) {
 
@@ -79,9 +75,8 @@ public class MpesaPaymentController {
      */
     @GetMapping("/payments/by-checkout/{checkoutRequestId}")
     @Operation(operationId = "getPaymentByCheckoutRequestId",
-            summary = "Fetch an incoming payment by STK Push checkout request id")
-    @ApiResponse(responseCode = "403", description = "A product without STATUS_LOOKUP on the payment's shortcode",
-            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
+            summary = "Fetch an incoming payment by STK Push checkout request id",
+            description = "Products need STATUS_LOOKUP on the payment's shortcode (403 GRANT_REQUIRED otherwise).")
     public ResponseEntity<MpesaIncomingPaymentDto> getPaymentByCheckoutRequestId(
             @PathVariable String checkoutRequestId, Authentication authentication) {
 
@@ -103,9 +98,8 @@ public class MpesaPaymentController {
     @GetMapping("/payments")
     @Operation(operationId = "listPayments",
             summary = "Fetch incoming payments by account reference or M-Pesa transaction id",
-            description = "A product sees only payments on shortcodes it holds STATUS_LOOKUP on.")
-    @ApiResponse(responseCode = "403", description = "A product without any STATUS_LOOKUP grant",
-            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
+            description = "A product sees only payments on shortcodes it holds STATUS_LOOKUP on, and gets 403 "
+                    + "GRANT_REQUIRED without any such grant.")
     public ResponseEntity<List<MpesaIncomingPaymentDto>> getPayments(
             @RequestParam(name = "account_reference", required = false) String accountReference,
             @RequestParam(name = "transaction_id", required = false) String transactionId,

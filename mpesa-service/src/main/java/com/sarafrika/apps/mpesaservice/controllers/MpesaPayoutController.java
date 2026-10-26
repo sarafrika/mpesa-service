@@ -11,9 +11,6 @@ import com.sarafrika.apps.mpesaservice.services.products.ProductGrantGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -46,9 +43,8 @@ public class MpesaPayoutController {
 
     @PostMapping("/b2c")
     @Operation(operationId = "sendB2cPayout", summary = "Send a B2C payout",
-            description = "202 while Safaricom processes it; the same client_reference returns the first payout.")
-    @ApiResponse(responseCode = "403", description = "The calling client is not granted B2C_PAYOUT on the shortcode",
-            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
+            description = "202 while Safaricom processes it; the same client_reference returns the first payout. "
+                    + "403 GRANT_REQUIRED unless the calling client holds B2C_PAYOUT on the shortcode.")
     public ResponseEntity<MpesaApiResponse<MpesaPayoutDto>> payout(@Valid @RequestBody B2CPayoutRequest request,
                                                                    Authentication authentication) {
         grantGuard.require(authentication, request.shortcodeUuid(), GrantOperation.B2C_PAYOUT);
@@ -88,9 +84,8 @@ public class MpesaPayoutController {
 
     @GetMapping("/shortcodes/{uuid}/float")
     @Operation(operationId = "getShortcodeFloat",
-            summary = "A shortcode's float as last reported on a payout result")
-    @ApiResponse(responseCode = "403", description = "A product without B2C_PAYOUT or STATUS_LOOKUP on the shortcode",
-            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
+            summary = "A shortcode's float as last reported on a payout result",
+            description = "Products need B2C_PAYOUT or STATUS_LOOKUP on the shortcode.")
     public ResponseEntity<PayoutFloatDto> payoutFloat(@PathVariable UUID uuid, Authentication authentication) {
         grantGuard.requireRead(authentication, uuid, GrantOperation.B2C_PAYOUT, GrantOperation.STATUS_LOOKUP);
         return ResponseEntity.ok(payoutService.latestFloat(uuid));
