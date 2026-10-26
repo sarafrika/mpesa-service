@@ -19,22 +19,29 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class MetricsQueries {
 
-    /** The two payment tables, with the columns that differ between them. */
+    /** The two payment tables, with the columns that differ between them. A deposit counts when the money
+     * arrived (its transaction time), so one backfilled from a statement lands on its own day, not the backfill's;
+     * a backfill is always saved after that time, so created_at still bounds the scan (with a day of slack). */
     public enum Direction {
-        IN("mpesa_incoming_payments", "COALESCE(p.transaction_id, p.checkout_request_id)", "p.account_reference"),
+        IN("mpesa_incoming_payments", "COALESCE(p.transaction_id, p.checkout_request_id)", "p.account_reference",
+                "COALESCE(p.transaction_date, p.created_at)"),
         OUT("mpesa_outgoing_payments", "COALESCE(p.transaction_id, p.conversation_id, p.originator_conversation_id)",
-                "p.client_reference");
+                "p.client_reference", "p.created_at");
 
         final String table;
         final String reference;
         final String accountReference;
+        final String time;
 
-        Direction(String table, String reference, String accountReference) {
+        Direction(String table, String reference, String accountReference, String time) {
             this.table = table;
             this.reference = reference;
             this.accountReference = accountReference;
+            this.time = time;
         }
     }
+
+    private static final java.time.Duration SLACK = java.time.Duration.ofDays(1);
 
     public record Filter(UUID shortcodeUuid, Environment environment) {
         public static final Filter ALL = new Filter(null, null);
@@ -77,12 +84,14 @@ public class MetricsQueries {
                 .addValue("from", MetricsTime.toStorage(from))
                 .addValue("to", MetricsTime.toStorage(to))
                 .addValue("previousFrom", MetricsTime.toStorage(previousFrom))
-                .addValue("previousTo", MetricsTime.toStorage(previousTo));
-        String sql = "SELECT p.created_at >= :from AS is_current, p.payment_type, p.status, COUNT(*) AS n, "
+                .addValue("previousTo", MetricsTime.toStorage(previousTo))
+                .addValue("scanFrom", MetricsTime.toStorage(earliest(from, previousFrom).minus(SLACK)));
+        String t = direction.time;
+        String sql = "SELECT " + t + " >= :from AS is_current, p.payment_type, p.status, COUNT(*) AS n, "
                 + "COALESCE(SUM(p.amount), 0) AS total "
                 + from(direction)
-                + " AND ((p.created_at >= :from AND p.created_at < :to)"
-                + " OR (p.created_at >= :previousFrom AND p.created_at < :previousTo))" + scope(filter, params)
+                + " AND p.created_at >= :scanFrom AND ((" + t + " >= :from AND " + t + " < :to)"
+                + " OR (" + t + " >= :previousFrom AND " + t + " < :previousTo))" + scope(filter, params)
                 + " GROUP BY 1, 2, 3";
         return jdbc.query(sql, params, (rs, i) -> new StatusTotal(rs.getBoolean("is_current"), direction,
                 rs.getString("payment_type"), rs.getString("status"), rs.getLong("n"), rs.getBigDecimal("total")));
@@ -96,12 +105,14 @@ public class MetricsQueries {
                 .addValue("storageZone", MetricsTime.storageZone().getId())
                 .addValue("reportingZone", MetricsTime.REPORTING_ZONE.getId())
                 .addValue("from", MetricsTime.toStorage(from))
-                .addValue("to", MetricsTime.toStorage(to));
-        String sql = "SELECT date_trunc(CAST(:unit AS text), (p.created_at AT TIME ZONE CAST(:storageZone AS text)) "
+                .addValue("to", MetricsTime.toStorage(to))
+                .addValue("scanFrom", MetricsTime.toStorage(from.minus(SLACK)));
+        String t = direction.time;
+        String sql = "SELECT date_trunc(CAST(:unit AS text), (" + t + " AT TIME ZONE CAST(:storageZone AS text)) "
                 + "AT TIME ZONE CAST(:reportingZone AS text)) AS bucket, COUNT(*) AS n, SUM(p.amount) AS total "
                 + from(direction)
-                + " AND p.status = 'SUCCESS' AND p.created_at >= :from AND p.created_at < :to" + scope(filter, params)
-                + " GROUP BY 1";
+                + " AND p.status = 'SUCCESS' AND p.created_at >= :scanFrom AND " + t + " >= :from AND " + t + " < :to"
+                + scope(filter, params) + " GROUP BY 1";
         return jdbc.query(sql, params, (rs, i) -> new BucketTotal(direction,
                 rs.getTimestamp("bucket").toLocalDateTime(), rs.getLong("n"), rs.getBigDecimal("total")));
     }
@@ -152,14 +163,15 @@ public class MetricsQueries {
 
     /** Per shortcode: successful payments since {@code todayStart}, failed and settled ones since {@code recentStart}. */
     public List<ShortcodeWindow> shortcodeWindows(Direction direction, Instant todayStart, Instant recentStart) {
-        Instant since = todayStart.isBefore(recentStart) ? todayStart : recentStart;
+        Instant since = earliest(todayStart, recentStart).minus(SLACK);
+        String t = direction.time;
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("since", MetricsTime.toStorage(since))
                 .addValue("todayStart", MetricsTime.toStorage(todayStart))
                 .addValue("recentStart", MetricsTime.toStorage(recentStart));
         String sql = "SELECT p.shortcode_uuid, "
-                + "COUNT(*) FILTER (WHERE p.status = 'SUCCESS' AND p.created_at >= :todayStart) AS today_count, "
-                + "COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'SUCCESS' AND p.created_at >= :todayStart), 0) "
+                + "COUNT(*) FILTER (WHERE p.status = 'SUCCESS' AND " + t + " >= :todayStart) AS today_count, "
+                + "COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'SUCCESS' AND " + t + " >= :todayStart), 0) "
                 + "AS today_amount, "
                 + "COUNT(*) FILTER (WHERE p.status = 'FAILED' AND p.created_at >= :recentStart) AS failed_recent, "
                 + "COUNT(*) FILTER (WHERE p.status <> 'PENDING' AND p.created_at >= :recentStart) AS settled_recent "
@@ -168,6 +180,10 @@ public class MetricsQueries {
         return jdbc.query(sql, params, (rs, i) -> new ShortcodeWindow(direction,
                 rs.getObject("shortcode_uuid", UUID.class), rs.getLong("today_count"),
                 rs.getBigDecimal("today_amount"), rs.getLong("failed_recent"), rs.getLong("settled_recent")));
+    }
+
+    private static Instant earliest(Instant a, Instant b) {
+        return a.isBefore(b) ? a : b;
     }
 
     /** STK requests still pending that were created in [since, olderThan). */
