@@ -25,6 +25,7 @@ export function tabStatuses(tab: ApprovalTab): string[] {
 /** "BULK_PAYOUT" reads "Bulk payout"; B2B keeps its capitals. */
 export function approvalTypeLabel(type: string): string {
   if (type === "B2B_SWEEP") return "B2B sweep";
+  if (type === "BUSINESS_TO_POCHI") return "Pochi payment";
   const words = type.replaceAll("_", " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

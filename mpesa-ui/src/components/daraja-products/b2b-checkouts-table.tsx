@@ -53,7 +53,12 @@ export function B2bCheckouts({
       {list.isPending ? (
         <TableSkeleton columns={6} rows={3} />
       ) : !data ? (
-        <ErrorState error={list.error} onRetry={() => list.refetch()} retrying={list.isFetching} />
+        <ErrorState
+          error={list.error}
+          requiredRole="mpesa-viewer"
+          onRetry={() => list.refetch()}
+          retrying={list.isFetching}
+        />
       ) : data.items.length === 0 ? (
         <EmptyState
           icon={Smartphone}

@@ -1,22 +1,30 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { Landmark, TriangleAlert, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import {
+  getListPochiPayoutsQueryKey,
+  getListTaxRemittancesQueryKey,
+  useCloseProductPayoutAsFailed,
   useListPochiPayouts,
   useListTaxRemittances,
 } from "@/api/generated/endpoints/admin-daraja-products/admin-daraja-products";
-import type { PageResponseProductPayoutDto } from "@/api/generated/model";
+import type { PageResponseProductPayoutDto, ProductPayoutDto } from "@/api/generated/model";
+import { CloseAsFailedDialog } from "@/components/close-as-failed-dialog";
 import { DataTablePagination } from "@/components/data-table-pagination";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { Money } from "@/components/money";
 import { okData } from "@/components/paybills/api";
+import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { TableSkeleton } from "@/components/skeletons";
 import { SortableHead } from "@/components/sortable-head";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -46,6 +54,7 @@ export function TaxRemittances({ shortcodeUuid, action }: Props) {
       emptyTitle="No tax remitted yet"
       emptyIcon={Landmark}
       recipient="PRN"
+      shortcodeUuid={shortcodeUuid}
       paging={paging}
       list={list}
       data={okData(list.data)}
@@ -69,6 +78,7 @@ export function PochiPayouts({ shortcodeUuid, action }: Props) {
       emptyTitle="No Pochi payments yet"
       emptyIcon={Wallet}
       recipient="Wallet"
+      shortcodeUuid={shortcodeUuid}
       paging={paging}
       list={list}
       data={okData(list.data)}
@@ -94,6 +104,7 @@ type PayoutsCardProps = {
   emptyTitle: string;
   emptyIcon: typeof Wallet;
   recipient: "PRN" | "Wallet";
+  shortcodeUuid: string;
   paging: ReturnType<typeof usePaging>;
   list: PagedQuery;
   data: PageResponseProductPayoutDto | undefined;
@@ -106,6 +117,7 @@ function PayoutsCard({
   emptyTitle,
   emptyIcon,
   recipient,
+  shortcodeUuid,
   paging,
   list,
   data,
@@ -119,7 +131,12 @@ function PayoutsCard({
       {list.isPending ? (
         <TableSkeleton columns={6} rows={3} />
       ) : !data ? (
-        <ErrorState error={list.error} onRetry={() => list.refetch()} retrying={list.isFetching} />
+        <ErrorState
+          error={list.error}
+          requiredRole="mpesa-viewer"
+          onRetry={() => list.refetch()}
+          retrying={list.isFetching}
+        />
       ) : data.items.length === 0 ? (
         <EmptyState
           icon={emptyIcon}
@@ -187,6 +204,14 @@ function PayoutsCard({
                             resend
                           </span>
                         )}
+                        {payout.outcome_unknown && payout.status === "PENDING" && (
+                          <CloseUnknown shortcodeUuid={shortcodeUuid} payout={payout} />
+                        )}
+                        {payout.closed_by && (
+                          <span className="text-muted-foreground text-xs">
+                            Closed by hand by {payout.closed_by}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell
@@ -216,5 +241,43 @@ function PayoutsCard({
         </>
       )}
     </SectionCard>
+  );
+}
+
+/** Finance closes a payment whose outcome stayed unknown once the statement shows nothing moved. */
+function CloseUnknown({
+  shortcodeUuid,
+  payout,
+}: {
+  shortcodeUuid: string;
+  payout: ProductPayoutDto;
+}) {
+  const queryClient = useQueryClient();
+  const close = useCloseProductPayoutAsFailed({
+    mutation: { meta: { requiredRole: "mpesa-finance" } },
+  });
+  return (
+    <RoleGate needs="mpesa-finance">
+      <CloseAsFailedDialog
+        title="Close this payment as failed?"
+        description="Only when the M-Pesa statement shows the money did not move. Nothing is sent to Safaricom; if its result still arrives, that result settles it."
+        pending={close.isPending}
+        trigger={
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+            Close as failed
+          </Button>
+        }
+        onSubmit={async (note) => {
+          await close.mutateAsync({ uuid: shortcodeUuid, payoutUuid: payout.uuid, data: { note } });
+          toast.success("Payment closed as failed");
+          await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: getListTaxRemittancesQueryKey(shortcodeUuid),
+            }),
+            queryClient.invalidateQueries({ queryKey: getListPochiPayoutsQueryKey(shortcodeUuid) }),
+          ]);
+        }}
+      />
+    </RoleGate>
   );
 }

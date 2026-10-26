@@ -17,6 +17,7 @@ import {
 import type { ApprovalDto } from "@/api/generated/model";
 import { CloseAsFailedDialog } from "@/components/close-as-failed-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ProductPayoutSummary } from "@/components/daraja-products/product-payout-summary";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { type KeyValueItem, KeyValueList } from "@/components/key-value-list";
@@ -200,6 +201,15 @@ function DetailContent({
             Sweep
           </h3>
           <B2bSweepSummary payload={detail.payload} />
+        </section>
+      )}
+
+      {(detail.type === "TAX_REMITTANCE" || detail.type === "BUSINESS_TO_POCHI") && (
+        <section aria-labelledby="payout-summary" className="flex flex-col gap-2 border-t pt-4">
+          <h3 id="payout-summary" className="font-semibold text-sm">
+            {detail.type === "TAX_REMITTANCE" ? "Tax remittance" : "Pochi payment"}
+          </h3>
+          <ProductPayoutSummary type={detail.type} payload={detail.payload} />
         </section>
       )}
 

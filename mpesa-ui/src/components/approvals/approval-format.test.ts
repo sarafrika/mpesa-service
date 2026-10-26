@@ -47,6 +47,8 @@ describe("approvalTypeLabel", () => {
     assert.equal(approvalTypeLabel("BULK_PAYOUT"), "Bulk payout");
     assert.equal(approvalTypeLabel("REVERSAL"), "Reversal");
     assert.equal(approvalTypeLabel("B2B_SWEEP"), "B2B sweep");
+    assert.equal(approvalTypeLabel("BUSINESS_TO_POCHI"), "Pochi payment");
+    assert.equal(approvalTypeLabel("TAX_REMITTANCE"), "Tax remittance");
   });
 });
 
