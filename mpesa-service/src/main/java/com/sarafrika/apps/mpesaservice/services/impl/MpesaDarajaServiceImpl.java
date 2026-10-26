@@ -436,28 +436,37 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     @Override
     public MpesaApiResponse<TransactionReversalResponse> reverseTransaction(UUID shortcodeUuid, String transactionId,
                                                                             BigDecimal amount, String remarks) {
-        log.info("Reversing transaction for shortcode: {}, transactionId: {}, amount: {}",
-                shortcodeUuid, transactionId, amount);
-
-        long startTime = System.currentTimeMillis();
-
         try {
-            MpesaShortCode shortcode = getShortcodeOrThrow(shortcodeUuid);
-            String accessToken = getAccessToken(shortcode);
+            return reverseTransaction(getShortcodeOrThrow(shortcodeUuid), transactionId, amount, remarks);
+        } catch (Exception e) {
+            return handleException(e, System.currentTimeMillis(), "Transaction reversal");
+        }
+    }
 
+    @Override
+    public MpesaApiResponse<TransactionReversalResponse> reverseTransaction(MpesaShortCode shortcode,
+                                                                            String transactionId, BigDecimal amount,
+                                                                            String remarks) {
+        log.info("Reversing transaction {} on shortcode {}, amount {}", transactionId, shortcode.getShortcode(), amount);
+        long startTime = System.currentTimeMillis();
+        String accessToken;
+        Map<String, Object> payload;
+        try {
+            accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
-                return MpesaApiResponse.error("AUTH_FAILED",
-                        "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+                return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
             }
-
-            Map<String, Object> payload = buildTransactionReversalPayload(shortcode, transactionId, amount, remarks);
-
-            MpesaDarajaHttpClient httpClient = getHttpClient(shortcode.getEnvironment());
-            TransactionReversalResponse response = httpClient.reverseTransaction("Bearer " + accessToken, payload);
-
-            long processingTime = System.currentTimeMillis() - startTime;
-            return MpesaApiResponse.success(response, HttpStatus.OK.value(), processingTime);
-
+            payload = buildTransactionReversalPayload(shortcode, transactionId, amount, remarks);
+        } catch (Exception e) {
+            // Nothing reached Safaricom, so this refusal is final.
+            log.error("Reversal of {} not sent: {}", transactionId, e.toString());
+            return MpesaApiResponse.error(MpesaErrorResponse.NOT_SENT, "The reversal could not be prepared: "
+                    + e.getMessage(), HttpStatus.UNPROCESSABLE_ENTITY.value());
+        }
+        try {
+            TransactionReversalResponse response = getHttpClient(shortcode.getEnvironment())
+                    .reverseTransaction("Bearer " + accessToken, payload);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
         } catch (Exception e) {
             return handleException(e, startTime, "Transaction reversal");
         }
@@ -778,18 +787,19 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
     private Map<String, Object> buildTransactionReversalPayload(MpesaShortCode shortcode, String transactionId,
                                                                 BigDecimal amount, String remarks) {
+        // Fields as on developer.safaricom.co.ke/apis/Reversal: ReceiverParty is the organisation shortcode,
+        // RecieverIdentifierType (Safaricom's spelling) "11", Remarks 2-100 characters, no Occasion.
         Map<String, Object> payload = new HashMap<>();
         payload.put("Initiator", shortcode.getInitiatorName());
         payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "TransactionReversal");
         payload.put("TransactionID", transactionId);
-        payload.put("Amount", amount);
+        payload.put("Amount", amount.stripTrailingZeros().toPlainString());
         payload.put("ReceiverParty", shortcode.getShortcode());
         payload.put("RecieverIdentifierType", "11");
-        payload.put("ResultURL", shortcode.getCallbackUrl());
-        payload.put("QueueTimeOutURL", shortcode.getCallbackUrl());
-        payload.put("Remarks", remarks != null ? remarks : "Transaction Reversal");
-        payload.put("Occasion", "TransactionReversal");
+        payload.put("ResultURL", callbackUrl("/reversal/result"));
+        payload.put("QueueTimeOutURL", callbackUrl("/reversal/timeout"));
+        payload.put("Remarks", remarks != null && remarks.length() >= 2 ? remarks : "Transaction Reversal");
         return payload;
     }
 

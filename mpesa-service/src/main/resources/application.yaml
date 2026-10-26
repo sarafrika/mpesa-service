@@ -69,6 +69,15 @@ mpesa:
     low-float: ${MPESA_ALERTS_LOW_FLOAT:50000}
     stale-after: ${MPESA_ALERTS_STALE_AFTER:6h}
 
+  # Maker-checker. These are this service's own settings, not Safaricom or Sarafrika policy: how long a
+  # request waits for a checker, how long a silent run is trusted before it is resumed, and CSV limits.
+  approvals:
+    expire-after: ${MPESA_APPROVALS_EXPIRE_AFTER:48h}
+    execution-lease: ${MPESA_APPROVALS_EXECUTION_LEASE:15m}
+    console-client-id: mpesa-console
+    bulk-max-file-size: ${MPESA_APPROVALS_BULK_MAX_FILE_SIZE:512KB}
+    bulk-max-rows: ${MPESA_APPROVALS_BULK_MAX_ROWS:1000}
+
   # Daraja base URLs and HTTP timeouts.
   daraja:
     sandbox:
