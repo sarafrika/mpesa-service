@@ -69,17 +69,19 @@ public class MetricsQueries {
 
     private final NamedParameterJdbcTemplate jdbc;
 
-    /** Totals by type and status for [previousFrom, to); rows from {@code from} on are the current period. */
-    public List<StatusTotal> statusTotals(Direction direction, Instant previousFrom, Instant from, Instant to,
-                                          Filter filter) {
+    /** Totals by type and status for the current period [from, to) and an earlier one [previousFrom, previousTo). */
+    public List<StatusTotal> statusTotals(Direction direction, Instant from, Instant to, Instant previousFrom,
+                                          Instant previousTo, Filter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("previousFrom", MetricsTime.toStorage(previousFrom))
                 .addValue("from", MetricsTime.toStorage(from))
-                .addValue("to", MetricsTime.toStorage(to));
+                .addValue("to", MetricsTime.toStorage(to))
+                .addValue("previousFrom", MetricsTime.toStorage(previousFrom))
+                .addValue("previousTo", MetricsTime.toStorage(previousTo));
         String sql = "SELECT p.created_at >= :from AS is_current, p.payment_type, p.status, COUNT(*) AS n, "
                 + "COALESCE(SUM(p.amount), 0) AS total "
                 + from(direction)
-                + " AND p.created_at >= :previousFrom AND p.created_at < :to" + scope(filter, params)
+                + " AND ((p.created_at >= :from AND p.created_at < :to)"
+                + " OR (p.created_at >= :previousFrom AND p.created_at < :previousTo))" + scope(filter, params)
                 + " GROUP BY 1, 2, 3";
         return jdbc.query(sql, params, (rs, i) -> new StatusTotal(rs.getBoolean("is_current"), direction,
                 rs.getString("payment_type"), rs.getString("status"), rs.getLong("n"), rs.getBigDecimal("total")));

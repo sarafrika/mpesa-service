@@ -64,12 +64,13 @@ class MetricsAdminControllerTest {
         PeriodMetricsDto current = new PeriodMetricsDto(new BigDecimal("1500.00"), 2,
                 List.of(new TypeTotalDto("C2B", new BigDecimal("1000.00"), 1)), new BigDecimal("300.00"), 1,
                 5, 3, 1, 1, 1, 0.6);
-        when(metricsService.summary(FROM, TO, new Filter(SHORTCODE, Environment.PRODUCTION)))
+        when(metricsService.summary(FROM, TO, FROM.minusSeconds(604800), new Filter(SHORTCODE, Environment.PRODUCTION)))
                 .thenReturn(new MetricsSummaryDto(FROM, TO, FROM.minusSeconds(604800), FROM, current, current,
                         new FloatSummaryDto(null, 0, null)));
 
         mockMvc.perform(get("/api/v1/admin/metrics/summary")
                         .param("from", "2026-10-20T00:00:00+03:00").param("to", "2026-10-26T21:00:00Z")
+                        .param("previous_from", "2026-10-12T21:00:00Z")
                         .param("shortcode_uuid", SHORTCODE.toString()).param("environment", "PRODUCTION"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.from").value("2026-10-19T21:00:00Z"))
@@ -158,7 +159,7 @@ class MetricsAdminControllerTest {
     @Test
     @WithMockUser(roles = "mpesa-viewer")
     void aRangeTheServiceRefusesIsA400WithItsField() throws Exception {
-        when(metricsService.summary(any(), any(), any()))
+        when(metricsService.summary(any(), any(), any(), any()))
                 .thenThrow(new InvalidRequestException("to", "must be after from"));
 
         mockMvc.perform(get("/api/v1/admin/metrics/summary").param("from", TO.toString()).param("to", FROM.toString()))

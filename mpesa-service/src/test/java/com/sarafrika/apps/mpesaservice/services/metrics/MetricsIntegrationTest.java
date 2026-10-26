@@ -152,6 +152,23 @@ class MetricsIntegrationTest {
     }
 
     @Test
+    void todaySoFarComparesWithTheSameHoursYesterday() {
+        UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
+        Instant todayStart = Instant.parse("2026-10-25T21:00:00Z");
+        incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(1)));
+        incoming(fees, "C2B", "SUCCESS", "40.00", NOW.minus(Duration.ofHours(25)));
+        incoming(fees, "C2B", "SUCCESS", "900.00", NOW.minus(Duration.ofHours(23)));
+
+        MetricsSummaryDto today = metrics.summary(todayStart, NOW, todayStart.minus(Duration.ofDays(1)), Filter.ALL);
+
+        assertThat(today.previousTo()).isEqualTo(NOW.minus(Duration.ofDays(1)));
+        assertThat(today.current().collectedAmount()).isEqualByComparingTo("100.00");
+        assertThat(today.previous().collectedAmount()).isEqualByComparingTo("40.00");
+        assertThatThrownBy(() -> metrics.summary(todayStart, NOW, todayStart.minus(Duration.ofHours(2)), Filter.ALL))
+                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("must end by from");
+    }
+
+    @Test
     void floatIsEachActiveShortcodesNewestReportSummedWithTheLowestNamed() {
         UUID payouts = shortcode("Elimika Payouts", "PRODUCTION", true);
         UUID refunds = shortcode("Refunds", "PRODUCTION", true);

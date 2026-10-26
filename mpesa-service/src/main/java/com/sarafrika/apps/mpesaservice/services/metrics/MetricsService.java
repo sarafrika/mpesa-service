@@ -43,13 +43,23 @@ public class MetricsService {
     private final MetricsQueries queries;
 
     public MetricsSummaryDto summary(Instant from, Instant to, Filter filter) {
+        return summary(from, to, null, filter);
+    }
+
+    /** The previous period has the same length and starts at previousFrom, by default right before from. */
+    public MetricsSummaryDto summary(Instant from, Instant to, Instant previousFrom, Filter filter) {
         validateRange(from, to);
-        Instant previousFrom = from.minus(Duration.between(from, to));
+        Duration length = Duration.between(from, to);
+        Instant previousStart = previousFrom == null ? from.minus(length) : previousFrom;
+        Instant previousEnd = previousStart.plus(length);
+        if (previousEnd.isAfter(from)) {
+            throw new InvalidRequestException("previous_from", "the previous period must end by from");
+        }
         List<StatusTotal> totals = new ArrayList<>();
         for (Direction direction : Direction.values()) {
-            totals.addAll(queries.statusTotals(direction, previousFrom, from, to, filter));
+            totals.addAll(queries.statusTotals(direction, from, to, previousStart, previousEnd, filter));
         }
-        return new MetricsSummaryDto(from, to, previousFrom, from,
+        return new MetricsSummaryDto(from, to, previousStart, previousEnd,
                 period(totals.stream().filter(StatusTotal::current).toList()),
                 period(totals.stream().filter(t -> !t.current()).toList()),
                 floatSummary(queries.latestFloats(filter)));

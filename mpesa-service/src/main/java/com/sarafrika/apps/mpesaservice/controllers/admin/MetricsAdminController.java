@@ -58,11 +58,16 @@ public class MetricsAdminController {
             @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @Parameter(description = TO, required = true)
             @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
+            @Parameter(description = "Start of the comparison period, which has the same length as from..to and "
+                    + "must end by from; defaults to the period right before from (e.g. yesterday 00:00 for today so far)")
+            @RequestParam(name = "previous_from", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime previousFrom,
             @Parameter(description = SHORTCODE)
             @RequestParam(name = "shortcode_uuid", required = false) UUID shortcodeUuid,
             @Parameter(description = ENVIRONMENT)
             @RequestParam(name = "environment", required = false) Environment environment) {
-        return metricsService.summary(from.toInstant(), to.toInstant(), new Filter(shortcodeUuid, environment));
+        return metricsService.summary(from.toInstant(), to.toInstant(),
+                previousFrom == null ? null : previousFrom.toInstant(), new Filter(shortcodeUuid, environment));
     }
 
     @GetMapping("/timeseries")

@@ -2071,6 +2071,15 @@
             "type" : "string"
           }
         }, {
+          "description" : "Start of the comparison period, which has the same length as from..to and must end by from; defaults to the period right before from (e.g. yesterday 00:00 for today so far)",
+          "in" : "query",
+          "name" : "previous_from",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
           "description" : "Only this shortcode",
           "in" : "query",
           "name" : "shortcode_uuid",
