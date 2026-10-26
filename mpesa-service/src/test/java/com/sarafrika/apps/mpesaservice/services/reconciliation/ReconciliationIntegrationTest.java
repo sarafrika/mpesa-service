@@ -22,12 +22,19 @@ import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
+import com.sarafrika.apps.mpesaservice.models.WebhookSubscription;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
+import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.collections.C2BConfirmationService;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionStatusService;
 import com.sarafrika.apps.mpesaservice.services.features.ShortcodeFeatures;
+import com.sarafrika.apps.mpesaservice.services.metrics.MetricsQueries;
+import com.sarafrika.apps.mpesaservice.services.metrics.MetricsService;
+import com.sarafrika.apps.mpesaservice.services.webhooks.PaymentEventWebhookListener;
+import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookDispatcher;
+import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookFanOutService;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
@@ -75,7 +82,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Import({ReconciliationService.class, ReconciliationResolver.class, ReconciliationLedger.class,
         PullTransactionsService.class, NightlyReconciliationScheduler.class, ReconciliationConfig.class,
         ShortcodeFeatures.class, C2BConfirmationService.class, AuditService.class, SecretCipher.class,
-        OpenExceptionsAttentionSource.class, ReconciliationIntegrationTest.Beans.class})
+        OpenExceptionsAttentionSource.class, WebhookFanOutService.class, PaymentEventWebhookListener.class,
+        MetricsService.class, MetricsQueries.class, ReconciliationIntegrationTest.Beans.class})
 @TestPropertySource(properties = {"mpesa.reconciliation.nightly.enabled=true",
         "mpesa.callback.base-url=https://example.test/api/v1/callbacks"})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -134,6 +142,12 @@ class ReconciliationIntegrationTest {
     private MpesaDarajaService daraja;
     @MockitoBean
     private TransactionStatusService statusService;
+    @MockitoBean
+    private WebhookDispatcher dispatcher;
+    @Autowired
+    private WebhookSubscriptionRepository subscriptions;
+    @Autowired
+    private MetricsService metrics;
 
     private MpesaShortCode shortcode;
     /** Receipts are unique across the shared database, so each test uses its own 7-character prefix. */
@@ -214,6 +228,29 @@ class ReconciliationIntegrationTest {
                 .extracting(ReconciliationExceptionDto::receipt).doesNotContain(p + "0BB");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM mpesa_incoming_payments WHERE transaction_id = ?",
                 Long.class, p + "0BB")).isEqualTo(1);
+    }
+
+    @Test
+    void aBackfilledDepositReachesEachC2bFeedProductOnceAndIsCountedOnce() throws Exception {
+        java.time.Instant before = java.time.Instant.now().minusSeconds(60);
+        grant("elimika-backend", "STK_PUSH,C2B_FEED");
+        grant("ledger-app", "C2B_FEED");
+        grant("shop-api", "STK_PUSH");
+        ReconciliationRunDto run = upload();
+        ReconciliationExceptionDto missing = find(service.listExceptions(run.uuid(), null, null,
+                PageRequest.of(0, 25)).getContent(), p + "0BB");
+
+        resolver.backfill(missing.uuid());
+        upload(); // a later run over the same day finds it matched and announces nothing more
+
+        List<Map<String, Object>> sent = jdbc.queryForList("SELECT client_id, payload -> 'data' ->> 'source' AS source "
+                + "FROM webhook_deliveries WHERE event_type = 'c2b.confirmed' AND reference = ?", p + "0BB");
+        assertThat(sent).extracting(r -> r.get("client_id")).containsExactlyInAnyOrder("elimika-backend", "ledger-app");
+        assertThat(sent).extracting(r -> r.get("source")).containsOnly("STATEMENT");
+        var period = metrics.summary(before, java.time.Instant.now().plusSeconds(60),
+                new MetricsQueries.Filter(shortcode.getUuid(), null)).current();
+        assertThat(period.collectedCount()).isEqualTo(1);
+        assertThat(period.collectedAmount()).isEqualByComparingTo("2500.00");
     }
 
     @Test
@@ -360,6 +397,17 @@ class ReconciliationIntegrationTest {
                 + shortcode.getShortcode()).replace("TJP9X2K", p).getBytes(java.nio.charset.StandardCharsets.UTF_8);
         return service.reconcileStatement(shortcode.getUuid(), LocalDate.of(2026, 10, 25), LocalDate.of(2026, 10, 25),
                 "statement.csv", content);
+    }
+
+    private void grant(String clientId, String operations) {
+        jdbc.update("INSERT INTO client_shortcode_grants (client_id, display_name, shortcode_uuid, operations) "
+                + "VALUES (?, ?, ?, ?)", clientId, clientId, shortcode.getUuid(), operations);
+        WebhookSubscription subscription = new WebhookSubscription();
+        subscription.setClientId(clientId);
+        subscription.setUrl("https://" + clientId + ".example.test/hooks");
+        subscription.setSecret("whsec-test");
+        subscription.setEventTypeSet(java.util.Set.of());
+        subscriptions.saveAndFlush(subscription);
     }
 
     private UUID deposit(String receipt, String amount, LocalDateTime at) {
