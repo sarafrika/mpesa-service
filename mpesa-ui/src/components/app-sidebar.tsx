@@ -14,7 +14,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense } from "react";
+import { type ComponentType, Suspense } from "react";
+import { ApprovalsBadge } from "@/components/approvals/approvals-badge";
 import {
   Sidebar,
   SidebarContent,
@@ -29,7 +30,14 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
-type NavItem = { title: string; href: string; icon: LucideIcon; ready?: boolean };
+type NavItem = {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+  ready?: boolean;
+  /** A count beside the item, e.g. requests waiting for a checker. */
+  badge?: ComponentType;
+};
 
 // Items without `ready` arrive with the admin API; they stay visible so the shape is clear.
 const NAV: { label: string; items: NavItem[] }[] = [
@@ -46,7 +54,13 @@ const NAV: { label: string; items: NavItem[] }[] = [
     items: [
       { title: "Paybills & tills", href: "/paybills", icon: CreditCard, ready: true },
       { title: "Products", href: "/products", icon: Boxes, ready: true },
-      { title: "Approvals", href: "/approvals", icon: ShieldCheck },
+      {
+        title: "Approvals",
+        href: "/approvals",
+        icon: ShieldCheck,
+        ready: true,
+        badge: ApprovalsBadge,
+      },
     ],
   },
   {
@@ -106,20 +120,23 @@ function NavMenu({ items, pathname }: { items: NavItem[]; pathname?: string }) {
       {items.map((item) => (
         <SidebarMenuItem key={item.href}>
           {item.ready ? (
-            <SidebarMenuButton
-              asChild
-              isActive={
-                pathname !== undefined &&
-                (pathname === item.href ||
-                  (item.href !== "/" && pathname.startsWith(`${item.href}/`)))
-              }
-              tooltip={item.title}
-            >
-              <Link href={item.href}>
-                <item.icon />
-                <span>{item.title}</span>
-              </Link>
-            </SidebarMenuButton>
+            <>
+              <SidebarMenuButton
+                asChild
+                isActive={
+                  pathname !== undefined &&
+                  (pathname === item.href ||
+                    (item.href !== "/" && pathname.startsWith(`${item.href}/`)))
+                }
+                tooltip={item.title}
+              >
+                <Link href={item.href}>
+                  <item.icon />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+              {item.badge && <item.badge />}
+            </>
           ) : (
             <>
               <SidebarMenuButton disabled tooltip={`${item.title} (coming soon)`}>
