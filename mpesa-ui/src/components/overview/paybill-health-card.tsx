@@ -23,9 +23,9 @@ const STATE_TONE: Record<PaybillHealthDtoState, Tone> = {
   SUSPENDED: "neutral",
 };
 
-/** Adding a paybill needs mpesa-admin; everyone else sees nothing. */
+/** Adding a paybill needs mpesa-operator (admins inherit it); viewers see nothing. */
 export function AddPaybillButton({ variant = "default" }: { variant?: "default" | "outline" }) {
-  const canAdd = useHasRole("mpesa-admin");
+  const canAdd = useHasRole("mpesa-operator");
   if (!canAdd) return null;
   return (
     <Button asChild variant={variant}>

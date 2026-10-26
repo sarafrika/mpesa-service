@@ -20,7 +20,7 @@ import { useOverviewFilters } from "./use-overview-filters";
 export function OverviewDashboard() {
   const { filters, range, now, setPaybill, setPeriod, setEnvironment } = useOverviewFilters();
   const { summary, timeseries, health, attention, latest } = useOverviewQueries(filters, range);
-  const isAdmin = useHasRole("mpesa-admin");
+  const canAddPaybill = useHasRole("mpesa-operator");
 
   const environmentLabel = filters.environment === "SANDBOX" ? "Sandbox" : "Production";
   const selected = health.data?.find((paybill) => paybill.shortcode_uuid === filters.paybill);
@@ -64,7 +64,7 @@ export function OverviewDashboard() {
             icon={Store}
             title={`No ${environmentLabel.toLowerCase()} paybills yet`}
             description={`Once a paybill or till is added and its URLs are registered with Safaricom, this page shows what it collects and pays out, its success rate and float, and anything that needs attention.${
-              isAdmin ? "" : " Ask an mpesa-admin to add one."
+              canAddPaybill ? "" : " Ask an mpesa-operator to add one."
             }`}
             action={<AddPaybillButton />}
           />
