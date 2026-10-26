@@ -17,17 +17,23 @@ import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.models.WebhookDelivery;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookDeliveryRepository;
+import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentServiceImpl;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookAdminService;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookDispatcher;
+import com.sarafrika.apps.mpesaservice.services.webhooks.PaymentEventWebhookListener;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookFanOutService;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookSigner;
 import com.sarafrika.apps.mpesaservice.services.webhooks.WebhookTransport;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
+import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
+import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import com.sarafrika.apps.mpesaservice.utils.enums.WebhookDeliveryStatus;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,7 +72,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ProductAdminService.class, ApiUsageRecorder.class, WebhookAdminService.class, WebhookFanOutService.class,
-        WebhookDispatcher.class, AuditService.class, SecretCipher.class, ProductsAndWebhooksIntegrationTest.Beans.class})
+        WebhookDispatcher.class, AuditService.class, SecretCipher.class, MpesaIncomingPaymentServiceImpl.class,
+        PaymentEventWebhookListener.class, ProductsAndWebhooksIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ProductsAndWebhooksIntegrationTest {
 
@@ -88,6 +95,8 @@ class ProductsAndWebhooksIntegrationTest {
     private MpesaShortCodeRepository shortCodes;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private MpesaIncomingPaymentServiceImpl incomingPayments;
     @Autowired
     private TransactionTemplate transactions;
 
@@ -208,6 +217,32 @@ class ProductsAndWebhooksIntegrationTest {
         assertThat(seen).doesNotContain(queued);
         assertThat(transactions.execute(s -> deliveries.lockDue(Instant.now(), 50)).stream()
                 .map(WebhookDelivery::getUuid)).contains(queued);
+    }
+
+    @Test
+    void anStkResultReachesOnlyTheProductThatStartedThePush() {
+        connect();
+        String other = "shop-" + UUID.randomUUID().toString().substring(0, 8);
+        products.connect(new ConnectProductRequest(other, "Shop",
+                List.of(new ConnectProductRequest.GrantInput(paybill.getUuid(), Set.of(GrantOperation.STK_PUSH))),
+                "https://api.shop.test/hooks/mpesa", List.of()));
+        String checkout = "ws_CO_" + UUID.randomUUID().toString().substring(0, 8);
+        MpesaIncomingPayment pending = new MpesaIncomingPayment();
+        pending.setShortcodeUuid(paybill.getUuid());
+        pending.setPaymentType(IncomingPaymentType.STK_PUSH);
+        pending.setPhoneNumber("254708374149");
+        pending.setAmount(BigDecimal.TEN);
+        pending.setCheckoutRequestId(checkout);
+        pending.setTransactionId(checkout);
+        pending.setStatus(IncomingPaymentStatus.PENDING);
+        pending.setClientId(clientId);
+        incomingPayments.create(pending);
+
+        incomingPayments.processStkPushCallback(checkout, Map.of("ResultCode", 0, "ResultDesc", "Processed"));
+
+        String sql = "SELECT COUNT(*) FROM webhook_deliveries WHERE client_id = ? AND event_type = 'stk.completed'";
+        assertThat(jdbc.queryForObject(sql, Long.class, clientId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(sql, Long.class, other)).isZero();
     }
 
     private ConnectProductResponse connect() {
