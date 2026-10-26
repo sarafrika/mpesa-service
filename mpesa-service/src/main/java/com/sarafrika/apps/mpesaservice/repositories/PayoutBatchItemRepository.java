@@ -1,0 +1,43 @@
+package com.sarafrika.apps.mpesaservice.repositories;
+
+import com.sarafrika.apps.mpesaservice.models.PayoutBatchItem;
+import com.sarafrika.apps.mpesaservice.utils.enums.PayoutBatchItemStatus;
+import java.util.Collection;
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface PayoutBatchItemRepository extends JpaRepository<PayoutBatchItem, Long> {
+
+    List<PayoutBatchItem> findByBatchIdAndStatusInOrderByLineNumberAsc(Long batchId,
+                                                                       Collection<PayoutBatchItemStatus> statuses);
+
+    long countByBatchIdAndStatusNot(Long batchId, PayoutBatchItemStatus status);
+
+    /** Each item with its payout (or null), in file order; a batch holds at most the upload's row limit. */
+    @Query("""
+            SELECT i, p FROM PayoutBatchItem i LEFT JOIN MpesaOutgoingPayment p ON p.uuid = i.payoutUuid
+            WHERE i.batchId = :batchId ORDER BY i.lineNumber, i.id
+            """)
+    List<Object[]> findWithPayouts(@Param("batchId") Long batchId);
+
+    /** Payouts that already used one of the references: the console's own at any time (repeating its
+     * reference would return the old payout instead of paying), anyone's since the given time. */
+    @Query("""
+            SELECT p.clientReference, p.createdAt FROM MpesaOutgoingPayment p
+            WHERE p.clientReference IN :references AND (p.clientId = :consoleClient OR p.createdAt >= :since)
+            """)
+    List<Object[]> findUsedReferences(@Param("references") Collection<String> references,
+                                      @Param("consoleClient") String consoleClient,
+                                      @Param("since") java.time.LocalDateTime since);
+
+    /** References already in a batch that is waiting or running, so one row cannot be queued twice. */
+    @Query("""
+            SELECT i.reference FROM PayoutBatchItem i, PayoutBatch b
+            WHERE b.id = i.batchId AND i.reference IN :references
+              AND b.status IN (com.sarafrika.apps.mpesaservice.utils.enums.PayoutBatchStatus.WAITING,
+                               com.sarafrika.apps.mpesaservice.utils.enums.PayoutBatchStatus.RUNNING)
+            """)
+    List<String> findOpenReferences(@Param("references") Collection<String> references);
+}
