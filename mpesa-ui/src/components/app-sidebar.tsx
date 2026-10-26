@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Boxes,
   CreditCard,
+  Inbox,
   LayoutDashboard,
   type LucideIcon,
   ScrollText,
@@ -49,7 +50,10 @@ const NAV: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "System",
-    items: [{ title: "Audit log", href: "/audit", icon: ScrollText }],
+    items: [
+      { title: "Callback inbox", href: "/callbacks", icon: Inbox },
+      { title: "Audit log", href: "/audit", icon: ScrollText },
+    ],
   },
 ];
 
