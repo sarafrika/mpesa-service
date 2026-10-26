@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.controllers.admin;
 
+import com.sarafrika.apps.mpesaservice.services.treasury.B2bTransferService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -59,6 +60,9 @@ class TreasuryAdminControllerTest {
     private B2bDestinationService destinations;
     @MockitoBean
     private B2bSweepService sweeps;
+
+    @MockitoBean
+    private B2bTransferService transfers;
 
     @Test
     @WithMockUser(roles = "mpesa-operator")

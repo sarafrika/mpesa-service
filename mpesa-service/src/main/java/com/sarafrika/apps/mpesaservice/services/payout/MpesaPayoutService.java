@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services.payout;
 
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.dtos.B2CPaymentResponse;
 import com.sarafrika.apps.mpesaservice.dtos.B2CPayoutRequest;
 import com.sarafrika.apps.mpesaservice.dtos.B2CResult;
@@ -125,6 +126,7 @@ public class MpesaPayoutService {
         Optional<MpesaOutgoingPayment> match = lock(result.originatorConversationId(), result.conversationId());
         if (match.isEmpty()) {
             log.warn("B2C result for unknown payout {} / {}", result.originatorConversationId(), result.conversationId());
+            CallbackOutcome.failed("No payout matches this result; replay it once the payout's ids are saved.");
             return Optional.empty();
         }
         MpesaOutgoingPayment payment = match.get();

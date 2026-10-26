@@ -22,6 +22,14 @@ public interface ReversalRequestRepository extends JpaRepository<ReversalRequest
 
     boolean existsByPaymentUuidAndStatusNotIn(UUID paymentUuid, Collection<ReversalStatus> statuses);
 
+    Optional<ReversalRequest> findByUuid(UUID uuid);
+
+    List<ReversalRequest> findTop50ByStatusInOrderByCreatedAtDescIdDesc(Collection<ReversalStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM ReversalRequest r WHERE r.uuid = :uuid")
+    Optional<ReversalRequest> lockByUuid(@Param("uuid") UUID uuid);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM ReversalRequest r WHERE r.approvalUuid = :uuid")
     Optional<ReversalRequest> lockByApprovalUuid(@Param("uuid") UUID approvalUuid);

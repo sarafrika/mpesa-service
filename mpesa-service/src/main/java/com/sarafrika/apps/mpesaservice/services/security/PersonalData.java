@@ -56,11 +56,13 @@ public final class PersonalData {
                 : firstName.trim().substring(0, 1).toUpperCase(Locale.ROOT) + ".";
     }
 
-    /** Safaricom's "254712345678 - JANE WANJIRU KAMAU" with both halves masked. */
+    /** Safaricom's "254712345678 - JANE WANJIRU KAMAU" with the phone masked and the name shortened; a short
+     * business number before the dash (e.g. "601315 - Safaricom1338") is not a phone and stays. */
     static String maskPublicName(String value) {
         int dash = value.indexOf(" - ");
-        return dash < 0 ? maskPhone(value)
-                : maskPhone(value.substring(0, dash)) + " - " + shortName(value.substring(dash + 3));
+        String who = dash < 0 ? value : value.substring(0, dash);
+        String maskedWho = who.replaceAll("[^0-9]", "").length() >= 9 ? maskPhone(who) : who;
+        return dash < 0 ? maskedWho : maskedWho + " - " + shortName(value.substring(dash + 3));
     }
 
     /** A copy of the JSON with phone and name values masked wherever they sit, including Daraja's
@@ -106,7 +108,8 @@ public final class PersonalData {
             return null;
         }
         String k = key.toLowerCase(Locale.ROOT);
-        if (k.equals("receiverpartypublicname")) {
+        // ReceiverPartyPublicName (B2C), Credit/DebitPartyPublicName (reversal), Credit/DebitPartyName (status).
+        if (k.endsWith("publicname") || k.endsWith("partyname")) {
             return TextNode.valueOf(maskPublicName(value.asText()));
         }
         if (PHONE_KEYS.contains(k)) {

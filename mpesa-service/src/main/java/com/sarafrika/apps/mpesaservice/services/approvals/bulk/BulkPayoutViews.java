@@ -53,8 +53,8 @@ public class BulkPayoutViews {
         BigDecimal paid = rows.stream().filter(r -> r.outcome().equals("PAID")).map(r -> r.item().getAmount())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         PayoutBatchDto.Counts counts = new PayoutBatchDto.Counts(count(rows, "QUEUED"), count(rows, "PENDING"),
-                count(rows, "PAID"), count(rows, "FAILED") + count(rows, "ERROR"), count(rows, "UNKNOWN"),
-                count(rows, "REFUSED"));
+                count(rows, "PAID"), count(rows, "FAILED"), count(rows, "UNKNOWN"), count(rows, "REFUSED"),
+                count(rows, "ERROR"));
         return new PayoutBatchDto(batch.getUuid(), batch.getApprovalUuid(), batch.getShortcodeUuid(),
                 code == null ? null : code.getShortcode(), code == null ? null : code.getBusinessName(),
                 batch.getTitle(), batch.getFileName(), batch.getStatus().name(), batch.getItemCount(),

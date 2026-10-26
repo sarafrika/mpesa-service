@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.dtos;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -35,7 +36,11 @@ public record B2BResult(
 
         @Schema(description = "Result parameters with transaction details")
         @JsonProperty("ResultParameters")
-        B2BResultParameters resultParameters
+        B2BResultParameters resultParameters,
+
+        @Schema(description = "Reference items, e.g. BillReferenceNumber and QueueTimeoutURL")
+        @JsonProperty("ReferenceData")
+        JsonNode referenceData
 ) {
 
     /**

@@ -15,7 +15,10 @@ import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.models.TransactionFeedEntry;
 import com.sarafrika.apps.mpesaservice.models.TransactionStatusQuery;
+import com.sarafrika.apps.mpesaservice.models.ReversalRequest;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
+import com.sarafrika.apps.mpesaservice.repositories.ReversalRequestRepository;
+import com.sarafrika.apps.mpesaservice.services.approvals.reversal.ReversalService;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.TransactionFeedRepository;
 import com.sarafrika.apps.mpesaservice.repositories.TransactionStatusQueryRepository;
@@ -58,6 +61,8 @@ public class TransactionFeedService {
     private final MpesaOutgoingPaymentRepository outgoingRepository;
     private final TransactionStatusQueryRepository queryRepository;
     private final ObjectProvider<TransactionTimelineContributor> contributors;
+    private final ReversalRequestRepository reversalRepository;
+    private final ObjectProvider<ReversalService> reversalService;
     private final ObjectMapper objectMapper;
 
     /** Optional filters; q matches a receipt, checkout or conversation id exactly, or an account reference prefix. */
@@ -93,7 +98,8 @@ public class TransactionFeedService {
                     full ? raw : PersonalData.redact(raw),
                     timeline, queries.stream().map(StatusQueryDto::from).toList(),
                     p.getShortcodeUuid() != null && (p.getPaymentType() == IncomingPaymentType.STK_PUSH
-                            || TransactionStatusService.receipt(p) != null), false, null);
+                            || TransactionStatusService.receipt(p) != null), false, null, latestReversal(uuid),
+                    reversalBlocked(p) == null, reversalBlocked(p));
         } else {
             MpesaOutgoingPayment o = outgoingRepository.findByUuid(uuid)
                     .orElseThrow(() -> new NotFoundException("Transaction not found"));
@@ -107,13 +113,28 @@ public class TransactionFeedService {
                     o.getShortcodeUuid() != null && (StringUtils.hasText(o.getTransactionId())
                             || StringUtils.hasText(o.getOriginatorConversationId())),
                     o.getStatus() == OutgoingPaymentStatus.PENDING && o.isOutcomeUnknown(),
-                    DarajaHints.forPayout(o.getResultCode()));
+                    DarajaHints.forPayout(o.getResultCode()), null, false, null);
         }
         queries.forEach(query -> timeline.addAll(queryTimeline(query)));
         contributors.orderedStream().forEach(contributor -> timeline.addAll(contributor.eventsFor(uuid)));
         // Oldest first; steps with no time yet (still waiting) go last.
         timeline.sort(Comparator.comparing(TimelineEventDto::at, Comparator.nullsLast(Comparator.naturalOrder())));
         return detail;
+    }
+
+    private TransactionDetailDto.TransactionReversalDto latestReversal(UUID paymentUuid) {
+        List<ReversalRequest> all = reversalRepository.findByPaymentUuidOrderByCreatedAtAscIdAsc(paymentUuid);
+        if (all.isEmpty()) {
+            return null;
+        }
+        ReversalRequest last = all.getLast();
+        return new TransactionDetailDto.TransactionReversalDto(last.getUuid(), last.getApprovalUuid(),
+                last.getStatus().name());
+    }
+
+    private String reversalBlocked(MpesaIncomingPayment payment) {
+        ReversalService reversals = reversalService.getIfAvailable();
+        return reversals == null ? "Reversals are not available here." : reversals.blockedReason(payment);
     }
 
     private List<TimelineEventDto> incomingTimeline(MpesaIncomingPayment p) {

@@ -55,6 +55,9 @@ public class QrCodeService {
         if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
             throw new ConflictException("Shortcode " + shortcode.getShortcode() + " is suspended; it takes no payments");
         }
+        if (request.amount() == null || request.amount().stripTrailingZeros().scale() > 0) {
+            throw new InvalidRequestException("amount", "must be whole shillings");
+        }
         QRTransactionType type = type(shortcode, request.trxCode());
         int size = request.size() == null ? DEFAULT_SIZE : request.size();
         String merchantName = request.merchantName().trim();

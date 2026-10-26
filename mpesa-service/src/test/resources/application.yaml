@@ -18,6 +18,11 @@ spring:
     enabled: false
 
 mpesa:
+  # No scheduled job runs in tests (they would outlive the context); a test calls a job's method itself.
+  scheduling:
+    enabled: false
+  approvals:
+    jobs-enabled: false
   security:
     # Fixed development key, never used outside tests and local runs.
     encryption-key: ZGV2LW9ubHktbXBlc2EtZW5jcnlwdGlvbi1rZXktMzI=

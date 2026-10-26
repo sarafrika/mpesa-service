@@ -1,6 +1,12 @@
 package com.sarafrika.apps.mpesaservice.services.treasury;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.sarafrika.apps.mpesaservice.dtos.B2BResultParameters;
+import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
+import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
+import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
+import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.dtos.B2BPaymentRequest;
 import com.sarafrika.apps.mpesaservice.dtos.B2BResult;
 import com.sarafrika.apps.mpesaservice.dtos.B2BTransferResponse;
@@ -18,6 +24,11 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalExecutor.Outco
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.springframework.data.domain.PageRequest;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +51,12 @@ import org.springframework.util.StringUtils;
 public class B2bTransferService {
 
     static final String AUDIT_SENT = "B2B_SWEEP_SENT";
+    static final String AUDIT_CLOSED = "B2B_TRANSFER_CLOSED";
+    static final String NO_MATCH = "No B2B transfer matches this result. Replay it later, or attach it to its "
+            + "transfer under Inbox after checking the statement.";
+    // How far back a result may match a transfer without ids; a setting of this service, not Safaricom's.
+    static final Duration FALLBACK_WINDOW = Duration.ofDays(3);
+
     static final String UNKNOWN_OUTCOME = "Safaricom did not confirm it received this sweep, so the money may "
             + "still move. Wait for the result or check the statement; do not raise the sweep again.";
 
@@ -152,19 +169,97 @@ public class B2bTransferService {
     }
 
     /** The B2B result: ResultCode 0 is success, anything else a failure (developer.safaricom.co.ke/apis/
-     * BusinessPayBill). The row is locked and only a PENDING transfer takes a result, so repeats change nothing. */
+     * BusinessPayBill). The row is locked and only a PENDING transfer takes a result, so repeats change nothing.
+     * A result nothing matches is reported to the inbox as FAILED, so it can be replayed or attached by hand. */
     @Transactional
     public Optional<B2bTransfer> applyResult(B2BResult result, String raw) {
         Optional<B2bTransfer> match = lock(result.originatorConversationId(), result.conversationId());
         if (match.isEmpty()) {
+            match = fallback(ResultFacts.of(result, raw));
+        }
+        if (match.isEmpty()) {
             log.warn("B2B result for unknown transfer {} / {}", result.originatorConversationId(),
                     result.conversationId());
+            CallbackOutcome.failed(NO_MATCH);
             return Optional.empty();
         }
-        B2bTransfer transfer = match.get();
-        if (transfer.getStatus() != B2bTransferStatus.PENDING) {
+        return Optional.of(settle(match.get(), result, raw));
+    }
+
+    /** Finance attaches a stored result nothing matched to the transfer it belongs to, after checking. */
+    @Transactional
+    public B2bTransfer attachResult(UUID transferUuid, B2BResult result, String raw) {
+        B2bTransfer transfer = transfers.lockByUuid(transferUuid)
+                .orElseThrow(() -> new NotFoundException("B2B transfer not found"));
+        if (transfer.getStatus() != B2bTransferStatus.PENDING && !closedByHand(transfer)) {
+            throw new ConflictException("This transfer is already " + transfer.getStatus() + "; nothing to attach.");
+        }
+        if (differs(transfer.getOriginatorConversationId(), result.originatorConversationId())
+                || differs(transfer.getConversationId(), result.conversationId())) {
+            throw new ConflictException("The result names another conversation than this transfer.");
+        }
+        ResultFacts facts = ResultFacts.of(result, raw);
+        if (facts.amount() != null && facts.amount().compareTo(transfer.getAmount()) != 0) {
+            throw new ConflictException("The result is for KES " + facts.amount().toPlainString() + ", not the "
+                    + "transfer's KES " + transfer.getAmount().toPlainString() + ".");
+        }
+        if (facts.receiver() != null && !facts.receiver().equals(transfer.getReceiverShortcode())) {
+            throw new ConflictException("The result names receiver " + facts.receiver() + ", not "
+                    + transfer.getReceiverShortcode() + ".");
+        }
+        return settle(transfer, result, raw);
+    }
+
+    /** Whether the result's amount and receiver, where it names them, agree with the transfer. */
+    public boolean fits(B2bTransfer transfer, B2BResult result) {
+        ResultFacts facts = ResultFacts.of(result, null);
+        return (facts.amount() == null || facts.amount().compareTo(transfer.getAmount()) == 0)
+                && (facts.receiver() == null || facts.receiver().equals(transfer.getReceiverShortcode()))
+                && (facts.amount() != null || facts.receiver() != null);
+    }
+
+    /** Open transfers without Safaricom ids from the last FALLBACK_WINDOW, newest first. */
+    @Transactional(readOnly = true)
+    public List<B2bTransfer> attachable() {
+        return transfers.findAttachable(LocalDateTime.now().minus(FALLBACK_WINDOW), PageRequest.of(0, 50));
+    }
+
+    /** Finance closes a transfer whose outcome stayed unknown as FAILED, once the statement shows no money moved. */
+    @Transactional
+    public B2bTransfer closeAsFailed(UUID shortcodeUuid, UUID transferUuid, String note) {
+        if (!StringUtils.hasText(note)) {
+            throw new InvalidRequestException("note", "is required: say what the statement showed");
+        }
+        transfers.findByUuidAndShortcodeUuid(transferUuid, shortcodeUuid)
+                .orElseThrow(() -> new NotFoundException("B2B transfer not found"));
+        B2bTransfer transfer = transfers.lockByUuid(transferUuid).orElseThrow();
+        if (transfer.getStatus() != B2bTransferStatus.PENDING || !transfer.isOutcomeUnknown()) {
+            throw new ConflictException("Only a pending transfer whose outcome is unknown can be closed by hand.");
+        }
+        String actor = CurrentActor.name();
+        transfer.setStatus(B2bTransferStatus.FAILED);
+        transfer.setOutcomeUnknown(false);
+        transfer.setClosedBy(actor);
+        transfer.setCloseNote(truncate(note.trim(), 500));
+        transfer.setResultDesc(truncate("Closed as failed by " + actor + " after checking the statement: "
+                + note.trim(), 500));
+        transfer.setCompletedAt(LocalDateTime.now());
+        B2bTransfer saved = transfers.save(transfer);
+        audit.record(AUDIT_CLOSED, "B2B_TRANSFER", saved.getUuid().toString(),
+                Map.of("status", B2bTransferStatus.PENDING.name(), "outcome_unknown", true),
+                Map.of("status", saved.getStatus().name(), "note", saved.getCloseNote()));
+        return saved;
+    }
+
+    private B2bTransfer settle(B2bTransfer transfer, B2BResult result, String raw) {
+        boolean closedByHand = closedByHand(transfer);
+        if (transfer.getStatus() != B2bTransferStatus.PENDING && !closedByHand) {
             log.info("Ignoring repeat B2B result for transfer {} already {}", transfer.getUuid(), transfer.getStatus());
-            return match;
+            return transfer;
+        }
+        if (closedByHand) {
+            // Safaricom's answer is the truth, even after someone closed the transfer by hand.
+            log.warn("B2B result for transfer {} that {} closed by hand", transfer.getUuid(), transfer.getClosedBy());
         }
         transfer.setStatus(result.isSuccessful() ? B2bTransferStatus.SUCCESS : B2bTransferStatus.FAILED);
         transfer.setOutcomeUnknown(false);
@@ -176,9 +271,78 @@ public class B2bTransferService {
         if (transfer.getConversationId() == null) {
             transfer.setConversationId(result.conversationId());
         }
+        if (transfer.getOriginatorConversationId() == null) {
+            transfer.setOriginatorConversationId(result.originatorConversationId());
+        }
         transfer.setRawResult(raw);
         transfer.setCompletedAt(LocalDateTime.now());
-        return Optional.of(transfers.save(transfer));
+        return transfers.save(transfer);
+    }
+
+    // Only when exactly one open transfer without ids fits the receiver, amount and bill reference.
+    private Optional<B2bTransfer> fallback(ResultFacts facts) {
+        if (facts.amount() == null || facts.receiver() == null) {
+            return Optional.empty();
+        }
+        List<B2bTransfer> candidates = transfers.lockUnmatched(facts.receiver(), facts.amount(),
+                        LocalDateTime.now().minus(FALLBACK_WINDOW)).stream()
+                .filter(t -> facts.billReference() == null || t.getAccountReference() == null
+                        || facts.billReference().equals(t.getAccountReference()))
+                .toList();
+        if (candidates.size() != 1) {
+            if (candidates.size() > 1) {
+                log.warn("B2B result fits {} open transfers to {}; attach it by hand", candidates.size(),
+                        facts.receiver());
+            }
+            return Optional.empty();
+        }
+        log.info("Matched B2B result to transfer {} by receiver and amount", candidates.get(0).getUuid());
+        return Optional.of(candidates.get(0));
+    }
+
+    private static boolean closedByHand(B2bTransfer transfer) {
+        return transfer.getStatus() == B2bTransferStatus.FAILED && transfer.getClosedBy() != null
+                && transfer.getRawResult() == null;
+    }
+
+    private static boolean differs(String ours, String theirs) {
+        return StringUtils.hasText(ours) && StringUtils.hasText(theirs) && !ours.equals(theirs);
+    }
+
+    /** What a B2B result says about its transfer: Amount and ReceiverPartyPublicName ("000000 - Name") in
+     * ResultParameters, BillReferenceNumber in ReferenceData (developer.safaricom.co.ke/apis/BusinessPayBill). */
+    record ResultFacts(BigDecimal amount, String receiver, String billReference) {
+        private static final Pattern LEADING_DIGITS = Pattern.compile("^\\s*(\\d{5,7})");
+
+        static ResultFacts of(B2BResult result, String raw) {
+            B2BResultParameters parameters = result.resultParameters();
+            BigDecimal amount = null;
+            String receiver = null;
+            if (parameters != null) {
+                try {
+                    amount = parameters.getAmount() == null ? null : new BigDecimal(parameters.getAmount().trim());
+                } catch (NumberFormatException ignored) {
+                    amount = null;
+                }
+                String party = parameters.getReceiverPartyPublicName();
+                Matcher digits = party == null ? null : LEADING_DIGITS.matcher(party);
+                receiver = digits != null && digits.find() ? digits.group(1) : null;
+            }
+            return new ResultFacts(amount, receiver, billReference(result.referenceData()));
+        }
+
+        private static String billReference(JsonNode referenceData) {
+            if (referenceData == null) {
+                return null;
+            }
+            JsonNode items = referenceData.path("ReferenceItem");
+            for (JsonNode item : items.isArray() ? items : List.of(items)) {
+                if ("BillReferenceNumber".equals(item.path("Key").asText()) && item.hasNonNull("Value")) {
+                    return item.get("Value").asText();
+                }
+            }
+            return null;
+        }
     }
 
     /** Safaricom could not process the request in time. The outcome is unknown, so it stays PENDING. */
@@ -251,6 +415,10 @@ public class B2bTransferService {
     }
 
     private static String truncate(String value) {
-        return value == null || value.length() <= 500 ? value : value.substring(0, 500);
+        return truncate(value, 500);
+    }
+
+    private static String truncate(String value, int max) {
+        return value == null || value.length() <= max ? value : value.substring(0, max);
     }
 }

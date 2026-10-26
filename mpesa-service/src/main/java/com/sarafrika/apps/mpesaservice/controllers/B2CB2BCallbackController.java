@@ -112,6 +112,7 @@ public class B2CB2BCallbackController {
             return ResponseEntity.ok(CallbackAcknowledgment.success());
         } catch (Exception e) {
             log.error("Error processing B2B result callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -127,6 +128,7 @@ public class B2CB2BCallbackController {
             return ResponseEntity.ok(CallbackAcknowledgment.success());
         } catch (Exception e) {
             log.error("Error processing B2B timeout callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -191,6 +193,7 @@ public class B2CB2BCallbackController {
             return ResponseEntity.ok(CallbackAcknowledgment.success());
         } catch (Exception e) {
             log.error("Error processing account balance result callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -205,6 +208,7 @@ public class B2CB2BCallbackController {
             return ResponseEntity.ok(CallbackAcknowledgment.success());
         } catch (Exception e) {
             log.error("Error processing account balance timeout callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -237,6 +241,7 @@ public class B2CB2BCallbackController {
             return ResponseEntity.ok(CallbackAcknowledgment.success());
         } catch (Exception e) {
             log.error("Error processing reversal result callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -254,6 +259,7 @@ public class B2CB2BCallbackController {
             return ResponseEntity.ok(CallbackAcknowledgment.success());
         } catch (Exception e) {
             log.error("Error processing reversal timeout callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }

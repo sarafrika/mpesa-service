@@ -19,7 +19,11 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalGateway;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
+import com.sarafrika.apps.mpesaservice.dtos.admin.approvals.PreCheckDto;
 import java.math.BigDecimal;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Locale;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +42,7 @@ import org.springframework.util.StringUtils;
 public class B2bSweepService {
 
     public static final String TYPE = "B2B_SWEEP";
+    static final String DARAJA_CALL = "POST /mpesa/b2b/v1/paymentrequest";
     private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -90,6 +95,7 @@ public class B2bSweepService {
         }
         String reference = reference();
         ObjectNode payload = payload(shortcode, destination, amount, reference, known);
+        describe(payload, shortcode, destination, amount, known);
         UUID requestUuid = approvals.submit(new ApprovalSubmission(TYPE, shortcodeUuid, amount,
                 request.reason().trim(), payload));
         return new B2bSweepSubmittedDto(requestUuid, reference, amount);
@@ -105,6 +111,14 @@ public class B2bSweepService {
         Map<UUID, String> names = ids.isEmpty() ? Map.of() : destinations.findByUuidIn(ids).stream()
                 .collect(Collectors.toMap(B2bDestination::getUuid, B2bDestination::getName, (a, b) -> a));
         return page.map(t -> B2bTransferDto.from(t, names.get(t.getDestinationUuid())));
+    }
+
+    /** One transfer as the console shows it, with its destination's name. */
+    @Transactional(readOnly = true)
+    public B2bTransferDto view(B2bTransfer transfer) {
+        String name = destinations.findByUuidIn(List.of(transfer.getDestinationUuid())).stream().findFirst()
+                .map(B2bDestination::getName).orElse(null);
+        return B2bTransferDto.from(transfer, name);
     }
 
     /** What the checker sees and the executor sends: the destination as it was when the sweep was asked for. */
@@ -128,6 +142,36 @@ public class B2bSweepService {
         node.put("balance_after", known.known() ? known.utility().subtract(amount).toPlainString() : null);
         node.put("low_float_threshold", balances.thresholdOf(shortcode).toPlainString());
         return node;
+    }
+
+    /** The optional keys Approvals shows the checker: a title, the Daraja call and the pre-checks. */
+    void describe(ObjectNode payload, MpesaShortCode shortcode, B2bDestination destination, BigDecimal amount,
+                  KnownFloat known) {
+        String command = destination.getReceiverType().commandId();
+        payload.put("title", "Sweep KES " + money(amount) + " to " + destination.getName());
+        payload.put("daraja_call", DARAJA_CALL + " · " + command);
+        List<PreCheckDto> checks = new ArrayList<>();
+        checks.add(PreCheckDto.ok("Destination " + destination.getName() + " (" + destination.getReceiverShortcode()
+                + ", " + command + ") is active"));
+        BigDecimal threshold = balances.thresholdOf(shortcode);
+        if (!known.known()) {
+            checks.add(PreCheckDto.warn("No utility balance reported yet; query the balance before approving"));
+        } else {
+            BigDecimal after = known.utility().subtract(amount);
+            checks.add(PreCheckDto.ok("Utility balance KES " + money(known.utility()) + " covers the sweep"));
+            checks.add(after.compareTo(threshold) < 0
+                    ? PreCheckDto.warn("Leaves KES " + money(after) + ", below the low-float line of KES "
+                            + money(threshold))
+                    : PreCheckDto.ok("Leaves KES " + money(after) + ", above the low-float line"));
+        }
+        payload.set("pre_checks", objectMapper.valueToTree(checks));
+    }
+
+    static String money(BigDecimal amount) {
+        NumberFormat format = NumberFormat.getNumberInstance(Locale.US);
+        format.setMinimumFractionDigits(2);
+        format.setMaximumFractionDigits(2);
+        return format.format(amount);
     }
 
     static String reference() {

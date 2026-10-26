@@ -127,7 +127,7 @@ class QrCodeServiceIntegrationTest {
 
     @Test
     void darajaFailuresBecome502Or503() {
-        CreateQrCodeRequest request = new CreateQrCodeRequest("Shop", "INV-1", null, "PB", 300);
+        CreateQrCodeRequest request = new CreateQrCodeRequest("Shop", "INV-1", new BigDecimal("100"), "PB", 300);
         when(darajaService.generateDynamicQRCode(any(), any(), any(), any(), any(), any()))
                 .thenReturn(MpesaApiResponse.error(MpesaErrorResponse.NETWORK_ERROR, "timed out", 503));
         assertThatThrownBy(() -> service.create(paybill.getUuid(), request)).isInstanceOfSatisfying(
@@ -148,9 +148,20 @@ class QrCodeServiceIntegrationTest {
     }
 
     @Test
+    void theAmountIsRequiredInWholeShillings() {
+        assertThatThrownBy(() -> service.create(paybill.getUuid(),
+                new CreateQrCodeRequest("Shop", "INV-1", new BigDecimal("100.50"), null, null)))
+                .isInstanceOfSatisfying(InvalidRequestException.class, e -> assertThat(e.getField()).isEqualTo("amount"));
+        assertThatThrownBy(() -> service.create(paybill.getUuid(),
+                new CreateQrCodeRequest("Shop", "INV-1", null, null, null)))
+                .isInstanceOfSatisfying(InvalidRequestException.class, e -> assertThat(e.getField()).isEqualTo("amount"));
+        verify(darajaService, never()).generateDynamicQRCode(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void theTrxCodeMustFitTheShortcodeAndB2COrSuspendedCodesAreRefused() {
         assertThatThrownBy(() -> service.create(paybill.getUuid(),
-                new CreateQrCodeRequest("Shop", "INV-1", null, "BG", null))).isInstanceOf(InvalidRequestException.class);
+                new CreateQrCodeRequest("Shop", "INV-1", new BigDecimal("100"), "BG", null))).isInstanceOf(InvalidRequestException.class);
 
         MpesaShortCode b2c = shortCodeRepository.saveAndFlush(code(ShortcodeType.B2C));
         assertThatThrownBy(() -> service.create(b2c.getUuid(),

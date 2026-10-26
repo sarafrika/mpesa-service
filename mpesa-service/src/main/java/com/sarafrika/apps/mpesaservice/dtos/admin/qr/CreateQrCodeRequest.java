@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -22,8 +23,11 @@ public record CreateQrCodeRequest(
                 description = "Daraja RefNo: the account or invoice reference")
         @NotBlank @Size(max = 100)
         @JsonProperty("ref_no") String refNo,
-        @Schema(nullable = true, example = "1500", description = "Daraja Amount in KES; leave out for any amount")
-        @DecimalMin(value = "1", message = "must be at least 1") @Digits(integer = 13, fraction = 2)
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "1500",
+                description = "Daraja Amount in KES, whole shillings. Required here: whether Daraja accepts a QR "
+                        + "code without an amount is not confirmed")
+        @NotNull(message = "is required") @DecimalMin(value = "1", message = "must be at least 1")
+        @Digits(integer = 13, fraction = 2)
         @JsonProperty("amount") BigDecimal amount,
         @Schema(nullable = true, allowableValues = {"PB", "BG"},
                 description = "Daraja TrxCode: PB (Paybill) or BG (Buy Goods). Defaults from the shortcode type; "

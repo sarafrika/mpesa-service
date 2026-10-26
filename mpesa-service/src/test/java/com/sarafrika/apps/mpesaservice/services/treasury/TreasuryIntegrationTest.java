@@ -196,7 +196,10 @@ class TreasuryIntegrationTest {
         assertThatThrownBy(() -> balances.requestQuery(shortcode.getUuid()))
                 .isInstanceOfSatisfying(UpstreamException.class, ex -> assertThat(ex.isUnavailable()).isTrue());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM balance_snapshots WHERE status = 'FAILED'",
-                Integer.class)).isEqualTo(2);
+                Integer.class)).isEqualTo(1);
+        // No answer is not a refusal: the query stays PENDING with its outcome unknown.
+        assertThat(jdbc.queryForObject("SELECT result_desc FROM balance_snapshots WHERE status = 'PENDING'",
+                String.class)).isEqualTo(BalanceService.UNKNOWN_OUTCOME);
     }
 
     @Test
@@ -365,9 +368,9 @@ class TreasuryIntegrationTest {
         assertThat(sent.getValue().accountReference()).isEqualTo("SAR-001");
 
         transfers.applyResult(new B2BResult(0, 0, "The service request is processed successfully.", "OC-X1", "AG_X1",
-                "QKA81LK5CY", null), "{}");
+                "QKA81LK5CY", null, null), "{}");
         transfers.applyResult(new B2BResult(0, 2001, "The initiator information is invalid.", "OC-X1", "AG_X1",
-                "OAK0000000", null), "{}");
+                "OAK0000000", null, null), "{}");
 
         B2bTransfer transfer = transferRepository.findByApprovalRequestUuid(approved.requestUuid()).orElseThrow();
         assertThat(transfer.getStatus()).isEqualTo(B2bTransferStatus.SUCCESS);
@@ -413,6 +416,79 @@ class TreasuryIntegrationTest {
         B2bTransfer transfer = transferRepository.findByApprovalRequestUuid(unanswered.requestUuid()).orElseThrow();
         assertThat(transfer.getStatus()).isEqualTo(B2bTransferStatus.PENDING);
         assertThat(transfer.isOutcomeUnknown()).isTrue();
+    }
+
+    @Test
+    void aResultForASweepSafaricomNeverAcknowledgedMatchesTheOneOpenTransferThatFits() throws Exception {
+        B2bDestinationDto bank = bank(shortcode);
+        when(daraja.sendB2BPayment(any(), any())).thenReturn(
+                MpesaApiResponse.error(MpesaErrorResponse.NETWORK_ERROR, "read timed out", 503));
+        ApprovalExecutor.Approved unanswered = approved(bank, "7300");
+        executor.execute(unanswered);
+
+        B2BResult result = b2bResult("OC-LOST-1", "AG_LOST_1", 0, "7300.00", "522522 - Sarafrika Bank", "SAR-001");
+        assertThat(transfers.applyResult(result, "{}")).isPresent();
+
+        B2bTransfer transfer = transferRepository.findByApprovalRequestUuid(unanswered.requestUuid()).orElseThrow();
+        assertThat(transfer.getStatus()).isEqualTo(B2bTransferStatus.SUCCESS);
+        assertThat(transfer.isOutcomeUnknown()).isFalse();
+        assertThat(transfer.getConversationId()).isEqualTo("AG_LOST_1");
+        verify(daraja, times(1)).sendB2BPayment(any(), any());
+    }
+
+    @Test
+    void aResultThatFitsTwoOpenTransfersMatchesNeitherAndCanBeAttachedOrTheTransferClosed() throws Exception {
+        B2bDestinationDto bank = bank(shortcode);
+        when(daraja.sendB2BPayment(any(), any())).thenReturn(
+                MpesaApiResponse.error(MpesaErrorResponse.NETWORK_ERROR, "read timed out", 503));
+        ApprovalExecutor.Approved first = approved(bank, "8800");
+        ApprovalExecutor.Approved second = approved(bank, "8800");
+        executor.execute(first);
+        executor.execute(second);
+        UUID firstUuid = transferRepository.findByApprovalRequestUuid(first.requestUuid()).orElseThrow().getUuid();
+        UUID secondUuid = transferRepository.findByApprovalRequestUuid(second.requestUuid()).orElseThrow().getUuid();
+
+        B2BResult result = b2bResult("OC-LOST-2", "AG_LOST_2", 0, "8800", "522522 - Sarafrika Bank", null);
+        assertThat(transfers.applyResult(result, "{}")).isEmpty();
+        // A refusal carries no amount or receiver, so it never matches by them either.
+        assertThat(transfers.applyResult(b2bResult("OC-LOST-3", "AG_LOST_3", 2001, null, null, null), "{}"))
+                .isEmpty();
+
+        assertThatThrownBy(() -> transfers.attachResult(firstUuid,
+                b2bResult("OC-LOST-2", "AG_LOST_2", 0, "9900", "522522 - Sarafrika Bank", null), "{}"))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("9900");
+        B2bTransfer attached = transfers.attachResult(firstUuid, result, "{\"Result\":{}}");
+        assertThat(attached.getStatus()).isEqualTo(B2bTransferStatus.SUCCESS);
+        assertThatThrownBy(() -> transfers.attachResult(firstUuid, result, "{}")).isInstanceOf(ConflictException.class);
+
+        assertThatThrownBy(() -> transfers.closeAsFailed(shortcode.getUuid(), secondUuid, " "))
+                .isInstanceOf(InvalidRequestException.class);
+        B2bTransfer closed = transfers.closeAsFailed(shortcode.getUuid(), secondUuid, "Statement shows no debit");
+        assertThat(closed.getStatus()).isEqualTo(B2bTransferStatus.FAILED);
+        assertThat(closed.getClosedBy()).isNotBlank();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events WHERE action = 'B2B_TRANSFER_CLOSED' "
+                + "AND entity_id = ?", Integer.class, secondUuid.toString())).isEqualTo(1);
+        assertThatThrownBy(() -> transfers.closeAsFailed(shortcode.getUuid(), firstUuid, "again"))
+                .isInstanceOf(ConflictException.class);
+        verify(daraja, times(2)).sendB2BPayment(any(), any());
+    }
+
+    @Test
+    void aSweepSubmissionCarriesItsTitleDarajaCallAndPreChecks() {
+        B2bDestinationDto bank = bank(shortcode);
+        when(payouts.latestFloat(shortcode.getUuid())).thenReturn(new PayoutFloatDto(shortcode.getUuid(),
+                new BigDecimal("600000.00"), null, LocalDateTime.now()));
+        when(gateway.submit(any())).thenReturn(UUID.randomUUID());
+
+        sweeps.request(shortcode.getUuid(), sweep(bank.uuid(), "590000"));
+
+        ArgumentCaptor<ApprovalSubmission> captor = ArgumentCaptor.forClass(ApprovalSubmission.class);
+        verify(gateway).submit(captor.capture());
+        JsonNode payload = captor.getValue().payload();
+        assertThat(payload.get("title").asText()).isEqualTo("Sweep KES 590,000.00 to Sarafrika bank");
+        assertThat(payload.get("daraja_call").asText()).isEqualTo("POST /mpesa/b2b/v1/paymentrequest · BusinessPayBill");
+        assertThat(payload.get("pre_checks")).hasSize(3);
+        assertThat(payload.get("pre_checks").get(2).get("state").asText()).isEqualTo("WARN");
     }
 
     @Test
@@ -463,6 +539,23 @@ class TreasuryIntegrationTest {
                 KnownFloat.UNKNOWN);
         return new ApprovalExecutor.Approved(UUID.randomUUID(), "B2B_SWEEP", owner.getUuid(), new BigDecimal(amount),
                 payload, "maker", "checker");
+    }
+
+    /** A B2B result shaped like Daraja's BusinessPayBill sample; null amount and party leave the parameters out. */
+    private B2BResult b2bResult(String originator, String conversation, int code, String amount, String party,
+                                String billReference) throws Exception {
+        String params = amount == null ? "" : """
+                ,"ResultParameters":{"ResultParameter":[{"Key":"Amount","Value":"%s"},
+                  {"Key":"ReceiverPartyPublicName","Value":"%s"},{"Key":"Currency","Value":"KES"}]}"""
+                .formatted(amount, party);
+        String reference = billReference == null ? "" : """
+                ,"ReferenceData":{"ReferenceItem":[{"Key":"BillReferenceNumber","Value":"%s"}]}"""
+                .formatted(billReference);
+        String body = """
+                {"Result":{"ResultType":0,"ResultCode":%d,"ResultDesc":"done","OriginatorConversationID":"%s",
+                 "ConversationID":"%s","TransactionID":"QKA81LK5CY"%s%s}}"""
+                .formatted(code, originator, conversation, params, reference);
+        return objectMapper.readValue(body, com.sarafrika.apps.mpesaservice.dtos.B2BTransferResult.class).result();
     }
 
     private static RequestB2bSweepRequest sweep(UUID destination, String amount) {

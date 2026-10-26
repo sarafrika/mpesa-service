@@ -285,7 +285,7 @@ class MetricsIntegrationTest {
                 + code(failing) + " in the last hour");
         assertThat(items.get(1).level()).isEqualTo(AttentionItemDto.WARNING);
         assertThat(items.get(1).title()).isEqualTo("Elimika Payouts float below KES 50,000.00");
-        assertThat(items.get(1).href()).isEqualTo("/paybills/" + lowFloat);
+        assertThat(items.get(1).href()).isEqualTo("/paybills/" + lowFloat + "?tab=float");
         assertThat(items.get(2).title()).endsWith("for 9 hours");
         assertThat(items.get(3).title()).isEqualTo("1 STK request pending over 5 minutes");
         assertThat(items.get(3).href()).isEqualTo("/transactions?type=STK_PUSH&status=PENDING");

@@ -38,4 +38,14 @@ public interface CallbackInboxRepository extends JpaRepository<CallbackInboxEntr
                        AND COALESCE(e.lastAttemptAt, e.receivedAt) < :stuckBefore))
             """)
     int claimForReplay(@Param("uuid") UUID uuid, @Param("now") Instant now, @Param("stuckBefore") Instant stuckBefore);
+
+    /** Deletes up to limit entries received before the cutoff, skipping rows another instance holds. */
+    @Modifying
+    @Transactional
+    @Query(value = """
+            DELETE FROM callback_inbox WHERE id IN (
+                SELECT id FROM callback_inbox WHERE received_at < :before ORDER BY id LIMIT :limit
+                FOR UPDATE SKIP LOCKED)
+            """, nativeQuery = true)
+    int deleteReceivedBefore(@Param("before") Instant before, @Param("limit") int limit);
 }

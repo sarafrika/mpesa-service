@@ -62,6 +62,18 @@ public class CallbackInboxService {
         return repository.findAll(matching(filter), pageable).map(CallbackInboxService::toDto);
     }
 
+    private static final java.util.regex.Pattern PHONE_LIKE = java.util.regex.Pattern.compile(
+            "(?<![A-Za-z0-9_])\\+?\\d{9,}(?![A-Za-z0-9_])");
+
+    /** The ids line with phone-like values (a BillRefNumber is often one) masked unless finance or admin; only
+     * whole digit tokens, so a checkout id such as ws_CO_191220191020363925 stays readable. */
+    static String reference(String reference) {
+        if (reference == null || PersonalData.visible()) {
+            return reference;
+        }
+        return PHONE_LIKE.matcher(reference).replaceAll(match -> PersonalData.maskPhone(match.group()));
+    }
+
     @Transactional(readOnly = true)
     public CallbackDetailDto get(UUID uuid) {
         return detail(find(uuid));
@@ -87,7 +99,7 @@ public class CallbackInboxService {
     CallbackDetailDto detail(CallbackInboxEntry entry) {
         String blocked = replayBlockedReason(entry);
         return new CallbackDetailDto(toDto(entry), headers(entry), body(entry), entry.getBodySize(),
-                entry.isBodyTruncated(), blocked == null, blocked);
+                entry.isBodyTruncated(), blocked == null, blocked, attachable(entry));
     }
 
     /** Null when an operator may replay the entry now, otherwise why not. */
@@ -107,6 +119,14 @@ public class CallbackInboxService {
             return last.isBefore(stuckBefore()) ? null : "It is still being handled.";
         }
         return "Only failed callbacks can be replayed; this one was handled.";
+    }
+
+    /** A failed B2B or reversal result with a JSON body: finance may attach it to what it settles. */
+    static boolean attachable(CallbackInboxEntry entry) {
+        return entry.getStatus() == CallbackStatus.FAILED
+                && (entry.getKind() == CallbackKind.B2B_RESULT || entry.getKind() == CallbackKind.REVERSAL_RESULT)
+                && entry.getBody() != null && !entry.isBodyTruncated()
+                && !entry.getBody().contains("\"" + CallbackInboxRecorder.UNPARSED + "\"");
     }
 
     Instant stuckBefore() {
@@ -143,7 +163,7 @@ public class CallbackInboxService {
     static CallbackDto toDto(CallbackInboxEntry entry) {
         return new CallbackDto(entry.getUuid(), entry.getEndpoint(), entry.getKind().name(), entry.getSourceIp(),
                 entry.getStatus().name(), entry.getError(), entry.getAttempts(), offset(entry.getLastAttemptAt()),
-                entry.getReference(), entry.getPaymentUuid(), offset(entry.getReceivedAt()));
+                reference(entry.getReference()), entry.getPaymentUuid(), offset(entry.getReceivedAt()));
     }
 
     static OffsetDateTime offset(Instant instant) {

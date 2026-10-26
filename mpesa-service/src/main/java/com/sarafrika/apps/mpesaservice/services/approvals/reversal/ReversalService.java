@@ -60,33 +60,19 @@ public class ReversalService {
             }
             throw new NotFoundException("Transaction not found");
         }
-        if (payment.getStatus() != IncomingPaymentStatus.SUCCESS) {
-            throw new ConflictException("Only a successful payment can be reversed; this one is "
-                    + payment.getStatus().name().toLowerCase(Locale.ROOT) + ".");
-        }
-        if (!StringUtils.hasText(payment.getTransactionId())) {
-            throw new ConflictException("This payment has no M-Pesa receipt, so Safaricom cannot reverse it.");
-        }
-        if (reversals.countReversedPayment(payment.getUuid()) > 0) {
-            throw new ConflictException("This payment has already been reversed.");
-        }
-        if (reversals.existsByPaymentUuidAndStatusNotIn(payment.getUuid(), CLOSED)) {
-            throw new ConflictException("This payment already has a reversal waiting for approval or in progress.");
+        String blocked = blockedReason(payment);
+        if (blocked != null) {
+            throw new ConflictException(blocked);
         }
         BigDecimal original = payment.getAmount();
         BigDecimal amount = request.amount() == null ? original : request.amount();
+        if (amount.stripTrailingZeros().scale() > 0) {
+            throw new InvalidRequestException("amount", "must be whole shillings");
+        }
         if (amount.compareTo(original) > 0) {
             throw new InvalidRequestException("amount", "must not be more than the original KES " + money(original));
         }
-        MpesaShortCode shortcode = payment.getShortcodeUuid() == null ? null
-                : shortcodes.findByUuid(payment.getShortcodeUuid()).orElse(null);
-        if (shortcode == null) {
-            throw new ConflictException("The payment's paybill is not configured here, so it cannot be reversed.");
-        }
-        if (!StringUtils.hasText(shortcode.getInitiatorName())) {
-            throw new ConflictException("Paybill " + shortcode.getShortcode() + " has no API initiator; Safaricom's "
-                    + "Reversal API needs one with the Org Reversals Initiator role.");
-        }
+        MpesaShortCode shortcode = shortcodes.findByUuid(payment.getShortcodeUuid()).orElseThrow();
 
         List<PreCheckDto> checks = new ArrayList<>();
         String settled = payment.getTransactionDate() != null ? payment.getTransactionDate().format(DAY)
@@ -125,6 +111,34 @@ public class ReversalService {
             throw new ConflictException("This payment already has a reversal waiting for approval or in progress.");
         }
         return approval;
+    }
+
+    /** Why this received payment cannot be reversed now, or null when a reversal may be requested. */
+    @Transactional(readOnly = true)
+    public String blockedReason(MpesaIncomingPayment payment) {
+        if (payment.getStatus() != IncomingPaymentStatus.SUCCESS) {
+            return "Only a successful payment can be reversed; this one is "
+                    + payment.getStatus().name().toLowerCase(Locale.ROOT) + ".";
+        }
+        if (!StringUtils.hasText(payment.getTransactionId())) {
+            return "This payment has no M-Pesa receipt, so Safaricom cannot reverse it.";
+        }
+        if (reversals.countReversedPayment(payment.getUuid()) > 0) {
+            return "This payment has already been reversed.";
+        }
+        if (reversals.existsByPaymentUuidAndStatusNotIn(payment.getUuid(), CLOSED)) {
+            return "This payment already has a reversal waiting for approval or in progress.";
+        }
+        MpesaShortCode shortcode = payment.getShortcodeUuid() == null ? null
+                : shortcodes.findByUuid(payment.getShortcodeUuid()).orElse(null);
+        if (shortcode == null) {
+            return "The payment's paybill is not configured here, so it cannot be reversed.";
+        }
+        if (!StringUtils.hasText(shortcode.getInitiatorName())) {
+            return "Paybill " + shortcode.getShortcode() + " has no API initiator; Safaricom's Reversal API needs "
+                    + "one with the Org Reversals Initiator role.";
+        }
+        return null;
     }
 
     static String money(BigDecimal amount) {

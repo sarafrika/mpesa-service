@@ -48,6 +48,9 @@ public record PayoutBatchDto(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @JsonProperty("paid") int paid,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @JsonProperty("failed") int failed,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @JsonProperty("unknown") int unknown,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @JsonProperty("refused") int refused) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @JsonProperty("refused") int refused,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "Rows that could not be sent (an error on our side); retried when the batch resumes")
+            @JsonProperty("error") int error) {
     }
 }

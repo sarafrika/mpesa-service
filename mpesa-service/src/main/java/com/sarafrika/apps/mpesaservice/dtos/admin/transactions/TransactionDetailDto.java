@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /** Everything known about one transaction: the feed row, the fields only its own table has, timeline and raw callback. */
 @Schema(name = "TransactionDetailDto")
@@ -48,5 +49,24 @@ public record TransactionDetailDto(
                 + "confirmed receiving: it may still be paid, so it must not be sent again")
         @JsonProperty("outcome_unknown") boolean outcomeUnknown,
         @Schema(description = "What to do about a known failure, e.g. B2C ResultCode 2001 (invalid initiator)")
-        @JsonProperty("hint") String hint) {
+        @JsonProperty("hint") String hint,
+        @Schema(nullable = true, description = "Money received only: its latest reversal request, if any")
+        @JsonProperty("reversal") TransactionReversalDto reversal,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "Whether an operator may ask for this payment to be reversed now")
+        @JsonProperty("can_reverse") boolean canReverse,
+        @Schema(nullable = true, description = "Why it cannot be reversed now (null for payouts)")
+        @JsonProperty("reverse_blocked_reason") String reverseBlockedReason) {
+
+    /** A reversal of the payment and the approval request behind it. */
+    @Schema(name = "TransactionReversalDto")
+    public record TransactionReversalDto(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            @JsonProperty("uuid") UUID uuid,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            @JsonProperty("approval_uuid") UUID approvalUuid,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"WAITING_APPROVAL", "CANCELLED",
+                    "SENDING", "SENT", "OUTCOME_UNKNOWN", "REVERSED", "FAILED"})
+            @JsonProperty("status") String status) {
+    }
 }

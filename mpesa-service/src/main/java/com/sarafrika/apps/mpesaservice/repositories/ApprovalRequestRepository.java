@@ -27,7 +27,7 @@ public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest
 
     long countByStatus(ApprovalStatus status);
 
-    long countByStatusAndMaker(ApprovalStatus status, String maker);
+    long countByStatusAndMakerSub(ApprovalStatus status, String makerSub);
 
     @Query("SELECT a.uuid FROM ApprovalRequest a WHERE a.status = :status AND a.expiresAt < :now ORDER BY a.expiresAt")
     List<UUID> findDue(@Param("status") ApprovalStatus status, @Param("now") Instant now, Pageable pageable);

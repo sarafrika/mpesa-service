@@ -16,7 +16,8 @@ public final class WebhookEvents {
 
     public static final List<String> SUBSCRIBABLE = List.of(
             PaymentEvent.C2B_CONFIRMED, PaymentEvent.STK_COMPLETED, PaymentEvent.STK_FAILED,
-            PaymentEvent.STK_CANCELLED, PaymentEvent.B2C_COMPLETED, PaymentEvent.B2C_FAILED);
+            PaymentEvent.STK_CANCELLED, PaymentEvent.B2C_COMPLETED, PaymentEvent.B2C_FAILED,
+            PaymentEvent.REVERSAL_COMPLETED, PaymentEvent.REVERSAL_FAILED);
 
     private static final List<String> REFERENCE_KEYS = List.of(
             "transaction_id", "mpesa_receipt_number", "checkout_request_id", "client_reference",
@@ -29,7 +30,8 @@ public final class WebhookEvents {
         return SUBSCRIBABLE.contains(type);
     }
 
-    /** c2b.* needs C2B_FEED, stk.* needs STK_PUSH; b2c.* goes only to the paying client. */
+    /** c2b.* needs C2B_FEED, stk.* needs STK_PUSH; b2c.* goes only to the paying client; reversal.* goes to the
+     * product that owns the reversed payment (see WebhookFanOutService). */
     public static Optional<GrantOperation> requiredGrant(String type) {
         if (type == null) {
             return Optional.empty();
@@ -44,6 +46,10 @@ public final class WebhookEvents {
             return Optional.of(GrantOperation.B2C_PAYOUT);
         }
         return Optional.empty();
+    }
+
+    public static boolean isReversal(String type) {
+        return type != null && type.startsWith("reversal.");
     }
 
     public static boolean isPayout(String type) {

@@ -13,4 +13,6 @@ public record PaymentEvent(String type, UUID shortcodeUuid, UUID paymentUuid, St
     public static final String STK_CANCELLED = "stk.cancelled";
     public static final String B2C_COMPLETED = "b2c.completed";
     public static final String B2C_FAILED = "b2c.failed";
+    public static final String REVERSAL_COMPLETED = "reversal.completed";
+    public static final String REVERSAL_FAILED = "reversal.failed";
 }
