@@ -236,7 +236,7 @@
             "type" : "string"
           },
           "type" : {
-            "description" : "REVERSAL, BULK_PAYOUT or B2B_SWEEP",
+            "description" : "REVERSAL, BULK_PAYOUT, B2B_SWEEP, TAX_REMITTANCE or BUSINESS_TO_POCHI",
             "example" : "REVERSAL",
             "type" : "string"
           },
@@ -328,6 +328,17 @@
           }
         },
         "required" : [ "amount", "created_at", "fits", "kind", "label", "outcome_unknown", "status", "uuid" ],
+        "type" : "object"
+      },
+      "AttachStkReceiptRequest" : {
+        "properties" : {
+          "payment_uuid" : {
+            "description" : "One of the exception's STK candidates (listReconciliationStkCandidates)",
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "payment_uuid" ],
         "type" : "object"
       },
       "AttentionItemDto" : {
@@ -3093,6 +3104,13 @@
           "checker" : {
             "type" : "string"
           },
+          "close_note" : {
+            "type" : "string"
+          },
+          "closed_by" : {
+            "description" : "Who closed it as failed by hand after checking the statement",
+            "type" : "string"
+          },
           "completed_at" : {
             "format" : "date-time",
             "type" : "string"
@@ -3324,11 +3342,12 @@
       "ReconciliationExceptionDto" : {
         "properties" : {
           "account_reference" : {
+            "description" : "Masked like a phone when it is one, unless mpesa-finance or mpesa-admin",
             "type" : "string"
           },
           "allowed_actions" : {
             "items" : {
-              "enum" : [ "BACKFILL", "QUERY_STATUS", "MERGE_DUPLICATE", "MARK_RESOLVED" ]
+              "enum" : [ "BACKFILL", "ATTACH_STK_RECEIPT", "QUERY_STATUS", "MERGE_DUPLICATE", "MARK_RESOLVED" ]
             },
             "type" : "array"
           },
@@ -3337,6 +3356,7 @@
             "type" : "string"
           },
           "details" : {
+            "description" : "Phone numbers and names masked unless mpesa-finance or mpesa-admin",
             "type" : "string"
           },
           "direction" : {
@@ -3410,6 +3430,11 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "stk_candidates" : {
+            "description" : "Settled STK payments without a receipt this deposit may be, when the run stored it",
+            "format" : "int32",
+            "type" : "integer"
+          },
           "suggested_fix" : {
             "type" : "string"
           },
@@ -3418,7 +3443,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "created_at", "direction", "kind", "ledger_count", "receipt", "run_uuid", "status", "suggested_fix", "uuid" ],
+        "required" : [ "created_at", "direction", "kind", "ledger_count", "receipt", "run_uuid", "status", "stk_candidates", "suggested_fix", "uuid" ],
         "type" : "object"
       },
       "ReconciliationKindSummaryDto" : {
@@ -4389,6 +4414,43 @@
           }
         },
         "required" : [ "method", "requested_at", "status", "uuid" ],
+        "type" : "object"
+      },
+      "StkCandidateDto" : {
+        "properties" : {
+          "account_reference" : {
+            "type" : "string"
+          },
+          "amount" : {
+            "type" : "number"
+          },
+          "checkout_request_id" : {
+            "example" : "ws_CO_260520211133524545",
+            "type" : "string"
+          },
+          "client_id" : {
+            "description" : "The product that asked for the STK push",
+            "type" : "string"
+          },
+          "payment_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "phone_number" : {
+            "type" : "string"
+          },
+          "requested_at" : {
+            "description" : "When the STK push was requested",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "settled_at" : {
+            "description" : "When it was settled (by its callback or a status query)",
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "checkout_request_id", "payment_uuid", "requested_at" ],
         "type" : "object"
       },
       "StkPushRequest" : {
@@ -5471,7 +5533,7 @@
           "name" : "type",
           "required" : false,
           "schema" : {
-            "enum" : [ "REVERSAL", "BULK_PAYOUT", "B2B_SWEEP" ],
+            "enum" : [ "REVERSAL", "BULK_PAYOUT", "B2B_SWEEP", "TAX_REMITTANCE", "BUSINESS_TO_POCHI" ],
             "type" : "string"
           }
         }, {
@@ -7365,6 +7427,75 @@
         "tags" : [ "Admin: Products" ]
       }
     },
+    "/api/v1/admin/reconciliation/exceptions/{uuid}/attach-stk-receipt" : {
+      "post" : {
+        "operationId" : "attachReconciliationStkReceipt",
+        "parameters" : [ {
+          "description" : "Exception uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AttachStkReceiptRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReconciliationExceptionDto"
+                }
+              }
+            },
+            "description" : "The resolved exception"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such exception"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not a missing deposit, the payment no longer fits, the receipt is already stored, or already resolved"
+          }
+        },
+        "summary" : "Give a settled STK payment without a receipt this statement receipt; adds and announces nothing",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
     "/api/v1/admin/reconciliation/exceptions/{uuid}/backfill" : {
       "post" : {
         "operationId" : "backfillReconciliationException",
@@ -7416,7 +7547,7 @@
                 }
               }
             },
-            "description" : "Not a missing deposit, reversed at Safaricom, or already resolved"
+            "description" : "Not a missing deposit, reversed at Safaricom, an STK payment without a receipt fits it (attach instead), or already resolved"
           }
         },
         "summary" : "Add a deposit missing from our ledger as a C2B payment and tell the product (c2b.confirmed)",
@@ -7634,6 +7765,59 @@
           }
         },
         "summary" : "Close an exception with a note",
+        "tags" : [ "Admin: Reconciliation" ]
+      }
+    },
+    "/api/v1/admin/reconciliation/exceptions/{uuid}/stk-candidates" : {
+      "get" : {
+        "description" : "Same shortcode and amount, requested near the statement line's time, and the same phone when the line shows one. Empty once none fits.",
+        "operationId" : "listReconciliationStkCandidates",
+        "parameters" : [ {
+          "description" : "Exception uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/StkCandidateDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The candidates, oldest request first"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-finance"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such exception"
+          }
+        },
+        "summary" : "Settled STK payments without a receipt that this missing deposit may be",
         "tags" : [ "Admin: Reconciliation" ]
       }
     },
@@ -10068,6 +10252,16 @@
               }
             },
             "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "RATIBA cannot be switched on: Safaricom's API details are unconfirmed"
           }
         },
         "summary" : "Switch a flagged Daraja product on or off",
@@ -10329,6 +10523,95 @@
           }
         },
         "summary" : "Ask to pay a Pochi la Biashara wallet; it waits in Approvals",
+        "tags" : [ "Admin: Daraja products" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/product-payouts/{payout_uuid}/close" : {
+      "post" : {
+        "description" : "Only for a PENDING payment whose outcome is unknown, after the statement shows nothing moved. Nothing is sent to Safaricom; a result that arrives later still settles it.",
+        "operationId" : "closeProductPayoutAsFailed",
+        "parameters" : [ {
+          "description" : "Shortcode uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Tax Remittance or Pochi payment uuid",
+          "in" : "path",
+          "name" : "payout_uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CloseAsFailedRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductPayoutDto"
+                }
+              }
+            },
+            "description" : "The payment, now FAILED"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The payment is settled or its outcome is known"
+          }
+        },
+        "summary" : "Close a Tax Remittance or Pochi payment whose outcome stayed unknown as FAILED (audited)",
         "tags" : [ "Admin: Daraja products" ]
       }
     },
