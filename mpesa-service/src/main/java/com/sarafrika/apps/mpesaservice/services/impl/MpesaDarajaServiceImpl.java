@@ -793,13 +793,18 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    private Map<String, Object> buildQRCodePayload(MpesaShortCode shortcode, String merchantName,
-                                                   String accountReference, BigDecimal amount,
-                                                   QRTransactionType transactionType, Integer qrCodeSize) {
+    // Daraja Dynamic QR fields (MerchantName, RefNo, Amount numeric, TrxCode, CPI, Size string) per the portal
+    // docs, mirrored at github.com/JacksCodeVault/mpesa-daraja-mcp daraja_docs_v3/docs/DynamicQRCode.md.
+    // Amount is omitted when none is given (unverified whether Daraja then lets the customer type it).
+    static Map<String, Object> buildQRCodePayload(MpesaShortCode shortcode, String merchantName,
+                                                  String accountReference, BigDecimal amount,
+                                                  QRTransactionType transactionType, Integer qrCodeSize) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("MerchantName", merchantName != null ? merchantName : shortcode.getBusinessName());
         payload.put("RefNo", accountReference != null ? accountReference : shortcode.getAccountReference());
-        payload.put("Amount", amount != null ? amount : BigDecimal.ZERO);
+        if (amount != null) {
+            payload.put("Amount", amount.stripTrailingZeros().scale() <= 0 ? amount.toBigInteger() : amount);
+        }
         payload.put("TrxCode", transactionType.getCode());
         payload.put("CPI", shortcode.getShortcode());
         payload.put("Size", qrCodeSize != null ? qrCodeSize.toString() : "300");

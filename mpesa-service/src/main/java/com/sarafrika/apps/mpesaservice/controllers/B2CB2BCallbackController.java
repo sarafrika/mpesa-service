@@ -3,6 +3,7 @@ package com.sarafrika.apps.mpesaservice.controllers;
 
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionStatusService;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -59,6 +60,7 @@ public class B2CB2BCallbackController {
 
         } catch (Exception e) {
             log.error("Error processing B2C result callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -83,6 +85,7 @@ public class B2CB2BCallbackController {
 
         } catch (Exception e) {
             log.error("Error processing B2C timeout callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -165,6 +168,7 @@ public class B2CB2BCallbackController {
 
         } catch (Exception e) {
             log.error("Error processing transaction status result callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -185,6 +189,7 @@ public class B2CB2BCallbackController {
             return ResponseEntity.ok(CallbackAcknowledgment.success());
         } catch (Exception e) {
             log.error("Error processing transaction status timeout callback", e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }

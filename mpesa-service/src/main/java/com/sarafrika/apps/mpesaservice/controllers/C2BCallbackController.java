@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarafrika.apps.mpesaservice.dtos.C2BConfirmationCallback;
 import com.sarafrika.apps.mpesaservice.dtos.C2BValidationRequest;
 import com.sarafrika.apps.mpesaservice.dtos.C2BValidationResponse;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.services.collections.C2BConfirmationService;
 import com.sarafrika.apps.mpesaservice.services.collections.C2BResultCodes;
 import com.sarafrika.apps.mpesaservice.services.collections.C2BValidationService;
@@ -44,6 +45,7 @@ public class C2BCallbackController {
             return ResponseEntity.ok(C2BValidationResponse.reject(decision.resultCode()));
         } catch (Exception e) {
             log.error("Error during C2B validation for TransID: {}", request.transId(), e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(C2BValidationResponse.reject(C2BResultCodes.OTHER_ERROR));
         }
     }
@@ -56,6 +58,7 @@ public class C2BCallbackController {
             callback = objectMapper.convertValue(body, C2BConfirmationCallback.class);
         } catch (IllegalArgumentException e) {
             log.error("Unreadable C2B confirmation: {}", e.getMessage());
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(C2BConfirmationAcknowledgment.error());
         }
         log.info("C2B confirmation - TransID: {}, Amount: {}, BillRefNumber: {}, ShortCode: {}",
@@ -69,9 +72,11 @@ public class C2BCallbackController {
                 return ResponseEntity.ok(C2BConfirmationAcknowledgment.success());
             }
             log.error("Could not store C2B confirmation {}", callback.transId(), e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(C2BConfirmationAcknowledgment.error());
         } catch (Exception e) {
             log.error("Error processing C2B confirmation for TransID: {}", callback.transId(), e);
+            CallbackOutcome.failed(e);
             return ResponseEntity.ok(C2BConfirmationAcknowledgment.error());
         }
     }

@@ -52,7 +52,7 @@ const NAV: { label: string; items: NavItem[] }[] = [
   {
     label: "System",
     items: [
-      { title: "Callback inbox", href: "/callbacks", icon: Inbox },
+      { title: "Callback inbox", href: "/callbacks", icon: Inbox, ready: true },
       { title: "Audit log", href: "/audit", icon: ScrollText },
     ],
   },

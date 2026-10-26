@@ -8,6 +8,7 @@ import type { ShortcodeDetail } from "@/api/generated/model";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
 import { PageHeader } from "@/components/page-header";
+import { QrCodeDialog } from "@/components/qr/qr-code-dialog";
 import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { DetailPanelSkeleton } from "@/components/skeletons";
@@ -118,6 +119,11 @@ function DetailHeader({ shortcode }: { shortcode: ShortcodeDetail }) {
           {shortcode.shortcode_type !== "B2C" && (
             <RoleGate needs="mpesa-operator">
               <SendTestStkDialog shortcode={shortcode} disabled={!canPush} />
+            </RoleGate>
+          )}
+          {shortcode.shortcode_type !== "B2C" && (
+            <RoleGate needs="mpesa-operator">
+              <QrCodeDialog shortcode={shortcode} />
             </RoleGate>
           )}
           <RoleGate needs="mpesa-admin">

@@ -28,11 +28,9 @@ public record QRCodeResponse(
         String qrCode
 ) {
 
-    /**
-     * Check if QR code generation was successful
-     */
+    /** Daraja's own sample answers ResponseCode "AG_20191219_..." for a success, so the image is what counts. */
     public boolean isSuccessful() {
-        return "00".equals(responseCode);
+        return hasQRCode();
     }
 
     /**

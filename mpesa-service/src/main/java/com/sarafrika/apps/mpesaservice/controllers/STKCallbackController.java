@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.controllers;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +70,7 @@ public class STKCallbackController {
 
         } catch (Exception e) {
             log.error("Error processing STK Push callback", e);
+            CallbackOutcome.failed(e);
 
             // Still return success to M-Pesa to avoid retries
             return ResponseEntity.ok(new STKCallbackAcknowledgment(
