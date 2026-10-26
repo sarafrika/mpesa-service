@@ -33,6 +33,14 @@ describe("describeApiError", () => {
     assert.equal(copy.description, "shortcode: must be 5 to 7 digits");
   });
 
+  it("says an upload over the limit is too large, with the server's limit", () => {
+    const message = "The file is larger than the 6 MB upload limit; upload a smaller file";
+    const copy = describeApiError(new ApiError(413, body(413, { message })));
+    assert.equal(copy.title, "That file is too large");
+    assert.equal(copy.description, message);
+    assert.equal(copy.retryable, false);
+  });
+
   it("offers a retry on 5xx, even with a non-JSON body", () => {
     const copy = describeApiError(new ApiError(502, "<html>Bad gateway</html>"));
     assert.equal(copy.kind, "unavailable");

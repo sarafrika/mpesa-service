@@ -139,6 +139,14 @@ export function describeApiError(error: unknown, options: DescribeOptions = {}):
       description: server ?? "Refresh and check the current state before trying again.",
     };
   }
+  if (status === 413) {
+    return {
+      ...base,
+      kind: "validation",
+      title: "That file is too large",
+      description: server ?? "Upload a smaller file.",
+    };
+  }
   if (status === 400 || status === 422) {
     return {
       ...base,
