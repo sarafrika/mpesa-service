@@ -1214,6 +1214,10 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "outcome_unknown" : {
+            "description" : "true while PENDING when Safaricom never confirmed receiving the payout: it may still be paid, so wait for the result and do not retry",
+            "type" : "boolean"
+          },
           "phone_number" : {
             "type" : "string"
           },
@@ -1237,7 +1241,7 @@
             "type" : "string"
           },
           "status" : {
-            "description" : "PENDING until Safaricom's result arrives, then SUCCESS or FAILED",
+            "description" : "PENDING until Safaricom's result arrives, then SUCCESS or FAILED. FAILED in the send response means Daraja refused it; a later success result can still turn it SUCCESS",
             "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
             "type" : "string"
           },
@@ -1259,6 +1263,7 @@
             "type" : "string"
           }
         },
+        "required" : [ "outcome_unknown" ],
         "type" : "object"
       },
       "PageResponseAuditEventDto" : {
@@ -1846,46 +1851,6 @@
         "required" : [ "response_type" ],
         "type" : "object"
       },
-      "RotateShortcodeCredentialsRequest" : {
-        "properties" : {
-          "consumer_key" : {
-            "maxLength" : 255,
-            "minLength" : 0,
-            "type" : "string",
-            "writeOnly" : true
-          },
-          "consumer_secret" : {
-            "maxLength" : 500,
-            "minLength" : 0,
-            "type" : "string",
-            "writeOnly" : true
-          },
-          "initiator_name" : {
-            "maxLength" : 100,
-            "minLength" : 0,
-            "type" : "string"
-          },
-          "initiator_password" : {
-            "maxLength" : 255,
-            "minLength" : 0,
-            "type" : "string",
-            "writeOnly" : true
-          },
-          "passkey" : {
-            "maxLength" : 500,
-            "minLength" : 0,
-            "type" : "string",
-            "writeOnly" : true
-          },
-          "security_credential" : {
-            "maxLength" : 4000,
-            "minLength" : 0,
-            "type" : "string",
-            "writeOnly" : true
-          }
-        },
-        "type" : "object"
-      },
       "STKCallback" : {
         "properties" : {
           "CallbackMetadata" : {
@@ -1964,12 +1929,6 @@
       },
       "ShortcodeCredentials" : {
         "properties" : {
-          "age_days" : {
-            "description" : "Days since the last rotation",
-            "example" : 104,
-            "format" : "int64",
-            "type" : "integer"
-          },
           "consumer_key_masked" : {
             "example" : "••••Qx7d",
             "type" : "string"
@@ -1991,23 +1950,16 @@
             "example" : "••••b21c",
             "type" : "string"
           },
-          "rotated_at" : {
-            "format" : "date-time",
-            "type" : "string"
-          },
-          "rotation_days" : {
-            "example" : 90,
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "rotation_due" : {
-            "type" : "boolean"
-          },
           "security_credential_set" : {
             "type" : "boolean"
+          },
+          "updated_at" : {
+            "description" : "When the stored credentials were last saved here",
+            "format" : "date-time",
+            "type" : "string"
           }
         },
-        "required" : [ "consumer_key_masked", "consumer_secret_masked", "initiator_password_set", "rotation_days", "rotation_due", "security_credential_set" ],
+        "required" : [ "consumer_key_masked", "consumer_secret_masked", "initiator_password_set", "security_credential_set" ],
         "type" : "object"
       },
       "ShortcodeDetail" : {
@@ -2140,6 +2092,10 @@
             "example" : 902140.0,
             "type" : "number"
           },
+          "credentials_hint" : {
+            "description" : "Set when the newest payout result says the credentials are wrong (B2C ResultCode 2001)",
+            "type" : "string"
+          },
           "float_reported_at" : {
             "format" : "date-time",
             "type" : "string"
@@ -2155,6 +2111,10 @@
             "description" : "Newest incoming payment (STK or C2B) on this shortcode",
             "format" : "date-time",
             "type" : "string"
+          },
+          "paid_out_today" : {
+            "description" : "Successful B2C payouts since midnight",
+            "type" : "number"
           },
           "token_checked_at" : {
             "format" : "date-time",
@@ -2173,7 +2133,21 @@
             "type" : "boolean"
           }
         },
-        "required" : [ "c2b_state", "collected_today" ],
+        "required" : [ "c2b_state", "collected_today", "paid_out_today" ],
+        "type" : "object"
+      },
+      "ShortcodeProductRef" : {
+        "properties" : {
+          "client_id" : {
+            "example" : "elimika-backend",
+            "type" : "string"
+          },
+          "display_name" : {
+            "example" : "Elimika",
+            "type" : "string"
+          }
+        },
+        "required" : [ "client_id" ],
         "type" : "object"
       },
       "ShortcodeStatus" : {
@@ -2190,11 +2164,8 @@
             "format" : "date-time",
             "type" : "string"
           },
-          "credentials_due" : {
-            "description" : "Credentials are older than the rotation policy (mpesa.credentials.rotation-days)",
-            "type" : "boolean"
-          },
-          "credentials_rotated_at" : {
+          "credentials_updated_at" : {
+            "description" : "When the stored credentials were last saved here",
             "format" : "date-time",
             "type" : "string"
           },
@@ -2207,6 +2178,13 @@
           },
           "is_active" : {
             "type" : "boolean"
+          },
+          "products" : {
+            "description" : "Sarafrika products with an active grant on this shortcode",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeProductRef"
+            },
+            "type" : "array"
           },
           "shortcode" : {
             "example" : 600100,
@@ -2224,7 +2202,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "credentials_due", "environment", "health", "is_active", "shortcode", "shortcode_type", "status", "uuid" ],
+        "required" : [ "business_name", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "uuid" ],
         "type" : "object"
       },
       "ShortcodeTotals" : {
@@ -2244,10 +2222,6 @@
             "format" : "int64",
             "type" : "integer"
           },
-          "credentials_due" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
           "draft" : {
             "format" : "int64",
             "type" : "integer"
@@ -2257,13 +2231,13 @@
             "format" : "int64",
             "type" : "integer"
           },
-          "production" : {
+          "initiator_errors_24h" : {
+            "description" : "B2C results in the last 24 hours with ResultCode 2001 (invalid initiator)",
             "format" : "int64",
             "type" : "integer"
           },
-          "rotation_days" : {
-            "example" : 90,
-            "format" : "int32",
+          "production" : {
+            "format" : "int64",
             "type" : "integer"
           },
           "sandbox" : {
@@ -2285,7 +2259,7 @@
             "type" : "number"
           }
         },
-        "required" : [ "active", "c2b_applicable", "c2b_registered", "credentials_due", "draft", "float_known", "production", "rotation_days", "sandbox", "suspended", "total", "total_float" ],
+        "required" : [ "active", "c2b_applicable", "c2b_registered", "draft", "float_known", "initiator_errors_24h", "production", "sandbox", "suspended", "total", "total_float" ],
         "type" : "object"
       },
       "SimulateC2bRequest" : {
@@ -2551,6 +2525,10 @@
           "first_name" : {
             "type" : "string"
           },
+          "hint" : {
+            "description" : "What to do about a known failure, e.g. B2C ResultCode 2001 (invalid initiator)",
+            "type" : "string"
+          },
           "initiator_name" : {
             "type" : "string"
           },
@@ -2572,6 +2550,10 @@
           "org_account_balance" : {
             "description" : "The paybill's balance after a C2B payment, as Safaricom reported it",
             "type" : "number"
+          },
+          "outcome_unknown" : {
+            "description" : "A pending payout Safaricom never confirmed receiving: it may still be paid, so it must not be sent again",
+            "type" : "boolean"
           },
           "raw_callback" : {
             "additionalProperties" : true,
@@ -2610,7 +2592,7 @@
             "type" : "number"
           }
         },
-        "required" : [ "can_query_status", "status_queries", "timeline", "transaction" ],
+        "required" : [ "can_query_status", "outcome_unknown", "status_queries", "timeline", "transaction" ],
         "type" : "object"
       },
       "TransactionDto" : {
@@ -3004,6 +2986,46 @@
           }
         },
         "required" : [ "amount", "count", "payment_type" ],
+        "type" : "object"
+      },
+      "UpdateShortcodeCredentialsRequest" : {
+        "properties" : {
+          "consumer_key" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "consumer_secret" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "initiator_name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "initiator_password" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "passkey" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          },
+          "security_credential" : {
+            "maxLength" : 4000,
+            "minLength" : 0,
+            "type" : "string",
+            "writeOnly" : true
+          }
+        },
         "type" : "object"
       },
       "UpdateShortcodeRequest" : {
@@ -4113,12 +4135,14 @@
         "tags" : [ "Admin: Products" ]
       }
     },
-    "/api/v1/admin/products/{clientId}" : {
+    "/api/v1/admin/products/{client_id}" : {
       "get" : {
         "operationId" : "getProduct",
         "parameters" : [ {
+          "description" : "The product's Keycloak client id (azp)",
+          "example" : "elimika-backend",
           "in" : "path",
-          "name" : "clientId",
+          "name" : "client_id",
           "required" : true,
           "schema" : {
             "type" : "string"
@@ -4150,19 +4174,22 @@
         "tags" : [ "Admin: Products" ]
       }
     },
-    "/api/v1/admin/products/{clientId}/grants/{shortcodeUuid}" : {
+    "/api/v1/admin/products/{client_id}/grants/{shortcode_uuid}" : {
       "delete" : {
         "operationId" : "deleteProductGrant",
         "parameters" : [ {
+          "description" : "The product's Keycloak client id (azp)",
+          "example" : "elimika-backend",
           "in" : "path",
-          "name" : "clientId",
+          "name" : "client_id",
           "required" : true,
           "schema" : {
             "type" : "string"
           }
         }, {
+          "description" : "The shortcode's uuid",
           "in" : "path",
-          "name" : "shortcodeUuid",
+          "name" : "shortcode_uuid",
           "required" : true,
           "schema" : {
             "format" : "uuid",
@@ -4200,15 +4227,18 @@
       "put" : {
         "operationId" : "upsertProductGrant",
         "parameters" : [ {
+          "description" : "The product's Keycloak client id (azp)",
+          "example" : "elimika-backend",
           "in" : "path",
-          "name" : "clientId",
+          "name" : "client_id",
           "required" : true,
           "schema" : {
             "type" : "string"
           }
         }, {
+          "description" : "The shortcode's uuid",
           "in" : "path",
-          "name" : "shortcodeUuid",
+          "name" : "shortcode_uuid",
           "required" : true,
           "schema" : {
             "format" : "uuid",
@@ -4344,6 +4374,14 @@
           "description" : "Matches business name (any case) or shortcode",
           "in" : "query",
           "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Only shortcodes this product (Keycloak client id) holds an active grant on",
+          "in" : "query",
+          "name" : "client_id",
           "required" : false,
           "schema" : {
             "type" : "string"
@@ -4875,8 +4913,8 @@
     },
     "/api/v1/admin/shortcodes/{uuid}/credentials" : {
       "put" : {
-        "description" : "Empty fields keep the stored value. The token check must pass again afterwards.",
-        "operationId" : "rotateShortcodeCredentials",
+        "description" : "Daraja has no API to change credentials: change them on the Daraja portal or the M-Pesa org portal first. Empty fields keep the stored value. Saving re-runs the token check.",
+        "operationId" : "updateShortcodeCredentials",
         "parameters" : [ {
           "in" : "path",
           "name" : "uuid",
@@ -4890,7 +4928,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/RotateShortcodeCredentialsRequest"
+                "$ref" : "#/components/schemas/UpdateShortcodeCredentialsRequest"
               }
             }
           },
@@ -4905,7 +4943,7 @@
                 }
               }
             },
-            "description" : "The shortcode with its new masked credentials"
+            "description" : "The shortcode with its new masked credentials and token check"
           },
           "400" : {
             "content" : {
@@ -4938,7 +4976,7 @@
             "description" : "No such shortcode"
           }
         },
-        "summary" : "Rotate a shortcode's Daraja credentials",
+        "summary" : "Store a shortcode's Daraja credentials after they were changed at Safaricom",
         "tags" : [ "Admin: Shortcodes" ]
       }
     },
