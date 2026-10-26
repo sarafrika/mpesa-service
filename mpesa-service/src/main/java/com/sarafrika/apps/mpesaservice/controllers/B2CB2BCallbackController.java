@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.controllers;
 
 
+import com.sarafrika.apps.mpesaservice.services.collections.TransactionStatusService;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class B2CB2BCallbackController {
 
     private final MpesaPayoutService payoutService;
+    private final TransactionStatusService transactionStatusService;
     private final ObjectMapper objectMapper;
 
     // ==================== B2C CALLBACKS ====================
@@ -158,20 +160,31 @@ public class B2CB2BCallbackController {
                 statusResult.result().resultCode());
 
         try {
-            TransactionStatusResultData result = statusResult.result();
-
-            if (result.isSuccessful()) {
-                handleTransactionStatusSuccess(result);
-            } else if (result.isNotFound()) {
-                handleTransactionNotFound(result);
-            } else {
-                handleTransactionStatusError(result);
-            }
-
+            transactionStatusService.applyResult(statusResult.result(), objectMapper.writeValueAsString(statusResult));
             return ResponseEntity.ok(CallbackAcknowledgment.success());
 
         } catch (Exception e) {
             log.error("Error processing transaction status result callback", e);
+            return ResponseEntity.ok(CallbackAcknowledgment.error());
+        }
+    }
+
+    /** Safaricom could not process a status query in time; the query is marked timed out. */
+    // Accepts both the flat timeout shape and one wrapped in "Result", as Daraja examples differ.
+    @PostMapping("/transaction-status/timeout")
+    public ResponseEntity<CallbackAcknowledgment> handleTransactionStatusTimeout(
+            @RequestBody java.util.Map<String, Object> body) {
+        Object wrapped = body.get("Result");
+        java.util.Map<?, ?> result = wrapped instanceof java.util.Map<?, ?> map ? map : body;
+        Object conversationId = result.get("ConversationID");
+        Object originatorId = result.get("OriginatorConversationID");
+        log.warn("Transaction status timeout - ConversationID: {}", conversationId);
+        try {
+            transactionStatusService.applyTimeout(conversationId == null ? null : conversationId.toString(),
+                    originatorId == null ? null : originatorId.toString());
+            return ResponseEntity.ok(CallbackAcknowledgment.success());
+        } catch (Exception e) {
+            log.error("Error processing transaction status timeout callback", e);
             return ResponseEntity.ok(CallbackAcknowledgment.error());
         }
     }
@@ -297,38 +310,6 @@ public class B2CB2BCallbackController {
         // TODO: Update transfer status to failed
         // TODO: Notify sender of failure
         // TODO: Implement retry logic if applicable
-    }
-
-    private void handleTransactionStatusSuccess(TransactionStatusResultData result) {
-        log.info("Processing transaction status success - TransactionID: {}", result.transactionId());
-
-        // Extract transaction details
-        TransactionStatusResultParameters params = result.resultParameters();
-        if (params != null) {
-            String receiptNumber = params.getReceiptNumber();
-            String transactionAmount = params.getTransactionAmount();
-            String transactionStatus = params.getTransactionStatus();
-
-            log.info("Transaction Status Details - Receipt: {}, Amount: {}, Status: {}",
-                    receiptNumber, transactionAmount, transactionStatus);
-
-            // TODO: Update local transaction records with latest status
-            // TODO: Notify requesting party of status
-        }
-    }
-
-    private void handleTransactionNotFound(TransactionStatusResultData result) {
-        log.warn("Transaction not found - ResultDesc: {}", result.resultDesc());
-
-        // TODO: Mark local transaction as not found
-        // TODO: Notify requesting party
-    }
-
-    private void handleTransactionStatusError(TransactionStatusResultData result) {
-        log.error("Transaction status query error - ResultDesc: {}", result.resultDesc());
-
-        // TODO: Handle status query error
-        // TODO: Implement retry logic
     }
 
     private void handleAccountBalanceSuccess(AccountBalanceResultData result) {

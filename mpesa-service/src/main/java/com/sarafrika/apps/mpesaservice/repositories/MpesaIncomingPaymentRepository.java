@@ -3,6 +3,7 @@ package com.sarafrika.apps.mpesaservice.repositories;
 import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -82,4 +83,8 @@ public interface MpesaIncomingPaymentRepository extends JpaRepository<MpesaIncom
      * Count payments in a given status
      */
     Long countByStatus(IncomingPaymentStatus status);
+
+    /** Oldest first, for the job that asks Safaricom about STK requests still pending. */
+    List<MpesaIncomingPayment> findByPaymentTypeAndStatusAndCreatedAtBefore(
+            IncomingPaymentType paymentType, IncomingPaymentStatus status, LocalDateTime before, Pageable pageable);
 }
