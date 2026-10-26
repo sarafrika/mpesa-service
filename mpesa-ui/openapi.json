@@ -692,44 +692,94 @@
         },
         "type" : "object"
       },
-      "MpesaApiResponseMpesaPayoutDto" : {
-        "description" : "Generic M-Pesa API response wrapper",
+      "ConnectProductRequest" : {
         "properties" : {
-          "data" : {
-            "$ref" : "#/components/schemas/MpesaPayoutDto",
-            "description" : "Response data (null if error)"
+          "client_id" : {
+            "description" : "The product's Keycloak client id, as its tokens carry it in azp",
+            "example" : "elimika-backend",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "pattern" : "[A-Za-z0-9._:-]+",
+            "type" : "string"
           },
-          "error" : {
-            "$ref" : "#/components/schemas/MpesaErrorResponse",
-            "description" : "Error details (null if successful)"
+          "display_name" : {
+            "example" : "Elimika",
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
           },
-          "httpStatus" : {
-            "description" : "HTTP status code",
-            "format" : "int32",
-            "type" : "integer"
+          "grants" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ProductGrantInput"
+            },
+            "minItems" : 1,
+            "type" : "array"
           },
-          "processingTimeMs" : {
-            "description" : "Request processing duration in milliseconds",
-            "format" : "int64",
-            "type" : "integer"
+          "webhook_event_types" : {
+            "description" : "Event types for the webhook; empty sends every event the product is entitled to",
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
           },
-          "success" : {
-            "description" : "Indicates if the request was successful",
-            "type" : "boolean"
-          },
-          "timestamp" : {
-            "description" : "Response timestamp",
-            "format" : "date-time",
+          "webhook_url" : {
+            "description" : "HTTPS (http only for localhost); its signing secret is returned once",
+            "example" : "https://api.elimika.sarafrika.com/hooks/mpesa",
+            "maxLength" : 500,
+            "minLength" : 0,
             "type" : "string"
           }
         },
+        "required" : [ "client_id", "display_name", "grants" ],
         "type" : "object"
       },
-      "MpesaApiResponseStkPushResponse" : {
+      "ConnectProductResponse" : {
+        "properties" : {
+          "product" : {
+            "$ref" : "#/components/schemas/Product"
+          },
+          "webhook" : {
+            "$ref" : "#/components/schemas/WebhookSubscription"
+          },
+          "webhook_secret" : {
+            "description" : "Shown once; store it in the product's secrets now",
+            "example" : "whsec_3q2-…",
+            "type" : "string"
+          }
+        },
+        "required" : [ "product" ],
+        "type" : "object"
+      },
+      "CreateWebhookSubscriptionRequest" : {
+        "properties" : {
+          "client_id" : {
+            "example" : "elimika-backend",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "event_types" : {
+            "description" : "Empty or missing sends every event the product is entitled to",
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "url" : {
+            "description" : "HTTPS; plain http only for localhost",
+            "example" : "https://api.elimika.sarafrika.com/hooks/mpesa",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "client_id", "url" ],
+        "type" : "object"
+      },
+      "MpesaApiResponse" : {
         "description" : "Generic M-Pesa API response wrapper",
         "properties" : {
           "data" : {
-            "$ref" : "#/components/schemas/StkPushResponse",
             "description" : "Response data (null if error)"
           },
           "error" : {
@@ -794,68 +844,6 @@
           },
           "validationError" : {
             "type" : "boolean"
-          }
-        },
-        "type" : "object"
-      },
-      "MpesaIncomingPaymentDto" : {
-        "description" : "Incoming M-Pesa payment status view",
-        "properties" : {
-          "account_reference" : {
-            "type" : "string"
-          },
-          "amount" : {
-            "type" : "number"
-          },
-          "checkout_request_id" : {
-            "type" : "string"
-          },
-          "created_at" : {
-            "format" : "date-time",
-            "type" : "string"
-          },
-          "merchant_request_id" : {
-            "type" : "string"
-          },
-          "payment_type" : {
-            "enum" : [ "STK_PUSH", "C2B" ],
-            "type" : "string"
-          },
-          "phone_number" : {
-            "type" : "string"
-          },
-          "processed_at" : {
-            "format" : "date-time",
-            "type" : "string"
-          },
-          "result_code" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "result_desc" : {
-            "type" : "string"
-          },
-          "shortcode_uuid" : {
-            "format" : "uuid",
-            "type" : "string"
-          },
-          "status" : {
-            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
-            "type" : "string"
-          },
-          "transaction_date" : {
-            "format" : "date-time",
-            "type" : "string"
-          },
-          "transaction_desc" : {
-            "type" : "string"
-          },
-          "transaction_id" : {
-            "type" : "string"
-          },
-          "uuid" : {
-            "format" : "uuid",
-            "type" : "string"
           }
         },
         "type" : "object"
@@ -955,25 +943,287 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
-      "PayoutFloatDto" : {
-        "description" : "A shortcode's float as Safaricom last reported it on a payout result",
+      "PageResponseProduct" : {
         "properties" : {
-          "reported_at" : {
-            "description" : "When Safaricom reported it; null when no payout has completed yet",
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Product"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseProductGrant" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ProductGrant"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseWebhookDelivery" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WebhookDelivery"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseWebhookSubscription" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WebhookSubscription"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "Product" : {
+        "properties" : {
+          "client_id" : {
+            "example" : "elimika-backend",
+            "type" : "string"
+          },
+          "display_name" : {
+            "description" : "The display name from its grants, else the client id",
+            "example" : "Elimika",
+            "type" : "string"
+          },
+          "grants" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ProductGrant"
+            },
+            "type" : "array"
+          },
+          "operations" : {
+            "description" : "Every operation in its active grants",
+            "items" : {
+              "enum" : [ "STK_PUSH", "C2B_FEED", "B2C_PAYOUT", "STATUS_LOOKUP" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "state" : {
+            "enum" : [ "LIVE", "IDLE", "PAUSED", "UNGRANTED" ],
+            "type" : "string"
+          },
+          "stats" : {
+            "$ref" : "#/components/schemas/ProductStats"
+          },
+          "webhooks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WebhookSubscription"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "client_id", "display_name", "grants", "operations", "state", "stats", "webhooks" ],
+        "type" : "object"
+      },
+      "ProductGrant" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "client_id" : {
+            "example" : "elimika-backend",
+            "type" : "string"
+          },
+          "created_at" : {
             "format" : "date-time",
+            "type" : "string"
+          },
+          "created_by" : {
+            "type" : "string"
+          },
+          "operations" : {
+            "items" : {
+              "enum" : [ "STK_PUSH", "C2B_FEED", "B2C_PAYOUT", "STATUS_LOOKUP" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "product_name" : {
+            "example" : "Elimika",
+            "type" : "string"
+          },
+          "shortcode" : {
+            "description" : "Null if the shortcode has since been deleted",
+            "example" : 600100,
             "type" : "string"
           },
           "shortcode_uuid" : {
             "format" : "uuid",
             "type" : "string"
           },
-          "utility_account_available_funds" : {
-            "type" : "number"
+          "updated_at" : {
+            "format" : "date-time",
+            "type" : "string"
           },
-          "working_account_available_funds" : {
-            "type" : "number"
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "webhook_health" : {
+            "$ref" : "#/components/schemas/WebhookHealth",
+            "description" : "The product's webhook health, null when it has no webhook"
           }
         },
+        "required" : [ "active", "client_id", "operations", "product_name", "shortcode_uuid", "uuid" ],
+        "type" : "object"
+      },
+      "ProductGrantInput" : {
+        "properties" : {
+          "operations" : {
+            "items" : {
+              "enum" : [ "STK_PUSH", "C2B_FEED", "B2C_PAYOUT", "STATUS_LOOKUP" ],
+              "type" : "string"
+            },
+            "minItems" : 1,
+            "type" : "array",
+            "uniqueItems" : true
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "operations", "shortcode_uuid" ],
+        "type" : "object"
+      },
+      "ProductStats" : {
+        "properties" : {
+          "api_calls_7d" : {
+            "example" : 41280,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "api_errors_7d" : {
+            "example" : 124,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "error_rate_7d" : {
+            "description" : "Errors over calls, 0 to 1; 0 when there were no calls",
+            "example" : 0.003,
+            "format" : "double",
+            "type" : "number"
+          },
+          "kes_in_7d" : {
+            "example" : 7200000.0,
+            "type" : "number"
+          },
+          "kes_moved_7d" : {
+            "example" : 8900000.0,
+            "type" : "number"
+          },
+          "kes_out_7d" : {
+            "example" : 1700000.0,
+            "type" : "number"
+          },
+          "last_call_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "api_calls_7d", "api_errors_7d", "error_rate_7d", "kes_in_7d", "kes_moved_7d", "kes_out_7d" ],
         "type" : "object"
       },
       "STKCallback" : {
@@ -1061,37 +1311,6 @@
           }
         },
         "required" : [ "amount", "phone_number", "shortcode_uuid" ],
-        "type" : "object"
-      },
-      "StkPushResponse" : {
-        "description" : "STK Push initiation response from Daraja API",
-        "properties" : {
-          "CheckoutRequestID" : {
-            "description" : "Checkout request ID used for status queries",
-            "example" : "ws_CO_04112017184930742",
-            "type" : "string"
-          },
-          "CustomerMessage" : {
-            "description" : "Customer message displayed on phone",
-            "example" : "Check your phone for the M-PESA pin prompt",
-            "type" : "string"
-          },
-          "MerchantRequestID" : {
-            "description" : "Merchant request ID generated by Safaricom",
-            "example" : "21605-295434-4",
-            "type" : "string"
-          },
-          "ResponseCode" : {
-            "description" : "Response code from Safaricom (0 = success)",
-            "example" : 0,
-            "type" : "string"
-          },
-          "ResponseDescription" : {
-            "description" : "Response description from Safaricom",
-            "example" : "Success. Request accepted for processing",
-            "type" : "string"
-          }
-        },
         "type" : "object"
       },
       "TransactionReversalResult" : {
@@ -1369,6 +1588,229 @@
           }
         },
         "type" : "object"
+      },
+      "UpdateWebhookSubscriptionRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "event_types" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "url" : {
+            "example" : "https://api.elimika.sarafrika.com/hooks/mpesa",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpsertProductGrantRequest" : {
+        "properties" : {
+          "active" : {
+            "description" : "Defaults to true; false pauses the grant without deleting it",
+            "type" : "boolean"
+          },
+          "display_name" : {
+            "description" : "Renames the product on all its grants when given",
+            "example" : "Elimika",
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "operations" : {
+            "items" : {
+              "enum" : [ "STK_PUSH", "C2B_FEED", "B2C_PAYOUT", "STATUS_LOOKUP" ],
+              "type" : "string"
+            },
+            "minItems" : 1,
+            "type" : "array",
+            "uniqueItems" : true
+          }
+        },
+        "required" : [ "operations" ],
+        "type" : "object"
+      },
+      "WebhookDelivery" : {
+        "properties" : {
+          "attempt" : {
+            "description" : "Attempts made so far",
+            "example" : 1,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "client_id" : {
+            "example" : "elimika-backend",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "delivered_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "error" : {
+            "example" : "Timed out waiting for the receiver",
+            "type" : "string"
+          },
+          "event_id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "event_type" : {
+            "example" : "c2b.confirmed",
+            "type" : "string"
+          },
+          "latency_ms" : {
+            "example" : 184,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "next_attempt_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "payload" : {
+            "additionalProperties" : true,
+            "description" : "The exact JSON body that is signed and sent"
+          },
+          "product_name" : {
+            "example" : "Elimika",
+            "type" : "string"
+          },
+          "reference" : {
+            "example" : "TJQ4K2L9XA",
+            "type" : "string"
+          },
+          "response_code" : {
+            "example" : 200,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "DELIVERED", "FAILED" ],
+            "type" : "string"
+          },
+          "subscription_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "uuid" : {
+            "description" : "Also the X-Sarafrika-Delivery header",
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "attempt", "client_id", "created_at", "event_id", "event_type", "product_name", "status", "subscription_uuid", "uuid" ],
+        "type" : "object"
+      },
+      "WebhookHealth" : {
+        "properties" : {
+          "delivered_first_try_7d" : {
+            "example" : 1199,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "deliveries_7d" : {
+            "example" : 1200,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "failed_7d" : {
+            "example" : 0,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "first_try_rate_7d" : {
+            "description" : "Share delivered on the first attempt, 0 to 1; 1 when nothing was sent",
+            "example" : 0.999,
+            "format" : "double",
+            "type" : "number"
+          },
+          "last_delivery_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "pending_retries" : {
+            "description" : "Waiting for a retry now",
+            "example" : 0,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "status" : {
+            "enum" : [ "HEALTHY", "DEGRADED", "FAILING", "NO_TRAFFIC", "DISABLED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "delivered_first_try_7d", "deliveries_7d", "failed_7d", "first_try_rate_7d", "pending_retries", "status" ],
+        "type" : "object"
+      },
+      "WebhookSecretResponse" : {
+        "properties" : {
+          "secret" : {
+            "description" : "Shown once; it cannot be read again, only rotated",
+            "example" : "whsec_3q2-…",
+            "type" : "string"
+          },
+          "subscription" : {
+            "$ref" : "#/components/schemas/WebhookSubscription"
+          }
+        },
+        "required" : [ "secret", "subscription" ],
+        "type" : "object"
+      },
+      "WebhookSubscription" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "client_id" : {
+            "example" : "elimika-backend",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "event_types" : {
+            "description" : "Empty means every event the product is entitled to",
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "health" : {
+            "$ref" : "#/components/schemas/WebhookHealth"
+          },
+          "secret_hint" : {
+            "example" : "••••a91f",
+            "type" : "string"
+          },
+          "secret_rotated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "updated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "url" : {
+            "example" : "https://api.elimika.sarafrika.com/hooks/mpesa",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "client_id", "event_types", "health", "secret_hint", "url", "uuid" ],
+        "type" : "object"
       }
     }
   },
@@ -1479,6 +1921,968 @@
         },
         "summary" : "List audit events, newest first",
         "tags" : [ "Admin: Audit" ]
+      }
+    },
+    "/api/v1/admin/product-grants" : {
+      "get" : {
+        "operationId" : "listProductGrants",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, client_id, display_name. Default display_name,asc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "display_name,asc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "client_id",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseProductGrant"
+                }
+              }
+            },
+            "description" : "A page of grants"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Negative page, size below 1 or an unknown sort field"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "List grants, e.g. which products may use one shortcode and for what",
+        "tags" : [ "Admin: Products" ]
+      }
+    },
+    "/api/v1/admin/products" : {
+      "get" : {
+        "operationId" : "listProducts",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: name, client_id, kes_moved_7d, api_calls_7d. Default name,asc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "name,asc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "description" : "Matches part of the client id or display name",
+          "in" : "query",
+          "name" : "search",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseProduct"
+                }
+              }
+            },
+            "description" : "A page of products"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Negative page, size below 1 or an unknown sort field"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "List products with their grants, 7-day figures and webhooks",
+        "tags" : [ "Admin: Products" ]
+      },
+      "post" : {
+        "description" : "The webhook signing secret is in this response only.",
+        "operationId" : "connectProduct",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ConnectProductRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConnectProductResponse"
+                }
+              }
+            },
+            "description" : "Connected"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid fields"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-admin"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The client already has grants"
+          }
+        },
+        "summary" : "Connect a product: grant its paybills and operations and optionally register its webhook",
+        "tags" : [ "Admin: Products" ]
+      }
+    },
+    "/api/v1/admin/products/{clientId}" : {
+      "get" : {
+        "operationId" : "getProduct",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "clientId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Product"
+                }
+              }
+            },
+            "description" : "The product"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No grants, webhook or traffic for that client"
+          }
+        },
+        "summary" : "One product by its Keycloak client id",
+        "tags" : [ "Admin: Products" ]
+      }
+    },
+    "/api/v1/admin/products/{clientId}/grants/{shortcodeUuid}" : {
+      "delete" : {
+        "operationId" : "deleteProductGrant",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "clientId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "shortcodeUuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Removed"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such grant"
+          }
+        },
+        "summary" : "Remove a product's access to a shortcode",
+        "tags" : [ "Admin: Products" ]
+      },
+      "put" : {
+        "operationId" : "upsertProductGrant",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "clientId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "shortcodeUuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpsertProductGrantRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProductGrant"
+                }
+              }
+            },
+            "description" : "The grant as saved"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid fields"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Grant or change a product's operations on a shortcode",
+        "tags" : [ "Admin: Products" ]
+      }
+    },
+    "/api/v1/admin/webhooks/deliveries" : {
+      "get" : {
+        "operationId" : "listWebhookDeliveries",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, status, latency_ms, event_type. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "client_id",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "subscription_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "DELIVERED", "FAILED" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "event_type",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseWebhookDelivery"
+                }
+              }
+            },
+            "description" : "A page of deliveries, without payloads"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Negative page, size below 1 or an unknown sort field"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "List webhook deliveries, newest first",
+        "tags" : [ "Admin: Webhooks" ]
+      }
+    },
+    "/api/v1/admin/webhooks/deliveries/{uuid}" : {
+      "get" : {
+        "operationId" : "getWebhookDelivery",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not found"
+          }
+        },
+        "summary" : "One delivery with the exact payload sent",
+        "tags" : [ "Admin: Webhooks" ]
+      }
+    },
+    "/api/v1/admin/webhooks/deliveries/{uuid}/replay" : {
+      "post" : {
+        "operationId" : "replayWebhookDelivery",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WebhookDelivery"
+                }
+              }
+            },
+            "description" : "Queued"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not attempted yet"
+          }
+        },
+        "summary" : "Send a delivery again with the same delivery id and a fresh set of retries",
+        "tags" : [ "Admin: Webhooks" ]
+      }
+    },
+    "/api/v1/admin/webhooks/event-types" : {
+      "get" : {
+        "operationId" : "listWebhookEventTypes",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "type" : "string"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Event types a webhook can subscribe to",
+        "tags" : [ "Admin: Webhooks" ]
+      }
+    },
+    "/api/v1/admin/webhooks/subscriptions" : {
+      "get" : {
+        "operationId" : "listWebhookSubscriptions",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, client_id, url. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "client_id",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseWebhookSubscription"
+                }
+              }
+            },
+            "description" : "A page of subscriptions"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Negative page, size below 1 or an unknown sort field"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "List webhook subscriptions with their health",
+        "tags" : [ "Admin: Webhooks" ]
+      },
+      "post" : {
+        "description" : "The signing secret is in this response only.",
+        "operationId" : "createWebhookSubscription",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateWebhookSubscriptionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WebhookSecretResponse"
+                }
+              }
+            },
+            "description" : "Registered; store the secret now"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid URL or event type"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-admin"
+          }
+        },
+        "summary" : "Register a product's webhook",
+        "tags" : [ "Admin: Webhooks" ]
+      }
+    },
+    "/api/v1/admin/webhooks/subscriptions/{uuid}" : {
+      "delete" : {
+        "operationId" : "deleteWebhookSubscription",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Removed"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not found"
+          }
+        },
+        "summary" : "Remove a webhook; pending deliveries then fail",
+        "tags" : [ "Admin: Webhooks" ]
+      },
+      "get" : {
+        "operationId" : "getWebhookSubscription",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not found"
+          }
+        },
+        "summary" : "One webhook subscription",
+        "tags" : [ "Admin: Webhooks" ]
+      },
+      "patch" : {
+        "operationId" : "updateWebhookSubscription",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateWebhookSubscriptionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid URL or event type"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not found"
+          }
+        },
+        "summary" : "Change a webhook's URL, events or on/off state",
+        "tags" : [ "Admin: Webhooks" ]
+      }
+    },
+    "/api/v1/admin/webhooks/subscriptions/{uuid}/rotate-secret" : {
+      "post" : {
+        "description" : "The new secret is in this response only; the old one stops signing straight away.",
+        "operationId" : "rotateWebhookSecret",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WebhookSecretResponse"
+                }
+              }
+            },
+            "description" : "Rotated; store the new secret now"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not found"
+          }
+        },
+        "summary" : "Replace a webhook's signing secret",
+        "tags" : [ "Admin: Webhooks" ]
+      }
+    },
+    "/api/v1/admin/webhooks/subscriptions/{uuid}/test" : {
+      "post" : {
+        "operationId" : "sendWebhookTestEvent",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WebhookDelivery"
+                }
+              }
+            },
+            "description" : "Queued; follow it in the delivery list"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not found"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The webhook is disabled"
+          }
+        },
+        "summary" : "Send a signed test.ping event to a webhook",
+        "tags" : [ "Admin: Webhooks" ]
       }
     },
     "/api/v1/callbacks/account-balance/result" : {
@@ -1804,15 +3208,15 @@
           "required" : true
         },
         "responses" : {
-          "200" : {
+          "403" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaApiResponseMpesaPayoutDto"
+                  "$ref" : "#/components/schemas/MpesaApiResponse"
                 }
               }
             },
-            "description" : "OK"
+            "description" : "The calling client is not granted B2C_PAYOUT on the shortcode"
           }
         },
         "summary" : "Send a B2C payout",
@@ -1821,6 +3225,7 @@
     },
     "/api/v1/mpesa/payments" : {
       "get" : {
+        "description" : "A product sees only payments on shortcodes it holds STATUS_LOOKUP on.",
         "operationId" : "listPayments",
         "parameters" : [ {
           "in" : "query",
@@ -1838,18 +3243,15 @@
           }
         } ],
         "responses" : {
-          "200" : {
+          "403" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/MpesaIncomingPaymentDto"
-                  },
-                  "type" : "array"
+                  "$ref" : "#/components/schemas/MpesaApiResponse"
                 }
               }
             },
-            "description" : "OK"
+            "description" : "A product without any STATUS_LOOKUP grant"
           }
         },
         "summary" : "Fetch incoming payments by account reference or M-Pesa transaction id",
@@ -1868,15 +3270,15 @@
           }
         } ],
         "responses" : {
-          "200" : {
+          "403" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaIncomingPaymentDto"
+                  "$ref" : "#/components/schemas/MpesaApiResponse"
                 }
               }
             },
-            "description" : "OK"
+            "description" : "A product without STATUS_LOOKUP on the payment's shortcode"
           }
         },
         "summary" : "Fetch an incoming payment by STK Push checkout request id",
@@ -1951,15 +3353,15 @@
           }
         } ],
         "responses" : {
-          "200" : {
+          "403" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/PayoutFloatDto"
+                  "$ref" : "#/components/schemas/MpesaApiResponse"
                 }
               }
             },
-            "description" : "OK"
+            "description" : "A product without B2C_PAYOUT or STATUS_LOOKUP on the shortcode"
           }
         },
         "summary" : "A shortcode's float as last reported on a payout result",
@@ -1980,15 +3382,15 @@
           "required" : true
         },
         "responses" : {
-          "200" : {
+          "403" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/MpesaApiResponseStkPushResponse"
+                  "$ref" : "#/components/schemas/MpesaApiResponse"
                 }
               }
             },
-            "description" : "OK"
+            "description" : "The calling client is not granted STK_PUSH on the shortcode"
           }
         },
         "summary" : "Initiate an STK Push payment for a configured shortcode",
@@ -2002,6 +3404,12 @@
   }, {
     "description" : "The trail of changes made through the console",
     "name" : "Admin: Audit"
+  }, {
+    "description" : "Sarafrika products (Keycloak clients) and the paybills and operations granted to them",
+    "name" : "Admin: Products"
+  }, {
+    "description" : "Signed payment events sent to products, and every delivery attempt",
+    "name" : "Admin: Webhooks"
   }, {
     "description" : "Send B2C payouts and poll their outcome",
     "name" : "M-Pesa Payouts"
