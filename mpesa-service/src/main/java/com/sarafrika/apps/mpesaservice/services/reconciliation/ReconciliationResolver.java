@@ -71,7 +71,7 @@ public class ReconciliationResolver {
         raw.put("ReconciliationRun", run.getUuid().toString());
         raw.put("StatementLine", line.raw());
         C2BConfirmationService.Confirmation confirmation =
-                confirmations.confirm(StatementBackfill.callback(line, shortcode.getShortcode()), raw);
+                confirmations.confirm(StatementBackfill.callback(line, shortcode.getShortcode()), raw, source);
         if (!confirmation.duplicate()) {
             ledger.markSource(confirmation.payment().getUuid(), source);
         }

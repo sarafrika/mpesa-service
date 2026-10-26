@@ -229,7 +229,8 @@ class CollectionsIntegrationTest {
         assertThat(published).hasSize(1);
         assertThat(published.getFirst().type()).isEqualTo(PaymentEvent.C2B_CONFIRMED);
         assertThat(published.getFirst().shortcodeUuid()).isEqualTo(shortcode.getUuid());
-        assertThat(published.getFirst().data()).containsEntry("account_reference", "ELM-004512");
+        assertThat(published.getFirst().data()).containsEntry("account_reference", "ELM-004512")
+                .containsEntry("source", "CONFIRMATION");
     }
 
     @Test

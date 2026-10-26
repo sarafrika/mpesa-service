@@ -44,8 +44,17 @@ public class C2BConfirmationService {
     public record Confirmation(MpesaIncomingPayment payment, boolean duplicate) {
     }
 
+    /** Where a deposit came from: Daraja's live confirmation, or a backfill from Safaricom's own record. */
+    public static final String SOURCE_CONFIRMATION = "CONFIRMATION";
+
     @Transactional
     public Confirmation confirm(C2BConfirmationCallback callback, Map<String, Object> raw) {
+        return confirm(callback, raw, SOURCE_CONFIRMATION);
+    }
+
+    /** source is SOURCE_CONFIRMATION, STATEMENT or PULL_TRANSACTIONS and goes out in c2b.confirmed data. */
+    @Transactional
+    public Confirmation confirm(C2BConfirmationCallback callback, Map<String, Object> raw, String source) {
         if (!StringUtils.hasText(callback.transId())) {
             throw new IllegalArgumentException("C2B confirmation without a TransID");
         }
@@ -87,7 +96,7 @@ public class C2BConfirmationService {
         MpesaIncomingPayment saved = paymentRepository.saveAndFlush(payment);
 
         eventPublisher.publishEvent(new PaymentEvent(PaymentEvent.C2B_CONFIRMED, saved.getShortcodeUuid(),
-                saved.getUuid(), null, eventData(saved)));
+                saved.getUuid(), null, eventData(saved, source == null ? SOURCE_CONFIRMATION : source)));
         return new Confirmation(saved, false);
     }
 
@@ -124,7 +133,7 @@ public class C2BConfirmationService {
         return shortcode.getShortcodeType() == ShortcodeType.TILL ? C2BChannel.BUY_GOODS : C2BChannel.PAYBILL;
     }
 
-    private static Map<String, Object> eventData(MpesaIncomingPayment payment) {
+    private static Map<String, Object> eventData(MpesaIncomingPayment payment, String source) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("trans_id", payment.getTransactionId());
         data.put("business_short_code", payment.getBusinessShortCode());
@@ -135,6 +144,7 @@ public class C2BConfirmationService {
         data.put("first_name", payment.getFirstName());
         data.put("last_name", payment.getLastName());
         data.put("trans_time", payment.getTransactionDate() == null ? null : payment.getTransactionDate().toString());
+        data.put("source", source);
         return data;
     }
 
