@@ -79,6 +79,10 @@ public class WebhookDelivery {
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
 
+    /** Set on every claim; an attempt records its outcome only while the row still carries its token. */
+    @Column(name = "claim_token")
+    private UUID claimToken;
+
     @Column(name = "error", length = 1000)
     private String error;
 

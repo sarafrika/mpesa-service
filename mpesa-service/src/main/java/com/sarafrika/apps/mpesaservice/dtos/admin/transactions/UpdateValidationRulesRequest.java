@@ -31,7 +31,7 @@ public record UpdateValidationRulesRequest(
         @JsonProperty("max_amount") BigDecimal maxAmount,
         @Schema(example = "https://elimika.example/mpesa/accounts")
         @Size(max = 500)
-        @Pattern(regexp = "^$|^https?://\\S+$", message = "must be an http(s) URL")
+        @Pattern(regexp = "^$|^https?://\\S+$", message = "must be an https URL")
         @JsonProperty("lookup_url") String lookupUrl,
         @Schema(example = "2000", minimum = "100", maximum = "5000")
         @Min(100)

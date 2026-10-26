@@ -12,6 +12,7 @@ import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.C2BValidationRuleRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
 import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.LookupFailurePolicy;
 import java.util.UUID;
@@ -31,6 +32,7 @@ public class ValidationRuleService {
     private final MpesaShortCodeRepository shortCodeRepository;
     private final C2BValidationService validationService;
     private final AuditService auditService;
+    private final OutboundUrlGuard urlGuard;
 
     @Transactional(readOnly = true)
     public ValidationRulesDto get(UUID shortcodeUuid) {
@@ -85,6 +87,13 @@ public class ValidationRuleService {
     }
 
     private void check(UpdateValidationRulesRequest request) {
+        if (StringUtils.hasText(request.lookupUrl())) {
+            try {
+                urlGuard.check(request.lookupUrl());
+            } catch (OutboundUrlGuard.BlockedUrlException e) {
+                throw new InvalidRequestException("lookup_url", e.getMessage());
+            }
+        }
         if (StringUtils.hasText(request.accountPattern())) {
             String error = C2BValidationService.patternError(request.accountPattern());
             if (error != null) {

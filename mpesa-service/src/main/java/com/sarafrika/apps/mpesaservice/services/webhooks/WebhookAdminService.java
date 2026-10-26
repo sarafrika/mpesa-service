@@ -19,6 +19,7 @@ import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantReposito
 import com.sarafrika.apps.mpesaservice.repositories.WebhookDeliveryRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.WebhookDeliveryStatus;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Duration;
@@ -59,6 +60,7 @@ public class WebhookAdminService {
     private final WebhookDispatcher dispatcher;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final OutboundUrlGuard urlGuard;
 
     /** Optional exact-match filters for the delivery list; blank values are ignored. */
     public record DeliveryQuery(String clientId, UUID subscriptionUuid, WebhookDeliveryStatus status,
@@ -83,7 +85,7 @@ public class WebhookAdminService {
     public WebhookSecretResponse create(CreateWebhookSubscriptionRequest request) {
         WebhookSubscription subscription = new WebhookSubscription();
         subscription.setClientId(request.clientId().trim());
-        subscription.setUrl(WebhookUrls.validated("url", request.url()));
+        subscription.setUrl(WebhookUrls.validated("url", request.url(), urlGuard));
         subscription.setEventTypeSet(WebhookEvents.validated(request.eventTypes()));
         String secret = WebhookSigner.newSecret();
         subscription.setSecret(secret);
@@ -99,7 +101,7 @@ public class WebhookAdminService {
         WebhookSubscription subscription = find(uuid);
         WebhookSubscriptionDto before = toDto(subscription, Map.of());
         if (request.url() != null) {
-            subscription.setUrl(WebhookUrls.validated("url", request.url()));
+            subscription.setUrl(WebhookUrls.validated("url", request.url(), urlGuard));
         }
         if (request.eventTypes() != null) {
             subscription.setEventTypeSet(WebhookEvents.validated(request.eventTypes()));

@@ -10,6 +10,7 @@ import com.sarafrika.apps.mpesaservice.models.C2BValidationRule;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.C2BValidationRuleRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
+import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.LookupFailurePolicy;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -30,7 +31,8 @@ class C2BValidationServiceTest {
     private final MpesaShortCodeRepository shortcodes = mock(MpesaShortCodeRepository.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final C2BValidationService service =
-            new C2BValidationService(rules, shortcodes, new AccountLookupClient(objectMapper));
+            new C2BValidationService(rules, shortcodes, new AccountLookupClient(objectMapper,
+                    new OutboundUrlGuard(java.net.InetAddress::getAllByName, true)));
 
     private HttpServer server;
     private final AtomicReference<String> lastBody = new AtomicReference<>();
@@ -165,6 +167,12 @@ class C2BValidationServiceTest {
         rule.setOnLookupFailure(LookupFailurePolicy.ACCEPT);
         rule.setLookupUrl("http://127.0.0.1:1/unreachable");
         assertThat(service.validate(request("ELM-004512", "4500")).accepted()).isTrue();
+        rule.setOnLookupFailure(LookupFailurePolicy.REJECT);
+        ValidationDecision refused = service.validate(request("ELM-004512", "4500"));
+        assertThat(refused.reason()).startsWith("Account lookup could not be reached").doesNotContain("Exception");
+        rule.setLookupUrl("https://10.0.0.8/lookup");
+        assertThat(service.validate(request("ELM-004512", "4500")).reason())
+                .startsWith("The account lookup URL is not allowed");
     }
 
     @Test

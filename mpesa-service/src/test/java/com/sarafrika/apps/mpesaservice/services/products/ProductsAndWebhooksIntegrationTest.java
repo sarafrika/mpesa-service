@@ -126,6 +126,11 @@ class ProductsAndWebhooksIntegrationTest {
         ClientIpResolver clientIpResolver() {
             return new ClientIpResolver(List.of());
         }
+
+        @Bean
+        com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard outboundUrlGuard() {
+            return com.sarafrika.apps.mpesaservice.services.security.TestUrlGuards.publicDns();
+        }
     }
 
     @BeforeEach

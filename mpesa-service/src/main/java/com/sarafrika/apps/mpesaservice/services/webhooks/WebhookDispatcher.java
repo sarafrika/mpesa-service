@@ -4,6 +4,7 @@ import com.sarafrika.apps.mpesaservice.models.WebhookDelivery;
 import com.sarafrika.apps.mpesaservice.models.WebhookSubscription;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookDeliveryRepository;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookSubscriptionRepository;
+import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.WebhookDeliveryStatus;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
@@ -15,7 +16,9 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -26,8 +29,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Sends due deliveries. Each poll claims rows with FOR UPDATE SKIP LOCKED and pushes next_attempt_at out by a
- * lease before sending, so several instances never send the same attempt and a crash only delays it. */
+/** Sends due deliveries one at a time: each is claimed (FOR UPDATE SKIP LOCKED, next_attempt_at pushed out by
+ * the lease, a fresh claim_token) just before it is sent, so the lease only has to outlast one request, and
+ * the outcome is written only while the attempt still holds its token. */
 @Component
 @Slf4j
 public class WebhookDispatcher {
@@ -42,10 +46,11 @@ public class WebhookDispatcher {
     private final int batchSize;
     private final Duration lease;
     private final ThreadPoolExecutor executor;
+    private final OutboundUrlGuard urlGuard;
     private Clock clock = Clock.systemUTC();
 
     public WebhookDispatcher(WebhookDeliveryRepository deliveries, WebhookSubscriptionRepository subscriptions,
-                             WebhookTransport transport, TransactionTemplate transactions,
+                             WebhookTransport transport, TransactionTemplate transactions, OutboundUrlGuard urlGuard,
                              @Value("${mpesa.webhooks.dispatcher.enabled:true}") boolean enabled,
                              @Value("${mpesa.webhooks.dispatcher.batch-size:20}") int batchSize,
                              @Value("${mpesa.webhooks.dispatcher.lease:2m}") Duration lease) {
@@ -56,6 +61,7 @@ public class WebhookDispatcher {
         this.enabled = enabled;
         this.batchSize = batchSize;
         this.lease = lease;
+        this.urlGuard = urlGuard;
         AtomicInteger threads = new AtomicInteger();
         this.executor = new ThreadPoolExecutor(1, 2, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(8), runnable -> {
             Thread thread = new Thread(runnable, "webhook-dispatch-" + threads.incrementAndGet());
@@ -88,21 +94,31 @@ public class WebhookDispatcher {
         }
     }
 
-    /** Claims a batch of due deliveries and attempts each once; returns how many were attempted. */
+    /** Claims and attempts due deliveries one by one, at most batch-size per call; returns how many. */
     public int dispatchDue() {
-        List<WebhookDelivery> claimed = claim();
-        claimed.forEach(this::attempt);
-        return claimed.size();
+        int attempted = 0;
+        while (attempted < batchSize) {
+            Optional<WebhookDelivery> next = claimOne();
+            if (next.isEmpty()) {
+                break;
+            }
+            attempt(next.get());
+            attempted++;
+        }
+        return attempted;
     }
 
-    List<WebhookDelivery> claim() {
+    Optional<WebhookDelivery> claimOne() {
         Instant now = clock.instant();
         List<WebhookDelivery> due = transactions.execute(status -> {
-            List<WebhookDelivery> rows = deliveries.lockDue(now, batchSize);
-            rows.forEach(row -> row.setNextAttemptAt(now.plus(lease)));
+            List<WebhookDelivery> rows = deliveries.lockDue(now, 1);
+            rows.forEach(row -> {
+                row.setNextAttemptAt(now.plus(lease));
+                row.setClaimToken(UUID.randomUUID());
+            });
             return deliveries.saveAll(rows);
         });
-        return due == null ? List.of() : due;
+        return due == null || due.isEmpty() ? Optional.empty() : Optional.of(due.get(0));
     }
 
     /** One attempt at one delivery, recording the outcome and the next retry. */
@@ -110,10 +126,17 @@ public class WebhookDispatcher {
         Optional<WebhookSubscription> subscription = subscriptions.findByUuid(delivery.getSubscriptionUuid())
                 .filter(WebhookSubscription::isActive);
         if (subscription.isEmpty()) {
-            record(delivery.getId(), null, null, "The subscription was removed or disabled", true);
+            record(delivery, null, null, "The subscription was removed or disabled", true);
             return;
         }
         WebhookSubscription target = subscription.get();
+        URI url;
+        try {
+            url = urlGuard.check(URI.create(target.getUrl()));
+        } catch (OutboundUrlGuard.BlockedUrlException | IllegalArgumentException e) {
+            record(delivery, null, null, "The webhook URL is not allowed: " + e.getMessage(), true);
+            return;
+        }
         long sentAt = clock.instant().getEpochSecond();
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Content-Type", "application/json");
@@ -127,24 +150,28 @@ public class WebhookDispatcher {
         Integer code = null;
         String error = null;
         try {
-            code = transport.post(URI.create(target.getUrl()), headers, delivery.getPayload());
+            code = transport.post(url, headers, delivery.getPayload());
             if (code < 200 || code >= 300) {
                 error = "The receiver answered HTTP " + code;
             }
         } catch (HttpTimeoutException e) {
             error = "Timed out waiting for the receiver";
         } catch (IOException | IllegalArgumentException e) {
-            error = "Could not reach the receiver: " + e.getMessage();
+            error = "Could not reach the receiver: " + e.getClass().getSimpleName();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             error = "Interrupted while sending";
         }
         long latency = Duration.ofNanos(System.nanoTime() - started).toMillis();
-        record(delivery.getId(), code, latency, error, false);
+        record(delivery, code, latency, error, false);
     }
 
-    private void record(Long id, Integer code, Long latencyMs, String error, boolean giveUp) {
-        transactions.executeWithoutResult(status -> deliveries.findById(id).ifPresent(row -> {
+    private void record(WebhookDelivery attempted, Integer code, Long latencyMs, String error, boolean giveUp) {
+        transactions.executeWithoutResult(status -> deliveries.findById(attempted.getId()).ifPresent(row -> {
+            if (!Objects.equals(row.getClaimToken(), attempted.getClaimToken())) {
+                log.warn("Delivery {} was claimed again while this attempt ran; not recording it", row.getUuid());
+                return;
+            }
             Instant now = clock.instant();
             row.setAttempt(row.getAttempt() + 1);
             row.setResponseCode(code);

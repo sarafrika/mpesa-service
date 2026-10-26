@@ -105,6 +105,11 @@ class CollectionsIntegrationTest {
         }
 
         @Bean
+        com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard outboundUrlGuard() {
+            return com.sarafrika.apps.mpesaservice.services.security.TestUrlGuards.publicDns();
+        }
+
+        @Bean
         AllEvents allEvents() {
             return new AllEvents();
         }
