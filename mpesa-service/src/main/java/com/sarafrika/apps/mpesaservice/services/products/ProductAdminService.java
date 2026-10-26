@@ -4,7 +4,6 @@ import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.CreateWebhookSubscriptionRequest;
-import com.sarafrika.apps.mpesaservice.dtos.admin.products.GrantableShortcodeDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductGrantDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.UpsertProductGrantRequest;
@@ -204,11 +203,6 @@ public class ProductAdminService {
         page.getContent().stream().map(ClientShortcodeGrant::getClientId).distinct()
                 .forEach(client -> health.put(client, primaryHealth(client)));
         return page.map(grant -> toDto(grant, codes, health.get(grant.getClientId())));
-    }
-
-    @Transactional(readOnly = true)
-    public Page<GrantableShortcodeDto> listGrantableShortcodes(Pageable pageable) {
-        return shortCodes.findAll(pageable).map(GrantableShortcodeDto::from);
     }
 
     private List<ProductDto> build(String onlyClient) {

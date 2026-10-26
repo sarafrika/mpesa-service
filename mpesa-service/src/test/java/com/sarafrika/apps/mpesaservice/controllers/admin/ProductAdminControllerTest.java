@@ -16,7 +16,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.sarafrika.apps.mpesaservice.config.CallbackSecurityConfig;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductResponse;
-import com.sarafrika.apps.mpesaservice.dtos.admin.products.GrantableShortcodeDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductGrantDto;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
@@ -162,19 +161,6 @@ class ProductAdminControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].product_name").value("Elimika"))
                 .andExpect(jsonPath("$.items[0].operations.length()").value(2));
-    }
-
-    @Test
-    @WithMockUser(roles = "mpesa-viewer")
-    void grantableShortcodesAreListedWithoutCredentials() throws Exception {
-        when(productService.listGrantableShortcodes(any())).thenReturn(new PageImpl<>(List.of(
-                new GrantableShortcodeDto(PAYBILL, "600100", "Elimika Fees", "PAYBILL", "PRODUCTION", true)),
-                PageRequest.of(0, 100), 1));
-
-        mockMvc.perform(get("/api/v1/admin/product-grants/shortcodes").param("size", "100"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].shortcode").value("600100"))
-                .andExpect(jsonPath("$.items[0].consumer_secret").doesNotExist());
     }
 
     @Test

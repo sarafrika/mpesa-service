@@ -4,7 +4,6 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.ApiError;
 import com.sarafrika.apps.mpesaservice.dtos.admin.PageResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ConnectProductResponse;
-import com.sarafrika.apps.mpesaservice.dtos.admin.products.GrantableShortcodeDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.ProductGrantDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.products.UpsertProductGrantRequest;
@@ -50,9 +49,6 @@ public class ProductAdminController {
     static final Map<String, String> GRANT_SORTS = Map.of(
             "created_at", "createdAt", "client_id", "clientId", "display_name", "displayName");
     static final Sort GRANT_DEFAULT_SORT = Sort.by(Sort.Order.asc("displayName"));
-    static final Map<String, String> SHORTCODE_SORTS = Map.of("shortcode", "shortcode", "business_name",
-            "businessName");
-    static final Sort SHORTCODE_DEFAULT_SORT = Sort.by(Sort.Order.asc("shortcode"));
 
     private final ProductAdminService productService;
 
@@ -161,30 +157,5 @@ public class ProductAdminController {
             @RequestParam(name = "client_id", required = false) String clientId) {
         return PageResponse.from(productService.listGrants(shortcodeUuid, clientId,
                 PageRequests.of(page, size, sort, GRANT_SORTS, GRANT_DEFAULT_SORT)));
-    }
-
-    @GetMapping("/product-grants/shortcodes")
-    @PreAuthorize("hasRole('mpesa-viewer')")
-    @Operation(operationId = "listGrantableShortcodes",
-            summary = "Paybills and tills a product can be granted, without credentials")
-    @ApiResponse(responseCode = "200", description = "A page of shortcodes")
-    @ApiResponse(responseCode = "400", description = "Negative page, size below 1 or an unknown sort field",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "403", description = "Requires mpesa-viewer",
-            content = @Content(schema = @Schema(implementation = ApiError.class)))
-    public PageResponse<GrantableShortcodeDto> listGrantableShortcodes(
-            @Parameter(description = "Zero-based page number",
-                    schema = @Schema(type = "integer", format = "int32", minimum = "0", defaultValue = "0"))
-            @RequestParam(name = "page", required = false) Integer page,
-            @Parameter(description = "Page size; values above 100 are clamped to 100",
-                    schema = @Schema(type = "integer", format = "int32", minimum = "1", maximum = "100",
-                            defaultValue = "25"))
-            @RequestParam(name = "size", required = false) Integer size,
-            @Parameter(description = "field,asc|desc; repeatable. Fields: shortcode, business_name. "
-                    + "Default shortcode,asc",
-                    array = @ArraySchema(schema = @Schema(type = "string", example = "shortcode,asc")))
-            @RequestParam(name = "sort", required = false) List<String> sort) {
-        return PageResponse.from(productService.listGrantableShortcodes(
-                PageRequests.of(page, size, sort, SHORTCODE_SORTS, SHORTCODE_DEFAULT_SORT)));
     }
 }
