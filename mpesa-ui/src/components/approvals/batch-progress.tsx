@@ -64,7 +64,7 @@ export function BatchSummary({ batch }: { batch: PayoutBatchDto }) {
         <span className="flex items-center gap-2">
           <StatusBadge status={batch.status} />
           <span className="text-muted-foreground">
-            {formatCount(batch.processed_count)} of {formatCount(batch.item_count)} sent
+            {formatCount(batch.processed_count)} of {formatCount(batch.item_count)} processed
           </span>
         </span>
         <span className="text-muted-foreground">
@@ -72,7 +72,7 @@ export function BatchSummary({ batch }: { batch: PayoutBatchDto }) {
           <Money amount={batch.total_amount} />
         </span>
       </div>
-      <Progress value={percent} aria-label={`${percent}% sent`} />
+      <Progress value={percent} aria-label={`${percent}% processed`} />
       <ul className="flex flex-wrap gap-2">
         {ITEM_OUTCOMES.map((outcome) => {
           const count = countFor(batch, outcome.value);

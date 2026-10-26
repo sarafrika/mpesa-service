@@ -148,13 +148,18 @@ public class BulkPayoutExecutor implements ResumableExecutor, ApprovalLifecycle 
 
     private Outcome summary(Long batchId) {
         List<Object[]> rows = items.findWithPayouts(batchId);
+        // A row whose payout failed at once (a Daraja refusal or no token) never went out, so it is not "sent".
+        long failed = rows.stream().filter(r -> ((PayoutBatchItem) r[0]).getStatus() == PayoutBatchItemStatus.SENT
+                && r[1] instanceof MpesaOutgoingPayment p && p.getStatus() == OutgoingPaymentStatus.FAILED
+                && !p.isOutcomeUnknown()).count();
         long sent = rows.stream().filter(r -> ((PayoutBatchItem) r[0]).getStatus() == PayoutBatchItemStatus.SENT)
-                .count();
+                .count() - failed;
         long refused = rows.stream().filter(r -> ((PayoutBatchItem) r[0]).getStatus() == PayoutBatchItemStatus.REFUSED)
                 .count();
         long errors = rows.stream().filter(r -> ((PayoutBatchItem) r[0]).getStatus() == PayoutBatchItemStatus.ERROR)
                 .count();
         String message = sent + " of " + rows.size() + " payouts sent to Safaricom"
+                + (failed > 0 ? "; " + failed + " failed" : "")
                 + (refused > 0 ? "; " + refused + " refused" : "")
                 + (errors > 0 ? "; " + errors + " could not be sent" : "") + ". Each payout settles when its "
                 + "result arrives.";

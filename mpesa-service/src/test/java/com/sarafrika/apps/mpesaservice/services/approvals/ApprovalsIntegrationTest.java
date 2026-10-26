@@ -648,6 +648,8 @@ class ApprovalsIntegrationTest {
         assertThat(batch.counts().unknown()).isEqualTo(1);
         assertThat(batch.counts().failed()).isEqualTo(1);
         assertThat(approvals.get(created.approvalUuid()).status()).isEqualTo("EXECUTED");
+        assertThat(approvals.get(created.approvalUuid()).outcomeMessage())
+                .startsWith("2 of 3 payouts sent to Safaricom; 1 failed.");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM mpesa_outgoing_payments WHERE client_id = 'mpesa-console' "
                 + "AND client_reference LIKE ?", Long.class, ref + "%")).isEqualTo(3);
 
