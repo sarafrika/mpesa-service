@@ -57,6 +57,9 @@ mpesa:
     # Base64 of 32 random bytes (`openssl rand -base64 32`); encrypts shortcode secrets with AES-256-GCM.
     # Required: the service refuses to start without it. Never reuse the development key in production.
     encryption-key: ${MPESA_ENCRYPTION_KEY:}
+    # true seals, once at startup, secret columns still holding plaintext from before encryption (safe to
+    # leave on: already sealed values are skipped). Only counts are logged and audited, never values.
+    reencrypt-legacy-secrets: ${MPESA_REENCRYPT_LEGACY_SECRETS:false}
 
   # Safaricom's public certificates (PEM text or a file path) used to encrypt a shortcode's B2C
   # initiator password into its SecurityCredential. Not needed for a shortcode whose

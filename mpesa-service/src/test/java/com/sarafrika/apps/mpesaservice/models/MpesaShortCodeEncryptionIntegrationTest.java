@@ -1,5 +1,12 @@
 package com.sarafrika.apps.mpesaservice.models;
 
+import org.springframework.context.annotation.Bean;
+import org.springframework.boot.test.context.TestConfiguration;
+import java.util.List;
+import com.sarafrika.apps.mpesaservice.services.security.LegacySecretReencryption;
+import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.config.ClientIpResolver;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
@@ -28,9 +35,23 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"})
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(SecretCipher.class)
+@Import({SecretCipher.class, LegacySecretReencryption.class, AuditService.class,
+        MpesaShortCodeEncryptionIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class MpesaShortCodeEncryptionIntegrationTest {
+
+    @TestConfiguration
+    static class Beans {
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
+
+        @Bean
+        ClientIpResolver clientIpResolver() {
+            return new ClientIpResolver(List.of());
+        }
+    }
 
     private static final String[] SECRETS = {
             "consumer_key", "consumer_secret", "passkey", "initiator_password", "security_credential"};
@@ -43,6 +64,10 @@ class MpesaShortCodeEncryptionIntegrationTest {
     private MpesaShortCodeRepository repository;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private LegacySecretReencryption reencryption;
+    @Autowired
+    private SecretCipher cipher;
 
     @Test
     void secretsAreEncryptedAtRestAndDecryptedOnLoad() {
@@ -83,6 +108,37 @@ class MpesaShortCodeEncryptionIntegrationTest {
         assertThat((String) row.get("consumer_secret")).startsWith(SecretCipher.PREFIX);
         assertThat((String) row.get("passkey")).startsWith(SecretCipher.PREFIX);
         assertThat(repository.findByShortcode("600200").orElseThrow().getPasskey()).isEqualTo("old-passkey");
+    }
+
+    @Test
+    void theOneOffRunSealsLegacyPlaintextOnceAndRecordsOnlyCounts() {
+        jdbc.update("""
+                INSERT INTO mpesa_shortcodes (shortcode, shortcode_type, business_name, consumer_key, consumer_secret,
+                    passkey, callback_url, environment) VALUES ('600300', 'PAYBILL', 'Legacy', 'plain-key', 'plain-secret',
+                    NULL, 'https://example.test/cb', 'SANDBOX')""");
+        MpesaShortCode sealedAlready = shortcode("600301");
+        sealedAlready.setConsumerKey("sealed-key");
+        sealedAlready.setConsumerSecret("sealed-secret");
+        repository.saveAndFlush(sealedAlready);
+        String before = jdbc.queryForObject("SELECT consumer_key FROM mpesa_shortcodes WHERE shortcode = '600301'",
+                String.class);
+
+        int first = reencryption.reencrypt();
+        int second = reencryption.reencrypt();
+
+        assertThat(first).isGreaterThanOrEqualTo(2);
+        assertThat(second).isZero();
+        Map<String, Object> row = jdbc.queryForMap("SELECT * FROM mpesa_shortcodes WHERE shortcode = '600300'");
+        assertThat((String) row.get("consumer_key")).startsWith(SecretCipher.PREFIX);
+        assertThat(cipher.decrypt((String) row.get("consumer_secret"))).isEqualTo("plain-secret");
+        assertThat(row.get("passkey")).isNull();
+        assertThat(jdbc.queryForObject("SELECT consumer_key FROM mpesa_shortcodes WHERE shortcode = '600301'",
+                String.class)).isEqualTo(before);
+        String audit = jdbc.queryForObject("SELECT after::text FROM audit_events WHERE action = "
+                + "'LEGACY_SECRETS_REENCRYPTED' ORDER BY id DESC LIMIT 1", String.class);
+        assertThat(audit).contains("\"values\"").doesNotContain("plain");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_events WHERE action = "
+                + "'LEGACY_SECRETS_REENCRYPTED'", Integer.class)).isEqualTo(1);
     }
 
     private static MpesaShortCode shortcode(String number) {
