@@ -140,4 +140,20 @@ public interface MpesaDarajaHttpClient {
             @RequestHeader("Authorization") String bearerToken,
             @RequestBody Map<String, Object> payload
     );
+
+    // ==================== PULL TRANSACTIONS ====================
+
+    // developer.safaricom.co.ke/apis/PullTransaction: POST /pulltransactions/v1/register and /query (no /mpesa
+    // prefix). Replies are read as maps: the sandbox spells some keys with spaces ("Response Status").
+    @PostExchange("/pulltransactions/v1/register")
+    Map<String, Object> registerPullTransactions(
+            @RequestHeader("Authorization") String bearerToken,
+            @RequestBody Map<String, Object> payload
+    );
+
+    @PostExchange("/pulltransactions/v1/query")
+    Map<String, Object> queryPullTransactions(
+            @RequestHeader("Authorization") String bearerToken,
+            @RequestBody Map<String, Object> payload
+    );
 }

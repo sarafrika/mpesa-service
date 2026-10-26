@@ -170,4 +170,16 @@ public interface MpesaDarajaService {
     MpesaApiResponse<QRCodeResponse> generateDynamicQRCode(UUID shortcodeUuid, String merchantName, String accountReference,
                                                            BigDecimal amount, QRTransactionType transactionType, Integer qrCodeSize);
 
+    // ==================== 9. PULL TRANSACTIONS ====================
+
+    /** One-time Pull Transactions registration of a shortcode; ResponseStatus 1000 registered, 1001 already
+     * registered (developer.safaricom.co.ke/apis/PullTransaction). The reply is Safaricom's JSON as a map. */
+    MpesaApiResponse<java.util.Map<String, Object>> registerPullTransactions(MpesaShortCode shortcode,
+                                                                          String nominatedNumber, String callbackUrl);
+
+    /** C2B transactions between start and end (East Africa Time, within the last 48 hours), from row offset;
+     * ResponseCode 1000 has rows in Response, 1001 none. */
+    MpesaApiResponse<java.util.Map<String, Object>> queryPullTransactions(MpesaShortCode shortcode,
+                                                                       java.time.LocalDateTime start,
+                                                                       java.time.LocalDateTime end, int offset);
 }
