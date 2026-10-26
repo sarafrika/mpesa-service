@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, RotateCw, Webhook } from "lucide-react";
+import { RotateCw, Webhook } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { ErrorState } from "@/components/error-state";
 import { type ChipOption, FilterChips } from "@/components/filter-chips";
 import { SectionCard } from "@/components/section-card";
 import { TableSkeleton } from "@/components/skeletons";
+import { SortableHead } from "@/components/sortable-head";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
 import { useHasRole } from "@/hooks/use-has-role";
 import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
 import { formatDateTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { DeliveryDialog } from "./delivery-dialog";
 import { deliveryResult, latency, okData } from "./product-format";
 import { useRefreshProducts } from "./use-refresh-products";
@@ -99,7 +101,16 @@ export function RecentDeliveries() {
               : "Try another result, or show all deliveries."
           }
           action={
-            status === "ALL" ? undefined : (
+            status === "ALL" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => deliveries.refetch()}
+                disabled={deliveries.isFetching}
+              >
+                <RotateCw className={cn(deliveries.isFetching && "animate-spin")} /> Check again
+              </Button>
+            ) : (
               <Button
                 variant="outline"
                 size="sm"
@@ -112,22 +123,44 @@ export function RecentDeliveries() {
         />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border">
+          <div
+            className={cn(
+              "overflow-x-auto rounded-lg border transition-opacity",
+              deliveries.isPlaceholderData && "opacity-60",
+            )}
+            aria-busy={deliveries.isPlaceholderData || undefined}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortHead field="created_at" label="Time" paging={paging} />
+                  <SortableHead
+                    field="created_at"
+                    defaultField="created_at"
+                    firstDirection="desc"
+                    sort={paging.sort}
+                    onSort={paging.setSort}
+                  >
+                    Time
+                  </SortableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Event</TableHead>
                   <TableHead>Reference</TableHead>
-                  <SortHead field="latency_ms" label="Latency" paging={paging} numeric />
+                  <SortableHead
+                    field="latency_ms"
+                    firstDirection="desc"
+                    align="right"
+                    sort={paging.sort}
+                    onSort={paging.setSort}
+                  >
+                    Latency
+                  </SortableHead>
                   <TableHead>Result</TableHead>
                   <TableHead>
                     <span className="sr-only">Action</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody aria-busy={deliveries.isFetching || undefined}>
+              <TableBody>
                 {data.items.map((delivery) => (
                   <DeliveryRow key={delivery.uuid} delivery={delivery} onView={setOpen} />
                 ))}
@@ -138,7 +171,7 @@ export function RecentDeliveries() {
             meta={data}
             onPageChange={paging.setPage}
             onPageSizeChange={paging.setSize}
-            disabled={deliveries.isFetching}
+            disabled={deliveries.isPlaceholderData}
           />
         </>
       )}
@@ -196,39 +229,5 @@ function DeliveryRow({
         )}
       </TableCell>
     </TableRow>
-  );
-}
-
-type Paging = ReturnType<typeof usePaging>;
-
-function SortHead({
-  field,
-  label,
-  paging,
-  numeric,
-}: {
-  field: string;
-  label: string;
-  paging: Paging;
-  numeric?: boolean;
-}) {
-  const [current, direction] = (paging.sort ?? DEFAULT_SORT).split(",");
-  const active = current === field;
-  const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
-  const next = active && direction === "desc" ? `${field},asc` : `${field},desc`;
-  return (
-    <TableHead
-      className={numeric ? "text-right" : undefined}
-      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        type="button"
-        onClick={() => paging.setSort(next)}
-        className="inline-flex items-center gap-1 hover:text-foreground"
-      >
-        {label}
-        <Icon className="size-3.5" aria-hidden />
-      </button>
-    </TableHead>
   );
 }
