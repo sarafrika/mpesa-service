@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { GrantMatrix, type GrantSelection } from "./grant-matrix";
@@ -125,7 +125,15 @@ export function EditGrantsDialog({ product, open, onOpenChange }: EditGrantsDial
           />
           <FieldError>{error}</FieldError>
         </Field>
-        <GrantMatrix value={selection} onChange={setSelection} disabled={saving} />
+        <div className="flex flex-col gap-2">
+          <FieldTitle id="edit-grants-label">Paybills and operations</FieldTitle>
+          <GrantMatrix
+            value={selection}
+            onChange={setSelection}
+            disabled={saving}
+            labelId="edit-grants-label"
+          />
+        </div>
         {Object.keys(selection).length === 0 && product.grants.length > 0 && (
           <p className="text-sm text-warning">
             Saving with nothing ticked removes every grant; the product will be refused on all

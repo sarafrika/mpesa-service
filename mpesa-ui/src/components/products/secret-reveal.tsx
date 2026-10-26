@@ -5,6 +5,15 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
+const keepOpen = (event: Event) => event.preventDefault();
+
+/** Spread on the DialogContent showing a secret: only its "I've stored it" button closes it. */
+export const secretDialogGuards = {
+  showCloseButton: false,
+  onEscapeKeyDown: keepOpen,
+  onInteractOutside: keepOpen,
+} as const;
+
 /** Shows a webhook signing secret the one time the API returns it, with a copy button. */
 export function SecretReveal({ secret }: { secret: string }) {
   const [copied, setCopied] = useState(false);
