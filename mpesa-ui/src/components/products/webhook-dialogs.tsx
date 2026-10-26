@@ -8,6 +8,7 @@ import {
   useRotateWebhookSecret,
 } from "@/api/generated/endpoints/admin-webhooks/admin-webhooks";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { toastApiError } from "@/components/paybills/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -94,9 +95,7 @@ export function AddWebhookDialog({ clientId, productName, open, onOpenChange }: 
   const [secret, setSecret] = useState<string | null>(null);
   const refresh = useRefreshProducts();
   const form = useForm<WebhookForm>({ defaultValues: { url: "" } });
-  const create = useCreateWebhookSubscription({
-    mutation: { meta: { requiredRole: "mpesa-admin" } },
-  });
+  const create = useCreateWebhookSubscription({ mutation: { meta: { errorToast: false } } });
 
   function change(next: boolean) {
     if (create.isPending) return;
@@ -114,7 +113,9 @@ export function AddWebhookDialog({ clientId, productName, open, onOpenChange }: 
       change(false);
       setSecret(okData(response)?.secret ?? null);
     } catch (error) {
-      applyFieldErrors(error, form.setError, { url: "url" });
+      if (!applyFieldErrors(error, form.setError, { url: "url" })) {
+        toastApiError(error, { requiredRole: "mpesa-admin" });
+      }
     }
   }
 

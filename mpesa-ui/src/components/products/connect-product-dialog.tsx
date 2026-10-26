@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useConnectProduct } from "@/api/generated/endpoints/admin-products/admin-products";
+import { toastApiError } from "@/components/paybills/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,9 +42,8 @@ export function ConnectProductDialog({ open, onOpenChange }: ConnectProductDialo
   const [secret, setSecret] = useState<string | null>(null);
   const refresh = useRefreshProducts();
   const form = useForm<ConnectForm>({ defaultValues: EMPTY });
-  const connect = useConnectProduct({
-    mutation: { meta: { requiredRole: "mpesa-admin" } },
-  });
+  // Field errors show on the form; only the rest is toasted, so nothing is said twice.
+  const connect = useConnectProduct({ mutation: { meta: { errorToast: false } } });
 
   function close(next: boolean) {
     if (connect.isPending) return;
@@ -79,8 +79,9 @@ export function ConnectProductDialog({ open, onOpenChange }: ConnectProductDialo
       if (body?.webhook_secret) setSecret(body.webhook_secret);
       else close(false);
     } catch (error) {
-      // The mutation cache has already toasted the mapped message.
-      applyFieldErrors(error, form.setError, FIELD_MAP);
+      if (!applyFieldErrors(error, form.setError, FIELD_MAP)) {
+        toastApiError(error, { requiredRole: "mpesa-admin" });
+      }
     }
   }
 
