@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown, CircleHelp, Lightbulb, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   getGetTransactionQueryKey,
@@ -18,6 +18,7 @@ import { DetailPanelSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge } from "@/components/status-badge";
 import { Timeline, type TimelineTone } from "@/components/timeline";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -171,6 +172,23 @@ function DetailContent({
       </SheetHeader>
 
       <div className="flex flex-col gap-6 p-4">
+        {detail.outcome_unknown && (
+          <Alert className="border-warning/30 bg-warning-soft text-warning">
+            <CircleHelp aria-hidden />
+            <AlertTitle>Outcome not known yet</AlertTitle>
+            <AlertDescription>
+              Safaricom did not answer when this was sent, so the money may have moved. Do not send
+              it again; query its status or wait for Safaricom's result.
+            </AlertDescription>
+          </Alert>
+        )}
+        {detail.hint && (
+          <Alert>
+            <Lightbulb aria-hidden />
+            <AlertTitle>What to check</AlertTitle>
+            <AlertDescription>{detail.hint}</AlertDescription>
+          </Alert>
+        )}
         <KeyValueList items={items} />
 
         <section className="flex flex-col gap-3" aria-labelledby="tx-timeline">
