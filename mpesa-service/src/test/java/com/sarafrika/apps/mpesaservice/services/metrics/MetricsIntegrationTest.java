@@ -252,6 +252,8 @@ class MetricsIntegrationTest {
         UUID stale = shortcode("Events Collections", "PRODUCTION", true);
         UUID sandbox = shortcode("Daraja sandbox", "SANDBOX", true);
         UUID suspended = shortcode("Old till", "PRODUCTION", false);
+        jdbc.update("UPDATE mpesa_shortcodes SET activated_at = created_at WHERE uuid = ?", suspended);
+        UUID draft = shortcode("New paybill", "PRODUCTION", false);
         incoming(healthy, "C2B", "SUCCESS", "902.00", NOW.minus(Duration.ofMinutes(1)));
         incoming(healthy, "C2B", "SUCCESS", "98.00", Instant.parse("2026-10-25T21:30:00Z"));
         incoming(healthy, "C2B", "SUCCESS", "5000.00", Instant.parse("2026-10-25T20:30:00Z"));
@@ -272,6 +274,7 @@ class MetricsIntegrationTest {
         assertThat(byUuid.get(stale).state()).isEqualTo(PaybillState.STALE);
         assertThat(byUuid.get(sandbox).state()).isEqualTo(PaybillState.SANDBOX);
         assertThat(byUuid.get(suspended).state()).isEqualTo(PaybillState.SUSPENDED);
+        assertThat(byUuid.get(draft).state()).isEqualTo(PaybillState.DRAFT);
         assertThat(health.health(Environment.SANDBOX)).extracting(PaybillHealthDto::shortcodeUuid)
                 .containsExactly(sandbox);
     }

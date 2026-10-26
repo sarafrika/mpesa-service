@@ -76,7 +76,7 @@ public class PaybillHealthService {
     // A shortcode that never had traffic counts its quiet time from when it was added.
     PaybillState state(ShortcodeRow row, LatestFloat latestFloat, Instant now) {
         if (!row.active()) {
-            return PaybillState.SUSPENDED;
+            return row.draft() ? PaybillState.DRAFT : PaybillState.SUSPENDED;
         }
         if (!Environment.PRODUCTION.name().equals(row.environment())) {
             return PaybillState.SANDBOX;

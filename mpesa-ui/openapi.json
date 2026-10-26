@@ -2714,7 +2714,7 @@
             "type" : "string"
           },
           "state" : {
-            "enum" : [ "SUSPENDED", "SANDBOX", "LOW_FLOAT", "STALE", "HEALTHY" ],
+            "enum" : [ "DRAFT", "SUSPENDED", "SANDBOX", "LOW_FLOAT", "STALE", "HEALTHY" ],
             "type" : "string"
           }
         },

@@ -59,7 +59,8 @@ public class MetricsQueries {
     }
 
     public record ShortcodeRow(UUID uuid, String shortcode, String businessName, String shortcodeType,
-                               String environment, boolean active, Instant createdAt, Instant lastActivityAt,
+                               String environment, boolean active, boolean draft, Instant createdAt,
+                               Instant lastActivityAt,
                                BigDecimal lowFloatThreshold) {
     }
 
@@ -140,7 +141,8 @@ public class MetricsQueries {
     public List<ShortcodeRow> shortcodes(Environment environment) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         StringBuilder sql = new StringBuilder("SELECT s.uuid, s.shortcode, s.business_name, s.shortcode_type, "
-                + "s.environment, s.is_active, s.created_at, s.low_float_threshold, GREATEST(");
+                + "s.environment, s.is_active, s.activated_at IS NULL AS draft, s.created_at, s.low_float_threshold, "
+                + "GREATEST(");
         List<String> latest = new ArrayList<>();
         for (Direction direction : Direction.values()) {
             for (String column : List.of("created_at", "processed_at")) {
@@ -156,7 +158,7 @@ public class MetricsQueries {
         sql.append(" ORDER BY s.is_active DESC, s.business_name, s.id");
         return jdbc.query(sql.toString(), params, (rs, i) -> new ShortcodeRow(rs.getObject("uuid", UUID.class),
                 rs.getString("shortcode"), rs.getString("business_name"), rs.getString("shortcode_type"),
-                rs.getString("environment"), rs.getBoolean("is_active"),
+                rs.getString("environment"), rs.getBoolean("is_active"), rs.getBoolean("draft"),
                 MetricsTime.fromStorage(rs.getTimestamp("created_at")),
                 MetricsTime.fromStorage(rs.getTimestamp("last_activity")), rs.getBigDecimal("low_float_threshold")));
     }

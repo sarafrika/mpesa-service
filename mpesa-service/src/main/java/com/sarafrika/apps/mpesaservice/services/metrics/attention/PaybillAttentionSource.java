@@ -33,6 +33,7 @@ public class PaybillAttentionSource implements AttentionSource {
         List<AttentionItemDto> items = new ArrayList<>();
         for (PaybillHealthDto paybill : health.health(scope.environment())) {
             if (!scope.includes(paybill.shortcodeUuid()) || paybill.state() == PaybillState.SUSPENDED
+                    || paybill.state() == PaybillState.DRAFT
                     || paybill.state() == PaybillState.SANDBOX) {
                 continue;
             }

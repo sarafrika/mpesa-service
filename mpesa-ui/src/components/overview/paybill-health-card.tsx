@@ -20,8 +20,11 @@ const STATE_TONE: Record<PaybillHealthDtoState, Tone> = {
   LOW_FLOAT: "warning",
   STALE: "warning",
   SANDBOX: "info",
+  DRAFT: "info",
   SUSPENDED: "neutral",
 };
+
+const SHORTCODE_TYPE: Record<string, string> = { PAYBILL: "Paybill", TILL: "Till", B2C: "B2C" };
 
 /** Adding a paybill needs mpesa-operator (admins inherit it); viewers see nothing. */
 export function AddPaybillButton({ variant = "default" }: { variant?: "default" | "outline" }) {
@@ -113,7 +116,7 @@ export function PaybillHealthCard({
                 <span className="flex min-w-0 flex-[1_1_12rem] flex-col gap-0.5">
                   <span className="truncate font-medium text-sm">{row.business_name}</span>
                   <span className="text-muted-foreground text-xs">
-                    {row.shortcode} · {row.shortcode_type === "TILL" ? "Till" : "Paybill"} ·{" "}
+                    {row.shortcode} · {SHORTCODE_TYPE[row.shortcode_type] ?? "Paybill"} ·{" "}
                     {row.last_activity_at
                       ? `last activity ${formatRelative(row.last_activity_at, now ?? Date.now())}`
                       : "no traffic yet"}
