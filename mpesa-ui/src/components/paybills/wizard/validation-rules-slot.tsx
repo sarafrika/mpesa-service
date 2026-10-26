@@ -8,10 +8,8 @@ export type ValidationRulesSlotProps = {
   shortcode: ShortcodeDetail;
 };
 
-/**
- * SLOT for the collections slice: replace this body with the C2B validation-rules editor.
- * The wizard renders it in step 3 for paybills and tills (never B2C), after the draft exists.
- */
+// SLOT for the collections slice: replace this body with the C2B validation-rules editor.
+// The wizard renders it in step 3 for paybills and tills (never B2C), after the draft exists.
 export function ValidationRulesSlot({ shortcode }: ValidationRulesSlotProps) {
   return (
     <div

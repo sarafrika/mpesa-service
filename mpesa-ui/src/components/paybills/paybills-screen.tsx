@@ -3,7 +3,7 @@
 import { CreditCard, Plus } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useGetShortcodeTotals,
   useListShortcodes,
@@ -197,10 +197,19 @@ function PaybillTable() {
   const q = params.get("q") ?? "";
 
   // The box updates at once; the URL (and so the query) only after typing pauses.
+  // Back/forward or "Clear filters" change q from outside, so the box follows it; only typing pushes.
   const [search, setSearch] = useState(q);
+  const [seenQ, setSeenQ] = useState(q);
+  if (q !== seenQ) {
+    setSeenQ(q);
+    setSearch(q);
+  }
   const debounced = useDebouncedValue(search);
+  const pushed = useRef(debounced);
   const { setFilters } = paging;
   useEffect(() => {
+    if (debounced === pushed.current) return;
+    pushed.current = debounced;
     if (debounced.trim() !== q) setFilters({ q: debounced.trim() || undefined });
   }, [debounced, q, setFilters]);
 
