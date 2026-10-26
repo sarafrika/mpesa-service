@@ -76,9 +76,11 @@ public class C2BValidationService {
                     "Amount is above the maximum of KES " + rules.maxAmount().toPlainString());
         }
         String reference = account == null ? "" : account.trim();
-        if (StringUtils.hasText(rules.accountPattern()) && !pattern(rules.accountPattern()).matcher(reference).matches()) {
-            return ValidationDecision.reject(C2BResultCodes.INVALID_ACCOUNT,
-                    "Account '" + reference + "' does not match " + rules.accountPattern());
+        if (StringUtils.hasText(rules.accountPattern())) {
+            ValidationDecision mismatch = checkAccount(rules.accountPattern(), reference, shortcode);
+            if (mismatch != null) {
+                return mismatch;
+            }
         }
         if (StringUtils.hasText(rules.lookupUrl())) {
             return lookup(rules, shortcode, reference, amount, msisdn, transId);
@@ -107,6 +109,22 @@ public class C2BValidationService {
         return ValidationDecision.reject(code, result.reason() != null ? result.reason() : "The product does not know this account");
     }
 
+    private ValidationDecision checkAccount(String regex, String reference, String shortcode) {
+        try {
+            if (BoundedRegex.matches(pattern(regex), reference)) {
+                return null;
+            }
+            return ValidationDecision.reject(C2BResultCodes.INVALID_ACCOUNT,
+                    "Account '" + reference + "' does not match " + regex);
+        } catch (PatternSyntaxException e) {
+            log.warn("Shortcode {} has an account pattern that does not compile; rejecting", shortcode);
+            return ValidationDecision.reject(C2BResultCodes.OTHER_ERROR, "The account pattern is not valid");
+        } catch (BoundedRegex.TooSlowException e) {
+            log.warn("Shortcode {}: the account pattern ran out of steps on '{}'; rejecting", shortcode, reference);
+            return ValidationDecision.reject(C2BResultCodes.OTHER_ERROR, e.getMessage());
+        }
+    }
+
     private Pattern pattern(String regex) {
         if (patterns.size() > 500) {
             patterns.clear();
@@ -114,13 +132,8 @@ public class C2BValidationService {
         return patterns.computeIfAbsent(regex, Pattern::compile);
     }
 
-    /** Null when the pattern compiles, otherwise why it does not. */
+    /** Null when the pattern is short enough, compiles and evaluates quickly, otherwise why not. */
     public static String patternError(String regex) {
-        try {
-            Pattern.compile(regex);
-            return null;
-        } catch (PatternSyntaxException e) {
-            return "is not a valid regular expression: " + e.getDescription();
-        }
+        return BoundedRegex.problem(regex);
     }
 }

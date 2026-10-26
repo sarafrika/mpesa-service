@@ -165,6 +165,31 @@ class C2BValidationServiceTest {
         return "http://127.0.0.1:" + server.getAddress().getPort() + "/lookup";
     }
 
+    @Test
+    void aCatastrophicPatternGivesUpQuicklyAndRejects() {
+        // Stored before the save-time checks existed: (.*a){20} on 30 a's and a "!" backtracks for minutes.
+        when(rules.findByShortcodeUuid(shortcode.getUuid())).thenReturn(Optional.of(rule("(.*a){20}", null, null, null)));
+
+        long started = System.nanoTime();
+        ValidationDecision decision = service.validate(request("a".repeat(30) + "!", "100"));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.resultCode()).isEqualTo(C2BResultCodes.OTHER_ERROR);
+        assertThat(System.nanoTime() - started).isLessThan(2_000_000_000L);
+        assertThat(decision.reason()).contains("took too long");
+    }
+
+    @Test
+    void savedPatternsMustBeShortValidAndFast() {
+        assertThat(C2BValidationService.patternError("^ELM-[0-9]{6}$")).isNull();
+        assertThat(C2BValidationService.patternError("^[A-Z]{2,4}-?\\d{1,8}$")).isNull();
+        assertThat(C2BValidationService.patternError("a".repeat(201))).contains("at most 200");
+        assertThat(C2BValidationService.patternError("([a-z")).contains("not a valid regular expression");
+        assertThat(C2BValidationService.patternError("(a+)+$")).isNull();
+        assertThat(C2BValidationService.patternError("(.*a){20}")).contains("too slow");
+        assertThat(C2BValidationService.patternError("^(.*[0-9]){12}$")).contains("too slow");
+    }
+
     private C2BValidationRule rule(String pattern, String min, String max, String lookupUrl) {
         C2BValidationRule rule = new C2BValidationRule();
         rule.setShortcodeUuid(shortcode.getUuid());

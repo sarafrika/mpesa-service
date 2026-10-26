@@ -18,8 +18,8 @@ public record UpdateValidationRulesRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @NotNull
         @JsonProperty("active") Boolean active,
-        @Schema(example = "^ELM-[0-9]{6}$")
-        @Size(max = 255)
+        @Schema(example = "^ELM-[0-9]{6}$", maxLength = 200)
+        @Size(max = 200, message = "must be at most 200 characters")
         @JsonProperty("account_pattern") String accountPattern,
         @Schema(example = "10.00")
         @DecimalMin(value = "1.00", message = "must be at least 1.00")
