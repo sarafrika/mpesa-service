@@ -7,11 +7,17 @@ import com.sarafrika.apps.mpesaservice.dtos.StkPushResponse;
 import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
+import com.sarafrika.apps.mpesaservice.services.products.ProductGrantGuard;
+import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,14 +46,19 @@ public class MpesaPaymentController {
 
     private final MpesaDarajaService mpesaDarajaService;
     private final MpesaIncomingPaymentService incomingPaymentService;
+    private final ProductGrantGuard grantGuard;
 
     /**
      * Initiate an STK Push against a configured shortcode.
      */
     @PostMapping("/stk-push")
     @Operation(operationId = "initiateStkPush", summary = "Initiate an STK Push payment for a configured shortcode")
+    @ApiResponse(responseCode = "403", description = "The calling client is not granted STK_PUSH on the shortcode",
+            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
     public ResponseEntity<MpesaApiResponse<StkPushResponse>> initiateStkPush(
-            @RequestBody StkPushRequest request) {
+            @RequestBody StkPushRequest request, Authentication authentication) {
+
+        grantGuard.require(authentication, request.shortcodeUuid(), GrantOperation.STK_PUSH);
 
         log.info("Received STK Push initiation request for shortcode: {}, phone: {}, amount: {}",
                 request.shortcodeUuid(), request.phoneNumber(), request.amount());
@@ -69,10 +80,17 @@ public class MpesaPaymentController {
     @GetMapping("/payments/by-checkout/{checkoutRequestId}")
     @Operation(operationId = "getPaymentByCheckoutRequestId",
             summary = "Fetch an incoming payment by STK Push checkout request id")
+    @ApiResponse(responseCode = "403", description = "A product without STATUS_LOOKUP on the payment's shortcode",
+            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
     public ResponseEntity<MpesaIncomingPaymentDto> getPaymentByCheckoutRequestId(
-            @PathVariable String checkoutRequestId) {
+            @PathVariable String checkoutRequestId, Authentication authentication) {
 
+        grantGuard.requireReadAccess(authentication, GrantOperation.STATUS_LOOKUP);
         return incomingPaymentService.findByCheckoutRequestId(checkoutRequestId)
+                .map(payment -> {
+                    grantGuard.requireRead(authentication, payment.getShortcodeUuid(), GrantOperation.STATUS_LOOKUP);
+                    return payment;
+                })
                 .map(MpesaIncomingPaymentDto::from)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -84,21 +102,31 @@ public class MpesaPaymentController {
      */
     @GetMapping("/payments")
     @Operation(operationId = "listPayments",
-            summary = "Fetch incoming payments by account reference or M-Pesa transaction id")
+            summary = "Fetch incoming payments by account reference or M-Pesa transaction id",
+            description = "A product sees only payments on shortcodes it holds STATUS_LOOKUP on.")
+    @ApiResponse(responseCode = "403", description = "A product without any STATUS_LOOKUP grant",
+            content = @Content(schema = @Schema(implementation = MpesaApiResponse.class)))
     public ResponseEntity<List<MpesaIncomingPaymentDto>> getPayments(
             @RequestParam(name = "account_reference", required = false) String accountReference,
-            @RequestParam(name = "transaction_id", required = false) String transactionId) {
+            @RequestParam(name = "transaction_id", required = false) String transactionId,
+            Authentication authentication) {
 
+        grantGuard.requireReadAccess(authentication, GrantOperation.STATUS_LOOKUP);
         if (transactionId != null && !transactionId.isBlank()) {
             Optional<MpesaIncomingPayment> payment = incomingPaymentService.findByTransactionId(transactionId);
-            return ResponseEntity.ok(payment.map(MpesaIncomingPaymentDto::from).map(List::of).orElseGet(List::of));
+            List<MpesaIncomingPayment> visible = grantGuard.visible(authentication,
+                    payment.map(List::of).orElseGet(List::of), MpesaIncomingPayment::getShortcodeUuid,
+                    GrantOperation.STATUS_LOOKUP);
+            return ResponseEntity.ok(visible.stream().map(MpesaIncomingPaymentDto::from).toList());
         }
 
         if (accountReference == null || accountReference.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
 
-        List<MpesaIncomingPaymentDto> results = incomingPaymentService.findByAccountReference(accountReference).stream()
+        List<MpesaIncomingPaymentDto> results = grantGuard.visible(authentication,
+                        incomingPaymentService.findByAccountReference(accountReference),
+                        MpesaIncomingPayment::getShortcodeUuid, GrantOperation.STATUS_LOOKUP).stream()
                 .map(MpesaIncomingPaymentDto::from)
                 .toList();
 
