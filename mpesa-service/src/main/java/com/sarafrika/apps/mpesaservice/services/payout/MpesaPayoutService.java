@@ -34,14 +34,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * B2C payouts for other Sarafrika services. A payout is saved PENDING before Safaricom is called, so a lost
- * reply never loses track of money; client_reference is unique per client, so asking again returns it.
- * Webhooks: b2c.completed or b2c.failed once, from the result of a PENDING payout. A payout Daraja refused
- * when it was sent is FAILED in that response with no webhook; should a success result still arrive for it,
- * it becomes SUCCESS (audited) and b2c.completed is sent. No outcome (timeout, network, 5xx) keeps it
- * PENDING with outcome_unknown: the money may still move, so the product must wait, not retry.
- */
+/** B2C payouts, saved PENDING before Safaricom is called and unique per client_reference. A refusal is FAILED
+ * without a webhook; no answer stays PENDING with outcome_unknown; one result sends one b2c.* webhook, and a
+ * success after a refusal turns it SUCCESS (audited). The README spells out the sequence. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
