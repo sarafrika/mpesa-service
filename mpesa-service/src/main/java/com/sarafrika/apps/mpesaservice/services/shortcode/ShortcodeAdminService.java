@@ -18,6 +18,7 @@ import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.models.ClientShortcodeGrant;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantRepository;
+import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.ShortcodeAdminRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
@@ -61,12 +62,13 @@ public class ShortcodeAdminService {
     private final AuditService auditService;
     private final CallbackUrls callbackUrls;
     private final ClientShortcodeGrantRepository grants;
+    private final MpesaOutgoingPaymentRepository payouts;
     private final TransactionTemplate transaction;
 
     public ShortcodeAdminService(ShortcodeAdminRepository repository, ShortcodeHealthReader healthReader,
                                  ShortcodeConnectionTester connectionTester, MpesaDarajaService darajaService,
                                  AuditService auditService, CallbackUrls callbackUrls,
-                                 ClientShortcodeGrantRepository grants,
+                                 ClientShortcodeGrantRepository grants, MpesaOutgoingPaymentRepository payouts,
                                  PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.healthReader = healthReader;
@@ -75,6 +77,7 @@ public class ShortcodeAdminService {
         this.auditService = auditService;
         this.callbackUrls = callbackUrls;
         this.grants = grants;
+        this.payouts = payouts;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -141,7 +144,9 @@ public class ShortcodeAdminService {
             }
         }
         return new ShortcodeTotalsDto(all.size(), active, suspended, draft, production, all.size() - production,
-                c2bApplicable, c2bRegistered, totalFloat, floatKnown);
+                c2bApplicable, c2bRegistered, totalFloat, floatKnown,
+                payouts.countByResultCodeAndProcessedAtAfter(DarajaHints.INVALID_INITIATOR,
+                        LocalDateTime.now().minusHours(24)));
     }
 
     @Transactional(readOnly = true)

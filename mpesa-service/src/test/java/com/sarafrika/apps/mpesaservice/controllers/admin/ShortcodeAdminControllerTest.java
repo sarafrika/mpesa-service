@@ -124,7 +124,7 @@ class ShortcodeAdminControllerTest {
     @WithMockUser(roles = "mpesa-viewer")
     void totalsCallbackUrlsAndDetailAreReadable() throws Exception {
         when(shortcodes.totals()).thenReturn(new ShortcodeTotalsDto(5, 4, 1, 0, 4, 1, 3, 2,
-                new BigDecimal("2412680.00"), 3));
+                new BigDecimal("2412680.00"), 3, 0));
         when(shortcodes.callbackUrls()).thenReturn(new ShortcodeCallbackUrlsDto("https://x/stk", "https://x/c",
                 "https://x/v", "https://x/r", "https://x/t"));
         when(shortcodes.get(ID)).thenReturn(detail());

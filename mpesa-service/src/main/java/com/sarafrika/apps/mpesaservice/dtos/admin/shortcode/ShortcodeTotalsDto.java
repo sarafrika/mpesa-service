@@ -27,5 +27,8 @@ public record ShortcodeTotalsDto(
                 description = "Sum of the newest known utility balance of every shortcode")
         @JsonProperty("total_float") BigDecimal totalFloat,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Shortcodes with a known float")
-        @JsonProperty("float_known") long floatKnown) {
+        @JsonProperty("float_known") long floatKnown,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "B2C results in the last 24 hours with ResultCode 2001 (invalid initiator)")
+        @JsonProperty("initiator_errors_24h") long initiatorErrors24h) {
 }

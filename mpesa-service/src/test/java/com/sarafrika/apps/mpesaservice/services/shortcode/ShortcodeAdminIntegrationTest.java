@@ -380,6 +380,7 @@ class ShortcodeAdminIntegrationTest {
 
         assertThat(after.health().credentialsHint()).contains("Update the credentials");
         assertThat(after.health().paidOutToday()).isEqualByComparingTo("100");
+        assertThat(service.totals().initiatorErrors24h()).isGreaterThanOrEqualTo(1);
     }
 
     @Test
