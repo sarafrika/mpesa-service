@@ -237,8 +237,9 @@ function RunDialog({
         <DialogHeader>
           <DialogTitle>{LABEL}</DialogTitle>
           <DialogDescription>
-            Safaricom returns the paybill's C2B deposits from the last 48 hours; payouts are not
-            included, so only money in is reconciled.
+            Safaricom returns the paybill's C2B deposits from the last 48 hours, so only our C2B
+            deposits are compared; payouts, STK and B2B checkout payments it does not list are not
+            flagged.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">

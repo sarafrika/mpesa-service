@@ -56,6 +56,7 @@ export function kindInfo(kind: string) {
 
 export const ACTION_LABELS: Record<string, string> = {
   BACKFILL: "Backfill",
+  ATTACH_STK_RECEIPT: "Attach to STK payment",
   QUERY_STATUS: "Query status",
   MERGE_DUPLICATE: "Merge",
   MARK_RESOLVED: "Mark resolved",

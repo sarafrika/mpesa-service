@@ -54,10 +54,7 @@ export function RunSummary({ runUuid, onKind, activeKind }: RunSummaryProps) {
         retrying={summary.isFetching}
       />
     ) : (
-      <div className="flex flex-col gap-4" aria-busy>
-        <Skeleton className="h-48 w-full rounded-xl" />
-        <StatRowSkeleton count={4} />
-      </div>
+      <RunSummarySkeleton />
     );
   }
   const { run, kinds } = data;
@@ -79,6 +76,42 @@ export function RunSummary({ runUuid, onKind, activeKind }: RunSummaryProps) {
         ))}
       </section>
     </>
+  );
+}
+
+/** The run card (title, figures, bar) and the four kind cards, in their final shape. */
+function RunSummarySkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-busy>
+      <Card className="gap-4 px-6 py-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-3.5 w-72 max-w-full" />
+          </div>
+          <Skeleton className="h-5 w-28 rounded-full" />
+        </div>
+        <StatRowSkeleton count={4} />
+        <Skeleton className="h-3 w-full rounded-full" />
+        <div className="flex gap-4">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+      </Card>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {["missing-in-ledger", "missing-in-statement", "amount", "duplicate"].map((key) => (
+          <Card key={key} className="gap-1.5 px-4 py-4">
+            <span className="flex items-baseline justify-between gap-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-6 w-8" />
+            </span>
+            <Skeleton className="h-3.5 w-full" />
+            <Skeleton className="h-3.5 w-3/4" />
+            <Skeleton className="h-3 w-28" />
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -114,6 +147,12 @@ function RunCard({ run }: { run: ReconciliationRunDto }) {
         <p className="text-destructive text-sm">{run.failure_reason ?? "The run failed."}</p>
       ) : (
         <>
+          {run.source === "PULL_TRANSACTIONS" && (
+            <p className="text-muted-foreground text-sm">
+              Pull Transactions returns C2B deposits only, so this run compares only our C2B
+              deposits; payouts, STK and B2B checkout payments it does not list are not flagged.
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Matched by count"
