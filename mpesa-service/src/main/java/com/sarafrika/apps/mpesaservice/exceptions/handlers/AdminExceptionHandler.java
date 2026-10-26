@@ -5,6 +5,7 @@ import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.client.ResourceAccessException;
@@ -32,11 +34,20 @@ public class AdminExceptionHandler {
 
     private static final String INVALID = "The request is invalid";
 
+    private final JsonFieldNames jsonNames;
+
+    public AdminExceptionHandler(ObjectMapper mapper) {
+        this.jsonNames = new JsonFieldNames(mapper);
+    }
+
+    /** Field errors name the request JSON's fields (business_name), not the Java properties. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> invalidBody(MethodArgumentNotValidException ex) {
+        Class<?> body = ex.getParameter().getParameterType();
         List<ApiError.FieldError> fields = ex.getBindingResult().getAllErrors().stream()
                 .map(error -> new ApiError.FieldError(
-                        error instanceof FieldError field ? field.getField() : error.getObjectName(),
+                        error instanceof FieldError field ? jsonNames.resolve(body, field.getField())
+                                : error.getObjectName(),
                         error.getDefaultMessage()))
                 .toList();
         return respond(ApiError.of(HttpStatus.BAD_REQUEST, INVALID, fields));
@@ -46,6 +57,11 @@ public class AdminExceptionHandler {
     public ResponseEntity<ApiError> invalidParameters(HandlerMethodValidationException ex) {
         List<ApiError.FieldError> fields = ex.getParameterValidationResults().stream()
                 .flatMap(result -> {
+                    if (result instanceof ParameterErrors errors && errors.hasFieldErrors()) {
+                        Class<?> type = result.getMethodParameter().getParameterType();
+                        return errors.getFieldErrors().stream().map(field -> new ApiError.FieldError(
+                                jsonNames.resolve(type, field.getField()), field.getDefaultMessage()));
+                    }
                     RequestParam param = result.getMethodParameter().getParameterAnnotation(RequestParam.class);
                     String name = param != null && !param.name().isBlank() ? param.name()
                             : result.getMethodParameter().getParameterName();

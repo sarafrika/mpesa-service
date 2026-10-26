@@ -9,9 +9,12 @@ import com.sarafrika.apps.mpesaservice.config.CallbackSecurityConfig;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -48,6 +51,16 @@ class AdminExceptionHandlerTest {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.error").value("Bad Request"))
                 .andExpect(jsonPath("$.field_errors[0].field").value("name"));
+    }
+
+    @Test
+    void bodyFieldErrorsUseTheJsonNamesEvenWhenNested() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/probe/snake").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"business_name\":\"\",\"grants\":[{\"shortcode_uuid\":null}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'business_name')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'grants[0].shortcode_uuid')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'businessName')]").doesNotExist());
     }
 
     @Test
@@ -105,6 +118,18 @@ class AdminExceptionHandlerTest {
     static class ProbeController {
 
         record Body(@NotBlank String name) {
+        }
+
+        record Grant(@NotNull @JsonProperty("shortcode_uuid") String shortcodeUuid) {
+        }
+
+        record SnakeBody(@NotBlank @JsonProperty("business_name") String businessName,
+                         @JsonProperty("grants") List<@Valid Grant> grants) {
+        }
+
+        @PostMapping("/snake")
+        String snake(@Valid @RequestBody SnakeBody body) {
+            return body.businessName();
         }
 
         @GetMapping

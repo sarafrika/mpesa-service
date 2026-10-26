@@ -110,8 +110,8 @@ class ProductAdminControllerTest {
         mockMvc.perform(post("/api/v1/admin/products").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"client_id\":\"has spaces\",\"display_name\":\"\",\"grants\":[]}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.field_errors[?(@.field=='clientId')]").exists())
-                .andExpect(jsonPath("$.field_errors[?(@.field=='displayName')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field=='client_id')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field=='display_name')]").exists())
                 .andExpect(jsonPath("$.field_errors[?(@.field=='grants')]").exists());
         verifyNoInteractions(productService);
     }

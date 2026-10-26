@@ -180,9 +180,9 @@ class ShortcodeAdminControllerTest {
                          "consumer_secret":"s","min_amount":0}"""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.field_errors[?(@.field == 'shortcode')].message").value("must be 5 to 10 digits"))
-                .andExpect(jsonPath("$.field_errors[?(@.field == 'shortcodeType')]").exists())
-                .andExpect(jsonPath("$.field_errors[?(@.field == 'businessName')]").exists())
-                .andExpect(jsonPath("$.field_errors[?(@.field == 'minAmount')]").exists());
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'shortcode_type')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'business_name')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'min_amount')]").exists());
         verifyNoInteractions(shortcodes);
     }
 
@@ -212,8 +212,8 @@ class ShortcodeAdminControllerTest {
                 .andExpect(status().isOk());
         mockMvc.perform(json(patch(BASE + "/" + ID), "{\"business_name\":\"  \",\"callback_url\":\"http://plain\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.field_errors[?(@.field == 'businessName')]").exists())
-                .andExpect(jsonPath("$.field_errors[?(@.field == 'callbackUrl')]").exists());
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'business_name')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'callback_url')]").exists());
     }
 
     // ---- credentials, activate, suspend (admin)
@@ -296,7 +296,7 @@ class ShortcodeAdminControllerTest {
                 .andExpect(status().isServiceUnavailable());
         mockMvc.perform(json(post(BASE + "/" + ID + "/c2b-registrations"), "{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.field_errors[0].field").value("responseType"));
+                .andExpect(jsonPath("$.field_errors[0].field").value("response_type"));
     }
 
     @Test
@@ -326,7 +326,7 @@ class ShortcodeAdminControllerTest {
                 .andExpect(status().isConflict());
         mockMvc.perform(json(post(BASE + "/" + ID + "/simulate-c2b"), "{\"phone_number\":\"0712\",\"amount\":10.5}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.field_errors[?(@.field == 'phoneNumber')]").exists())
+                .andExpect(jsonPath("$.field_errors[?(@.field == 'phone_number')]").exists())
                 .andExpect(jsonPath("$.field_errors[?(@.field == 'amount')]").exists());
     }
 
