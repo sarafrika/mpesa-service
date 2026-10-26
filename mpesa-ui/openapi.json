@@ -681,6 +681,96 @@
         },
         "type" : "object"
       },
+      "CallbackDetailDto" : {
+        "properties" : {
+          "body" : {
+            "additionalProperties" : true,
+            "description" : "The body as received; null when it was too large"
+          },
+          "body_size" : {
+            "description" : "Body size in bytes",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "body_truncated" : {
+            "description" : "True when the body was over the cap and not kept",
+            "type" : "boolean"
+          },
+          "callback" : {
+            "$ref" : "#/components/schemas/CallbackDto"
+          },
+          "headers" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Selected request headers (never auth)",
+            "type" : "object"
+          },
+          "replay_blocked_reason" : {
+            "description" : "Why it cannot be replayed now",
+            "type" : "string"
+          },
+          "replayable" : {
+            "description" : "Whether an operator may replay it now",
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "body_size", "body_truncated", "callback", "headers", "replayable" ],
+        "type" : "object"
+      },
+      "CallbackDto" : {
+        "properties" : {
+          "attempts" : {
+            "description" : "Times the handler ran, replays included",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "endpoint" : {
+            "example" : "/api/v1/callbacks/c2b/confirmation",
+            "type" : "string"
+          },
+          "error" : {
+            "description" : "Why processing failed; no stack traces",
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "C2B_VALIDATION", "C2B_CONFIRMATION", "STK_CALLBACK", "B2C_RESULT", "B2C_TIMEOUT", "B2B_RESULT", "B2B_TIMEOUT", "TRANSACTION_STATUS_RESULT", "TRANSACTION_STATUS_TIMEOUT", "ACCOUNT_BALANCE_RESULT", "ACCOUNT_BALANCE_TIMEOUT", "REVERSAL_RESULT", "REVERSAL_TIMEOUT", "OTHER" ],
+            "example" : "C2B_CONFIRMATION",
+            "type" : "string"
+          },
+          "last_attempt_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "payment_uuid" : {
+            "description" : "The payment the callback is about, as /transactions?tx= opens it",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "received_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reference" : {
+            "description" : "Receipts and conversation ids found in the body",
+            "type" : "string"
+          },
+          "source_ip" : {
+            "example" : "196.201.214.200",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "RECEIVED", "PROCESSED", "FAILED", "REPLAYED" ],
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "attempts", "endpoint", "kind", "received_at", "status", "uuid" ],
+        "type" : "object"
+      },
       "CallbackMetadata" : {
         "properties" : {
           "Item" : {
@@ -699,6 +789,39 @@
           },
           "Value" : { }
         },
+        "type" : "object"
+      },
+      "CallbackSummaryDto" : {
+        "properties" : {
+          "failed" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "processed" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "received" : {
+            "description" : "Still being handled",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "replayed" : {
+            "description" : "Failed, then succeeded on replay",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "since" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "total" : {
+            "description" : "Every callback received",
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "failed", "processed", "received", "replayed", "since", "total" ],
         "type" : "object"
       },
       "ConnectProductRequest" : {
@@ -780,6 +903,46 @@
           }
         },
         "required" : [ "checked_at", "latency_ms", "ok" ],
+        "type" : "object"
+      },
+      "CreateQrCodeRequest" : {
+        "properties" : {
+          "amount" : {
+            "description" : "Daraja Amount in KES; leave out for any amount",
+            "example" : 1500,
+            "minimum" : 1,
+            "type" : "number"
+          },
+          "merchant_name" : {
+            "description" : "Daraja MerchantName: the name the customer sees",
+            "example" : "Elimika Fees",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "ref_no" : {
+            "description" : "Daraja RefNo: the account or invoice reference",
+            "example" : "ELM-004512",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "size" : {
+            "description" : "Daraja Size: the square image's side in pixels",
+            "example" : 300,
+            "format" : "int32",
+            "maximum" : 1000,
+            "minimum" : 100,
+            "type" : "integer"
+          },
+          "trx_code" : {
+            "description" : "Daraja TrxCode: PB (Paybill) or BG (Buy Goods). Defaults from the shortcode type; SM, WA and SB pay a phone, agent or business number, never one of our shortcodes",
+            "enum" : [ "PB", "BG" ],
+            "pattern" : "PB|BG",
+            "type" : "string"
+          }
+        },
+        "required" : [ "merchant_name", "ref_no" ],
         "type" : "object"
       },
       "CreateShortcodeRequest" : {
@@ -1330,6 +1493,38 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PageResponseCallbackDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CallbackDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
       "PageResponseProduct" : {
         "properties" : {
           "items" : {
@@ -1367,6 +1562,38 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/ProductGrant"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
+      "PageResponseQrCodeDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/QrCodeDto"
             },
             "type" : "array"
           },
@@ -1839,6 +2066,61 @@
           }
         },
         "required" : [ "api_calls_7d", "api_errors_7d", "error_rate_7d", "kes_in_7d", "kes_moved_7d", "kes_out_7d" ],
+        "type" : "object"
+      },
+      "QrCodeDto" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "cpi" : {
+            "description" : "Credit party identifier: the shortcode",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "created_by" : {
+            "type" : "string"
+          },
+          "image_base64" : {
+            "description" : "The PNG, base64; only when the code was just created",
+            "type" : "string"
+          },
+          "image_path" : {
+            "description" : "Admin API path of the PNG",
+            "example" : "/api/v1/admin/shortcodes/550e8400-e29b-41d4-a716-446655440000/qr-codes/7c9e6679-7425-40de-944b-e07fc1f90ae7/image",
+            "type" : "string"
+          },
+          "merchant_name" : {
+            "type" : "string"
+          },
+          "ref_no" : {
+            "type" : "string"
+          },
+          "request_id" : {
+            "description" : "Daraja's RequestID",
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "trx_code" : {
+            "enum" : [ "PB", "BG" ],
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "cpi", "created_at", "image_path", "merchant_name", "ref_no", "shortcode_uuid", "size", "trx_code", "uuid" ],
         "type" : "object"
       },
       "RegisterC2bUrlsRequest" : {
@@ -3547,6 +3829,268 @@
         "tags" : [ "Admin: Audit" ]
       }
     },
+    "/api/v1/admin/callbacks" : {
+      "get" : {
+        "operationId" : "listCallbacks",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: received_at, attempts. Default received_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "received_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "RECEIVED", "PROCESSED", "FAILED", "REPLAYED" ],
+            "type" : "string"
+          }
+        }, {
+          "description" : "Callback kind, e.g. C2B_CONFIRMATION, STK_CALLBACK, B2C_RESULT",
+          "in" : "query",
+          "name" : "kind",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Exact callback path, e.g. /api/v1/callbacks/b2c/result",
+          "in" : "query",
+          "name" : "endpoint",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Part of a receipt, TransID, checkout id or conversation id in the body",
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Received at or after (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Received before (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseCallbackDto"
+                }
+              }
+            },
+            "description" : "A page of callbacks"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad paging, sort or filter value"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "List received callbacks, newest first",
+        "tags" : [ "Admin: Inbox" ]
+      }
+    },
+    "/api/v1/admin/callbacks/summary" : {
+      "get" : {
+        "operationId" : "getCallbackSummary",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackSummaryDto"
+                }
+              }
+            },
+            "description" : "Counts by status"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "Callback counts by status over the last 24 hours",
+        "tags" : [ "Admin: Inbox" ]
+      }
+    },
+    "/api/v1/admin/callbacks/{uuid}" : {
+      "get" : {
+        "operationId" : "getCallback",
+        "parameters" : [ {
+          "description" : "Inbox entry uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackDetailDto"
+                }
+              }
+            },
+            "description" : "The callback"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such callback"
+          }
+        },
+        "summary" : "One callback with its headers and body; phones and names masked unless finance or admin",
+        "tags" : [ "Admin: Inbox" ]
+      }
+    },
+    "/api/v1/admin/callbacks/{uuid}/replay" : {
+      "post" : {
+        "operationId" : "replayCallback",
+        "parameters" : [ {
+          "description" : "Inbox entry uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackDetailDto"
+                }
+              }
+            },
+            "description" : "The callback after the replay; status REPLAYED or FAILED"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such callback"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Not replayable: handled, in progress, a validation or no body"
+          }
+        },
+        "summary" : "Run a failed callback's stored body through its handler again (idempotent; audited)",
+        "tags" : [ "Admin: Inbox" ]
+      }
+    },
     "/api/v1/admin/metrics/attention" : {
       "get" : {
         "operationId" : "listAttentionItems",
@@ -4978,6 +5522,256 @@
         },
         "summary" : "Store a shortcode's Daraja credentials after they were changed at Safaricom",
         "tags" : [ "Admin: Shortcodes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/qr-codes" : {
+      "get" : {
+        "operationId" : "listShortcodeQrCodes",
+        "parameters" : [ {
+          "description" : "Shortcode uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc. Fields: created_at. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseQrCodeDto"
+                }
+              }
+            },
+            "description" : "A page of QR codes (without images)"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad paging or sort value"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "QR codes generated for a shortcode, newest first",
+        "tags" : [ "Admin: QR codes" ]
+      },
+      "post" : {
+        "operationId" : "createShortcodeQrCode",
+        "parameters" : [ {
+          "description" : "Shortcode uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateQrCodeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/QrCodeDto"
+                }
+              }
+            },
+            "description" : "The QR code, with the PNG as base64"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid fields, or a TrxCode that does not fit the shortcode"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "A B2C or suspended shortcode"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused or answered without an image"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Generate a Dynamic QR code through Daraja (audited)",
+        "tags" : [ "Admin: QR codes" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/qr-codes/{qr_uuid}/image" : {
+      "get" : {
+        "operationId" : "getShortcodeQrCodeImage",
+        "parameters" : [ {
+          "description" : "Shortcode uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "QR code uuid",
+          "in" : "path",
+          "name" : "qr_uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "image/png" : {
+                "schema" : {
+                  "format" : "binary",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "The PNG"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such QR code for this shortcode"
+          }
+        },
+        "summary" : "Download a QR code as PNG",
+        "tags" : [ "Admin: QR codes" ]
       }
     },
     "/api/v1/admin/shortcodes/{uuid}/simulate-c2b" : {
@@ -6896,6 +7690,9 @@
     }
   },
   "tags" : [ {
+    "description" : "Daraja Dynamic QR codes customers scan to pay a paybill or till",
+    "name" : "Admin: QR codes"
+  }, {
     "description" : "Every deposit, STK request and payout across all paybills",
     "name" : "Admin: Transactions"
   }, {
@@ -6904,6 +7701,9 @@
   }, {
     "description" : "The trail of changes made through the console",
     "name" : "Admin: Audit"
+  }, {
+    "description" : "Every request Safaricom sent to a callback URL, and replaying failures",
+    "name" : "Admin: Inbox"
   }, {
     "description" : "Sarafrika products (Keycloak clients) and the paybills and operations granted to them",
     "name" : "Admin: Products"

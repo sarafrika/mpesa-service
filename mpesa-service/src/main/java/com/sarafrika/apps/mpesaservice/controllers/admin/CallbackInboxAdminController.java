@@ -33,7 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin/callbacks")
 @RequiredArgsConstructor
-@Tag(name = "Admin: Callbacks", description = "Every request Safaricom sent to a callback URL, and replaying failures")
+// Not "Callbacks": the UI client generator skips tags naming callbacks (those are Safaricom's endpoints).
+@Tag(name = "Admin: Inbox", description = "Every request Safaricom sent to a callback URL, and replaying failures")
 public class CallbackInboxAdminController {
 
     static final Map<String, String> SORTABLE = Map.of("received_at", "receivedAt", "attempts", "attempts");
