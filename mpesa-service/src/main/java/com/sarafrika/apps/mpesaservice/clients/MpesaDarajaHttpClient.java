@@ -97,6 +97,16 @@ public interface MpesaDarajaHttpClient {
             @RequestBody Map<String, Object> payload
     );
 
+    // ==================== FLAGGED PRODUCTS ====================
+
+    /** A flagged product (services.daraja.products) at an absolute URL, so production paths stay configurable. */
+    @PostExchange
+    com.fasterxml.jackson.databind.JsonNode postProduct(
+            java.net.URI url,
+            @RequestHeader("Authorization") String bearerToken,
+            @RequestBody Map<String, Object> payload
+    );
+
     // ==================== TRANSACTION STATUS ====================
 
     /**

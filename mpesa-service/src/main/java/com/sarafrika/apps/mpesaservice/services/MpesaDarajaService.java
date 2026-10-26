@@ -1,5 +1,6 @@
 package com.sarafrika.apps.mpesaservice.services;
 
+import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 
 import com.sarafrika.apps.mpesaservice.dtos.*;
@@ -7,6 +8,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.QRTransactionType;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.function.BiFunction;
 
 /**
  * M-Pesa Daraja API Service Interface
@@ -112,6 +114,13 @@ public interface MpesaDarajaService {
     /** B2B payment (BusinessPayBill or BusinessBuyGoods) from a shortcode; Safaricom posts the outcome to the
      * B2B result URL, or the B2B timeout URL when it could not process the request in time. */
     MpesaApiResponse<B2BTransferResponse> sendB2BPayment(MpesaShortCode shortcode, B2BPaymentRequest request);
+
+    // ==================== FLAGGED PRODUCTS ====================
+
+    /** Calls a flagged Daraja product (services.daraja.products) with the shortcode's token; the caller builds
+     * the request and picks the endpoint. No token is AUTH_FAILED with nothing sent. */
+    <T> MpesaApiResponse<T> callProduct(MpesaShortCode shortcode, String operation,
+                                        BiFunction<MpesaDarajaHttpClient, String, T> call);
 
     // ==================== 5. TRANSACTION STATUS QUERY ====================
 
