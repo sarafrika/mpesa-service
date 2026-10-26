@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.sarafrika.apps.mpesaservice.config.CallbackSecurityConfig;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
+import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -26,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 /** Admin endpoints fail with one ApiError shape: status, error, message and field_errors. */
 @WebMvcTest(AdminExceptionHandlerTest.ProbeController.class)
@@ -70,6 +75,31 @@ class AdminExceptionHandlerTest {
                 .andExpect(jsonPath("$.error").value("Forbidden"));
     }
 
+    @Test
+    void safaricomFailuresAnswer502And503WithoutInternals() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/probe/upstream"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.status").value(502))
+                .andExpect(jsonPath("$.message").value("Daraja rejected the request"))
+                .andExpect(jsonPath("$.field_errors").isArray());
+        mockMvc.perform(get("/api/v1/admin/probe/unreachable"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error").value("Service Unavailable"))
+                .andExpect(jsonPath("$.message").value("Safaricom could not be reached; try again shortly"));
+        mockMvc.perform(get("/api/v1/admin/probe/http-502"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.message").value("Safaricom returned an error"));
+    }
+
+    @Test
+    void anythingElseIsA500WithNoStackTrace() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/probe/boom"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("Something went wrong"))
+                .andExpect(jsonPath("$.trace").doesNotExist())
+                .andExpect(jsonPath("$.field_errors").isEmpty());
+    }
+
     @RestController
     @RequestMapping("/api/v1/admin/probe")
     static class ProbeController {
@@ -89,6 +119,14 @@ class AdminExceptionHandlerTest {
 
         @GetMapping("/{name}")
         String get(@PathVariable String name) {
+            switch (name) {
+                case "upstream" -> throw UpstreamException.badGateway("Daraja rejected the request");
+                case "unreachable" -> throw new ResourceAccessException("Connect timed out");
+                case "http-502" -> throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "Bad Gateway",
+                        HttpHeaders.EMPTY, null, null);
+                case "boom" -> throw new IllegalStateException("internal detail");
+                default -> { }
+            }
             if ("taken".equals(name)) {
                 throw new ConflictException("Probe taken already exists");
             }

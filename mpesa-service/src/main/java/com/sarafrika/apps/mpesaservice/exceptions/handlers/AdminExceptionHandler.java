@@ -3,6 +3,7 @@ package com.sarafrika.apps.mpesaservice.exceptions.handlers;
 import com.sarafrika.apps.mpesaservice.dtos.admin.ApiError;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
+import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -19,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 
 /** Every admin endpoint fails with the same {@link ApiError} body. */
 @RestControllerAdvice(basePackages = "com.sarafrika.apps.mpesaservice.controllers.admin")
@@ -93,6 +97,37 @@ public class AdminExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiError> conflict(ConflictException ex) {
         return respond(ApiError.of(HttpStatus.CONFLICT, ex.getMessage()));
+    }
+
+    @ExceptionHandler(UpstreamException.class)
+    public ResponseEntity<ApiError> upstream(UpstreamException ex) {
+        log.warn("Upstream failure in an admin request: {}", ex.getMessage());
+        return respond(ApiError.of(ex.isUnavailable() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY,
+                ex.getMessage()));
+    }
+
+    /** Safaricom could not be reached at all (connect or read timeout, DNS). */
+    @ExceptionHandler(ResourceAccessException.class)
+    public ResponseEntity<ApiError> unreachable(ResourceAccessException ex) {
+        log.warn("Safaricom unreachable from an admin request: {}", ex.getMessage());
+        return respond(ApiError.of(HttpStatus.SERVICE_UNAVAILABLE, "Safaricom could not be reached; try again shortly"));
+    }
+
+    @ExceptionHandler(RestClientException.class)
+    public ResponseEntity<ApiError> badGateway(RestClientException ex) {
+        log.warn("Safaricom failed an admin request: {}", ex.getMessage());
+        return respond(ApiError.of(HttpStatus.BAD_GATEWAY, "Safaricom returned an error"));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> unexpected(Exception ex) {
+        // Spring's own web errors (405, 406, 415...) keep their status, in the same body.
+        if (ex instanceof ErrorResponse web) {
+            HttpStatus status = HttpStatus.valueOf(web.getStatusCode().value());
+            return respond(ApiError.of(status, status.getReasonPhrase()));
+        }
+        log.error("Unexpected failure in an admin request", ex);
+        return respond(ApiError.of(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong"));
     }
 
     private static ResponseEntity<ApiError> respond(ApiError error) {

@@ -8,6 +8,7 @@ import com.sarafrika.apps.mpesaservice.config.ClientIpResolver;
 import com.sarafrika.apps.mpesaservice.dtos.admin.AuditEventDto;
 import com.sarafrika.apps.mpesaservice.models.AuditEvent;
 import com.sarafrika.apps.mpesaservice.repositories.AuditEventRepository;
+import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"})
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({AuditService.class, AuditServiceIntegrationTest.Beans.class})
+@Import({AuditService.class, SecretCipher.class, AuditServiceIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class AuditServiceIntegrationTest {
 
