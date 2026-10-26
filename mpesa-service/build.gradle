@@ -37,6 +37,7 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.springframework.security:spring-security-test'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -45,4 +46,20 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// Runs only the spec export so the UI can refresh its Orval input without the whole suite.
+def openApiSpec = tasks.register('openApiSpec', Test) {
+	useJUnitPlatform()
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	filter { includeTestsMatching '*OpenApiSpecExportTest' }
+	outputs.upToDateWhen { false }
+}
+
+// Copies the exported spec to mpesa-ui, where Orval generates the typed client from it.
+tasks.register('exportOpenApi', Copy) {
+	dependsOn openApiSpec
+	from layout.buildDirectory.file('openapi/openapi.json')
+	into layout.projectDirectory.dir('../mpesa-ui')
 }

@@ -1,0 +1,1786 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "OpenAPI definition",
+    "version" : "v0"
+  },
+  "tags" : [ {
+    "name" : "M-Pesa Payments",
+    "description" : "Initiate STK Push payments and poll incoming payment status"
+  }, {
+    "name" : "M-Pesa Payouts",
+    "description" : "Send B2C payouts and poll their outcome"
+  } ],
+  "paths" : {
+    "/api/v1/mpesa/stk-push" : {
+      "post" : {
+        "tags" : [ "M-Pesa Payments" ],
+        "summary" : "Initiate an STK Push payment for a configured shortcode",
+        "operationId" : "initiateStkPush",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StkPushRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MpesaApiResponseStkPushResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mpesa/b2c" : {
+      "post" : {
+        "tags" : [ "M-Pesa Payouts" ],
+        "summary" : "Send a B2C payout",
+        "description" : "202 while Safaricom processes it; the same client_reference returns the first payout.",
+        "operationId" : "payout",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/B2CPayoutRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MpesaApiResponseMpesaPayoutDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/transaction-status/result" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleTransactionStatusResult",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransactionStatusResult"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/stk/callback" : {
+      "post" : {
+        "tags" : [ "stk-callback-controller" ],
+        "operationId" : "handleSTKCallback",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/STKCallbackPayload"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/STKCallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/reversal/timeout" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleReversalTimeout",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransactionReversalTimeoutCallback"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/reversal/result" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleReversalResult",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TransactionReversalResult"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/c2b/validation" : {
+      "post" : {
+        "tags" : [ "c-2-b-callback-controller" ],
+        "operationId" : "handleC2BValidation",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/C2BValidationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/C2BValidationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/c2b/confirmation" : {
+      "post" : {
+        "tags" : [ "c-2-b-callback-controller" ],
+        "operationId" : "handleC2BConfirmation",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/C2BConfirmationCallback"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/C2BConfirmationAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/b2c/timeout" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleB2CTimeout",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/B2CTimeoutCallback"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/b2c/result" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleB2CResult",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/B2CPaymentResult"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/b2b/timeout" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleB2BTimeout",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/B2BTimeoutCallback"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/b2b/result" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleB2BResult",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/B2BTransferResult"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/callbacks/account-balance/result" : {
+      "post" : {
+        "tags" : [ "b-2-cb-2-b-callback-controller" ],
+        "operationId" : "handleAccountBalanceResult",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AccountBalanceResult"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mpesa/shortcodes/{uuid}/float" : {
+      "get" : {
+        "tags" : [ "M-Pesa Payouts" ],
+        "summary" : "A shortcode's float as last reported on a payout result",
+        "operationId" : "payoutFloat",
+        "parameters" : [ {
+          "name" : "uuid",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PayoutFloatDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mpesa/payouts" : {
+      "get" : {
+        "tags" : [ "M-Pesa Payouts" ],
+        "summary" : "Fetch one of your payouts by your own reference",
+        "operationId" : "getByReference",
+        "parameters" : [ {
+          "name" : "client_reference",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MpesaPayoutDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mpesa/payouts/{uuid}" : {
+      "get" : {
+        "tags" : [ "M-Pesa Payouts" ],
+        "summary" : "Fetch one of your payouts",
+        "operationId" : "get",
+        "parameters" : [ {
+          "name" : "uuid",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MpesaPayoutDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mpesa/payments" : {
+      "get" : {
+        "tags" : [ "M-Pesa Payments" ],
+        "summary" : "Fetch incoming payments by account reference or M-Pesa transaction id",
+        "operationId" : "getPayments",
+        "parameters" : [ {
+          "name" : "account_reference",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "transaction_id",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/MpesaIncomingPaymentDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mpesa/payments/by-checkout/{checkoutRequestId}" : {
+      "get" : {
+        "tags" : [ "M-Pesa Payments" ],
+        "summary" : "Fetch an incoming payment by STK Push checkout request id",
+        "operationId" : "getPaymentByCheckoutRequestId",
+        "parameters" : [ {
+          "name" : "checkoutRequestId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MpesaIncomingPaymentDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "StkPushRequest" : {
+        "type" : "object",
+        "description" : "Request to initiate an STK Push payment",
+        "properties" : {
+          "shortcode_uuid" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "UUID of the configured shortcode to charge"
+          },
+          "phone_number" : {
+            "type" : "string",
+            "description" : "Customer phone number in 254XXXXXXXXX format",
+            "example" : 254708374149
+          },
+          "amount" : {
+            "type" : "number",
+            "description" : "Amount to charge",
+            "example" : 100.0
+          },
+          "account_reference" : {
+            "type" : "string",
+            "description" : "Account reference shown to the customer",
+            "example" : "INV-001"
+          },
+          "transaction_desc" : {
+            "type" : "string",
+            "description" : "Short transaction description",
+            "example" : "Payment for order 001"
+          }
+        },
+        "required" : [ "amount", "phone_number", "shortcode_uuid" ]
+      },
+      "MpesaApiResponseStkPushResponse" : {
+        "type" : "object",
+        "description" : "Generic M-Pesa API response wrapper",
+        "properties" : {
+          "success" : {
+            "type" : "boolean",
+            "description" : "Indicates if the request was successful"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/StkPushResponse",
+            "description" : "Response data (null if error)"
+          },
+          "error" : {
+            "$ref" : "#/components/schemas/MpesaErrorResponse",
+            "description" : "Error details (null if successful)"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "Response timestamp"
+          },
+          "httpStatus" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "HTTP status code"
+          },
+          "processingTimeMs" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Request processing duration in milliseconds"
+          }
+        }
+      },
+      "MpesaErrorResponse" : {
+        "type" : "object",
+        "description" : "M-Pesa API error response",
+        "properties" : {
+          "errorCode" : {
+            "type" : "string",
+            "description" : "Error code from Safaricom",
+            "example" : "400.002.02"
+          },
+          "errorMessage" : {
+            "type" : "string",
+            "description" : "Error message description",
+            "example" : "Bad Request - Invalid Amount"
+          },
+          "requestId" : {
+            "type" : "string",
+            "description" : "Request ID for tracking"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "Timestamp when error occurred"
+          },
+          "authenticationError" : {
+            "type" : "boolean"
+          },
+          "validationError" : {
+            "type" : "boolean"
+          },
+          "businessLogicError" : {
+            "type" : "boolean"
+          },
+          "systemError" : {
+            "type" : "boolean"
+          },
+          "rateLimitError" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "StkPushResponse" : {
+        "type" : "object",
+        "description" : "STK Push initiation response from Daraja API",
+        "properties" : {
+          "MerchantRequestID" : {
+            "type" : "string",
+            "description" : "Merchant request ID generated by Safaricom",
+            "example" : "21605-295434-4"
+          },
+          "CheckoutRequestID" : {
+            "type" : "string",
+            "description" : "Checkout request ID used for status queries",
+            "example" : "ws_CO_04112017184930742"
+          },
+          "ResponseCode" : {
+            "type" : "string",
+            "description" : "Response code from Safaricom (0 = success)",
+            "example" : 0
+          },
+          "ResponseDescription" : {
+            "type" : "string",
+            "description" : "Response description from Safaricom",
+            "example" : "Success. Request accepted for processing"
+          },
+          "CustomerMessage" : {
+            "type" : "string",
+            "description" : "Customer message displayed on phone",
+            "example" : "Check your phone for the M-PESA pin prompt"
+          }
+        }
+      },
+      "B2CPayoutRequest" : {
+        "type" : "object",
+        "description" : "A payout from a shortcode to an M-Pesa number",
+        "properties" : {
+          "shortcode_uuid" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "Configured shortcode to pay from"
+          },
+          "phone_number" : {
+            "type" : "string",
+            "description" : "Recipient, 2547XXXXXXXX or 2541XXXXXXXX",
+            "example" : 254712345678,
+            "minLength" : 1
+          },
+          "amount" : {
+            "type" : "number",
+            "description" : "Whole shillings",
+            "example" : 1500
+          },
+          "client_reference" : {
+            "type" : "string",
+            "description" : "The caller's own id for this payout; repeating it returns the first payout",
+            "example" : "WD-2026-0042",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "remarks" : {
+            "type" : "string",
+            "description" : "Shown on the M-Pesa statement",
+            "example" : "Elimika withdrawal",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "occasion" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "amount", "client_reference", "phone_number", "shortcode_uuid" ]
+      },
+      "MpesaApiResponseMpesaPayoutDto" : {
+        "type" : "object",
+        "description" : "Generic M-Pesa API response wrapper",
+        "properties" : {
+          "success" : {
+            "type" : "boolean",
+            "description" : "Indicates if the request was successful"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/MpesaPayoutDto",
+            "description" : "Response data (null if error)"
+          },
+          "error" : {
+            "$ref" : "#/components/schemas/MpesaErrorResponse",
+            "description" : "Error details (null if successful)"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "Response timestamp"
+          },
+          "httpStatus" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "HTTP status code"
+          },
+          "processingTimeMs" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Request processing duration in milliseconds"
+          }
+        }
+      },
+      "MpesaPayoutDto" : {
+        "type" : "object",
+        "description" : "A B2C payout and what Safaricom said about it",
+        "properties" : {
+          "uuid" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "client_reference" : {
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "PENDING until Safaricom's result arrives, then SUCCESS or FAILED",
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ]
+          },
+          "amount" : {
+            "type" : "number"
+          },
+          "phone_number" : {
+            "type" : "string"
+          },
+          "transaction_id" : {
+            "type" : "string",
+            "description" : "M-Pesa receipt, e.g. TJE4K9L2QX"
+          },
+          "recipient_name" : {
+            "type" : "string",
+            "description" : "Registered name M-Pesa returned for the recipient"
+          },
+          "charges_paid" : {
+            "type" : "number"
+          },
+          "result_code" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "timed_out_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "Set when Safaricom reported a queue timeout; the outcome is still unknown"
+          },
+          "transaction_date" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "processed_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "TransactionStatusResult" : {
+        "type" : "object",
+        "description" : "Transaction status result callback from Daraja API",
+        "properties" : {
+          "Result" : {
+            "$ref" : "#/components/schemas/TransactionStatusResultData",
+            "description" : "Result parameters containing transaction status details"
+          }
+        }
+      },
+      "TransactionStatusResultData" : {
+        "type" : "object",
+        "description" : "Transaction status result data",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code (0 = success)",
+            "example" : 0
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request is processed successfully."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          },
+          "TransactionID" : {
+            "type" : "string",
+            "description" : "Transaction ID",
+            "example" : "LGR019G3J2"
+          },
+          "ResultParameters" : {
+            "$ref" : "#/components/schemas/TransactionStatusResultParameters",
+            "description" : "Result parameters with transaction details"
+          },
+          "notFound" : {
+            "type" : "boolean"
+          },
+          "successful" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "TransactionStatusResultParameter" : {
+        "type" : "object",
+        "description" : "Individual transaction status result parameter",
+        "properties" : {
+          "Key" : {
+            "type" : "string",
+            "description" : "Parameter name",
+            "example" : "TransactionAmount"
+          },
+          "Value" : {
+            "type" : "string",
+            "description" : "Parameter value",
+            "example" : 100.0
+          }
+        }
+      },
+      "TransactionStatusResultParameters" : {
+        "type" : "object",
+        "description" : "Transaction status result parameters",
+        "properties" : {
+          "ResultParameter" : {
+            "type" : "array",
+            "description" : "List of result parameter items",
+            "items" : {
+              "$ref" : "#/components/schemas/TransactionStatusResultParameter"
+            }
+          },
+          "utilityAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "workingAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "transactionStatus" : {
+            "type" : "string"
+          },
+          "receiptNumber" : {
+            "type" : "string"
+          },
+          "transactionAmount" : {
+            "type" : "string"
+          },
+          "balance" : {
+            "type" : "string"
+          },
+          "chargesPaidAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "recipientRegistered" : {
+            "type" : "string"
+          },
+          "reasonType" : {
+            "type" : "string"
+          },
+          "debitPartyCharges" : {
+            "type" : "string"
+          },
+          "debitAccountType" : {
+            "type" : "string"
+          },
+          "initiatorAccountCurrentBalance" : {
+            "type" : "string"
+          },
+          "completedTime" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CallbackAcknowledgment" : {
+        "type" : "object",
+        "properties" : {
+          "ResultCode" : {
+            "type" : "string"
+          },
+          "ResultDesc" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CallbackMetadata" : {
+        "type" : "object",
+        "properties" : {
+          "Item" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CallbackMetadataItem"
+            }
+          }
+        }
+      },
+      "CallbackMetadataItem" : {
+        "type" : "object",
+        "properties" : {
+          "Name" : {
+            "type" : "string"
+          },
+          "Value" : { }
+        }
+      },
+      "STKCallback" : {
+        "type" : "object",
+        "properties" : {
+          "MerchantRequestID" : {
+            "type" : "string"
+          },
+          "CheckoutRequestID" : {
+            "type" : "string"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "ResultDesc" : {
+            "type" : "string"
+          },
+          "CallbackMetadata" : {
+            "$ref" : "#/components/schemas/CallbackMetadata"
+          },
+          "successful" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "STKCallbackBody" : {
+        "type" : "object",
+        "properties" : {
+          "stkCallback" : {
+            "$ref" : "#/components/schemas/STKCallback"
+          }
+        }
+      },
+      "STKCallbackPayload" : {
+        "type" : "object",
+        "properties" : {
+          "Body" : {
+            "$ref" : "#/components/schemas/STKCallbackBody"
+          }
+        }
+      },
+      "STKCallbackAcknowledgment" : {
+        "type" : "object",
+        "properties" : {
+          "ResultCode" : {
+            "type" : "string"
+          },
+          "ResultDesc" : {
+            "type" : "string"
+          },
+          "ThirdPartyTransID" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "TransactionReversalTimeoutCallback" : {
+        "type" : "object",
+        "description" : "Transaction reversal timeout callback from Daraja API",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code",
+            "example" : 1
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request has timed out."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          }
+        }
+      },
+      "TransactionReversalResult" : {
+        "type" : "object",
+        "description" : "Transaction reversal result callback from Daraja API",
+        "properties" : {
+          "Result" : {
+            "$ref" : "#/components/schemas/TransactionReversalResultData",
+            "description" : "Result parameters containing reversal details"
+          }
+        }
+      },
+      "TransactionReversalResultData" : {
+        "type" : "object",
+        "description" : "Transaction reversal result data",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code (0 = success)",
+            "example" : 0
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request is processed successfully."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          },
+          "TransactionID" : {
+            "type" : "string",
+            "description" : "Transaction ID",
+            "example" : "LGR019G3J2"
+          },
+          "ResultParameters" : {
+            "$ref" : "#/components/schemas/TransactionReversalResultParameters",
+            "description" : "Result parameters with reversal details"
+          },
+          "successful" : {
+            "type" : "boolean"
+          },
+          "transactionNotFound" : {
+            "type" : "boolean"
+          },
+          "rejected" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "TransactionReversalResultParameter" : {
+        "type" : "object",
+        "description" : "Individual transaction reversal result parameter",
+        "properties" : {
+          "Key" : {
+            "type" : "string",
+            "description" : "Parameter name",
+            "example" : "Amount"
+          },
+          "Value" : {
+            "type" : "string",
+            "description" : "Parameter value",
+            "example" : 100.0
+          }
+        }
+      },
+      "TransactionReversalResultParameters" : {
+        "type" : "object",
+        "description" : "Transaction reversal result parameters",
+        "properties" : {
+          "ResultParameter" : {
+            "type" : "array",
+            "description" : "List of result parameter items",
+            "items" : {
+              "$ref" : "#/components/schemas/TransactionReversalResultParameter"
+            }
+          },
+          "amount" : {
+            "type" : "string"
+          },
+          "receiverPartyPublicName" : {
+            "type" : "string"
+          },
+          "transactionCompletedDateTime" : {
+            "type" : "string"
+          },
+          "debitAccountCurrentBalance" : {
+            "type" : "string"
+          },
+          "reversalType" : {
+            "type" : "string"
+          },
+          "chargesPaidAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "debitPartyCharges" : {
+            "type" : "string"
+          },
+          "originatorAccountCurrentBalance" : {
+            "type" : "string"
+          },
+          "creditPartyCharges" : {
+            "type" : "string"
+          }
+        }
+      },
+      "C2BValidationRequest" : {
+        "type" : "object",
+        "description" : "C2B validation request from Daraja API",
+        "properties" : {
+          "TransType" : {
+            "type" : "string",
+            "description" : "Transaction type",
+            "example" : "Pay Bill"
+          },
+          "TransID" : {
+            "type" : "string",
+            "description" : "Transaction ID",
+            "example" : "LHG31AA5TX"
+          },
+          "TransTime" : {
+            "type" : "string",
+            "description" : "Transaction time in format YYYYMMDDHHMMSS",
+            "example" : 20230727104247
+          },
+          "TransAmount" : {
+            "type" : "number",
+            "description" : "Transaction amount",
+            "example" : 100.0
+          },
+          "BusinessShortCode" : {
+            "type" : "string",
+            "description" : "Business shortcode receiving payment",
+            "example" : 600134
+          },
+          "BillRefNumber" : {
+            "type" : "string",
+            "description" : "Bill reference number/account number",
+            "example" : "account001"
+          },
+          "InvoiceNumber" : {
+            "type" : "string",
+            "description" : "Invoice number if applicable"
+          },
+          "ThirdPartyTransID" : {
+            "type" : "string",
+            "description" : "Third party transaction ID"
+          },
+          "MSISDN" : {
+            "type" : "string",
+            "description" : "Customer phone number",
+            "example" : 254708374149
+          },
+          "FirstName" : {
+            "type" : "string",
+            "description" : "Customer first name",
+            "example" : "John"
+          },
+          "MiddleName" : {
+            "type" : "string",
+            "description" : "Customer middle name",
+            "example" : "J"
+          },
+          "LastName" : {
+            "type" : "string",
+            "description" : "Customer last name",
+            "example" : "Doe"
+          }
+        }
+      },
+      "C2BValidationResponse" : {
+        "type" : "object",
+        "description" : "C2B validation response to send to Daraja API",
+        "properties" : {
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code (0 = accept, 1 = reject)",
+            "example" : 0
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "Accepted"
+          }
+        }
+      },
+      "C2BConfirmationCallback" : {
+        "type" : "object",
+        "description" : "C2B confirmation callback from Daraja API",
+        "properties" : {
+          "TransType" : {
+            "type" : "string",
+            "description" : "Transaction type",
+            "example" : "Pay Bill"
+          },
+          "TransID" : {
+            "type" : "string",
+            "description" : "Transaction ID",
+            "example" : "LHG31AA5TX"
+          },
+          "TransTime" : {
+            "type" : "string",
+            "description" : "Transaction time in format YYYYMMDDHHMMSS",
+            "example" : 20230727104247
+          },
+          "TransAmount" : {
+            "type" : "number",
+            "description" : "Transaction amount",
+            "example" : 100.0
+          },
+          "BusinessShortCode" : {
+            "type" : "string",
+            "description" : "Business shortcode that received payment",
+            "example" : 600134
+          },
+          "BillRefNumber" : {
+            "type" : "string",
+            "description" : "Bill reference number/account number",
+            "example" : "account001"
+          },
+          "InvoiceNumber" : {
+            "type" : "string",
+            "description" : "Invoice number if applicable"
+          },
+          "OrgAccountBalance" : {
+            "type" : "number",
+            "description" : "Organization account balance after transaction"
+          },
+          "ThirdPartyTransID" : {
+            "type" : "string",
+            "description" : "Third party transaction ID"
+          },
+          "MSISDN" : {
+            "type" : "string",
+            "description" : "Customer phone number",
+            "example" : 254708374149
+          },
+          "FirstName" : {
+            "type" : "string",
+            "description" : "Customer first name",
+            "example" : "John"
+          },
+          "MiddleName" : {
+            "type" : "string",
+            "description" : "Customer middle name",
+            "example" : "J"
+          },
+          "LastName" : {
+            "type" : "string",
+            "description" : "Customer last name",
+            "example" : "Doe"
+          }
+        }
+      },
+      "C2BConfirmationAcknowledgment" : {
+        "type" : "object",
+        "properties" : {
+          "ResultCode" : {
+            "type" : "string"
+          },
+          "ResultDesc" : {
+            "type" : "string"
+          }
+        }
+      },
+      "B2CTimeoutCallback" : {
+        "type" : "object",
+        "description" : "B2C timeout callback from Daraja API",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code",
+            "example" : 1
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request has timed out."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          }
+        }
+      },
+      "B2CPaymentResult" : {
+        "type" : "object",
+        "description" : "B2C payment result callback from Daraja API",
+        "properties" : {
+          "Result" : {
+            "$ref" : "#/components/schemas/B2CResult",
+            "description" : "Result parameters containing transaction details"
+          }
+        }
+      },
+      "B2CResult" : {
+        "type" : "object",
+        "description" : "B2C result details",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code (0 = success)",
+            "example" : 0
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request is processed successfully."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          },
+          "TransactionID" : {
+            "type" : "string",
+            "description" : "Transaction ID",
+            "example" : "LGR019G3J2"
+          },
+          "ResultParameters" : {
+            "$ref" : "#/components/schemas/B2CResultParameters",
+            "description" : "Result parameters with transaction details"
+          },
+          "successful" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "B2CResultParameter" : {
+        "type" : "object",
+        "description" : "Individual B2C result parameter",
+        "properties" : {
+          "Key" : {
+            "type" : "string",
+            "description" : "Parameter name",
+            "example" : "TransactionAmount"
+          },
+          "Value" : {
+            "type" : "string",
+            "description" : "Parameter value",
+            "example" : 100.0
+          }
+        }
+      },
+      "B2CResultParameters" : {
+        "type" : "object",
+        "description" : "B2C result parameters",
+        "properties" : {
+          "ResultParameter" : {
+            "type" : "array",
+            "description" : "List of result parameter items",
+            "items" : {
+              "$ref" : "#/components/schemas/B2CResultParameter"
+            }
+          },
+          "b2CUtilityAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "transactionReceipt" : {
+            "type" : "string"
+          },
+          "receiverPartyPublicName" : {
+            "type" : "string"
+          },
+          "b2CChargesPaidAmount" : {
+            "type" : "string"
+          },
+          "b2CWorkingAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "transactionCompletedDateTime" : {
+            "type" : "string"
+          },
+          "transactionAmount" : {
+            "type" : "string"
+          }
+        }
+      },
+      "B2BTimeoutCallback" : {
+        "type" : "object",
+        "description" : "B2B timeout callback from Daraja API",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code",
+            "example" : 1
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request has timed out."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          }
+        }
+      },
+      "B2BResult" : {
+        "type" : "object",
+        "description" : "B2B result details",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code (0 = success)",
+            "example" : 0
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request is processed successfully."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          },
+          "TransactionID" : {
+            "type" : "string",
+            "description" : "Transaction ID",
+            "example" : "LGR019G3J2"
+          },
+          "ResultParameters" : {
+            "$ref" : "#/components/schemas/B2BResultParameters",
+            "description" : "Result parameters with transaction details"
+          },
+          "successful" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "B2BResultParameter" : {
+        "type" : "object",
+        "description" : "Individual B2B result parameter",
+        "properties" : {
+          "Key" : {
+            "type" : "string",
+            "description" : "Parameter name",
+            "example" : "Amount"
+          },
+          "Value" : {
+            "type" : "string",
+            "description" : "Parameter value",
+            "example" : 1000.0
+          }
+        }
+      },
+      "B2BResultParameters" : {
+        "type" : "object",
+        "description" : "B2B result parameters",
+        "properties" : {
+          "ResultParameter" : {
+            "type" : "array",
+            "description" : "List of result parameter items",
+            "items" : {
+              "$ref" : "#/components/schemas/B2BResultParameter"
+            }
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "amount" : {
+            "type" : "string"
+          },
+          "receiverPartyPublicName" : {
+            "type" : "string"
+          },
+          "debitAccountCurrentBalance" : {
+            "type" : "string"
+          },
+          "debitPartyCharges" : {
+            "type" : "string"
+          },
+          "initiatorAccountCurrentBalance" : {
+            "type" : "string"
+          }
+        }
+      },
+      "B2BTransferResult" : {
+        "type" : "object",
+        "description" : "B2B transfer result callback from Daraja API",
+        "properties" : {
+          "Result" : {
+            "$ref" : "#/components/schemas/B2BResult",
+            "description" : "Result parameters containing transaction details"
+          }
+        }
+      },
+      "AccountBalanceResult" : {
+        "type" : "object",
+        "description" : "Account balance result callback from Daraja API",
+        "properties" : {
+          "Result" : {
+            "$ref" : "#/components/schemas/AccountBalanceResultData",
+            "description" : "Result parameters containing account balance details"
+          }
+        }
+      },
+      "AccountBalanceResultData" : {
+        "type" : "object",
+        "description" : "Account balance result data",
+        "properties" : {
+          "ResultType" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result type",
+            "example" : "Result"
+          },
+          "ResultCode" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Result code (0 = success)",
+            "example" : 0
+          },
+          "ResultDesc" : {
+            "type" : "string",
+            "description" : "Result description",
+            "example" : "The service request is processed successfully."
+          },
+          "OriginatorConversationID" : {
+            "type" : "string",
+            "description" : "Originator conversation ID",
+            "example" : "21605-295434-4"
+          },
+          "ConversationID" : {
+            "type" : "string",
+            "description" : "Conversation ID",
+            "example" : "AG_20230727_2010400e808f7bb5f4"
+          },
+          "ResultParameters" : {
+            "$ref" : "#/components/schemas/AccountBalanceResultParameters",
+            "description" : "Result parameters with balance details"
+          },
+          "successful" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "AccountBalanceResultParameter" : {
+        "type" : "object",
+        "description" : "Individual account balance result parameter",
+        "properties" : {
+          "Key" : {
+            "type" : "string",
+            "description" : "Parameter name",
+            "example" : "AccountBalance"
+          },
+          "Value" : {
+            "type" : "string",
+            "description" : "Parameter value",
+            "example" : "10000.00|KES|10000.00|0.00"
+          }
+        }
+      },
+      "AccountBalanceResultParameters" : {
+        "type" : "object",
+        "description" : "Account balance result parameters",
+        "properties" : {
+          "ResultParameter" : {
+            "type" : "array",
+            "description" : "List of result parameter items",
+            "items" : {
+              "$ref" : "#/components/schemas/AccountBalanceResultParameter"
+            }
+          },
+          "utilityAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "workingAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "accountBalance" : {
+            "type" : "string"
+          },
+          "chargesPaidAccountAvailableFunds" : {
+            "type" : "string"
+          },
+          "bookedFunds" : {
+            "type" : "string"
+          },
+          "unclearedBalance" : {
+            "type" : "string"
+          },
+          "floatAccountAvailableFunds" : {
+            "type" : "string"
+          }
+        }
+      },
+      "PayoutFloatDto" : {
+        "type" : "object",
+        "description" : "A shortcode's float as Safaricom last reported it on a payout result",
+        "properties" : {
+          "shortcode_uuid" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "utility_account_available_funds" : {
+            "type" : "number"
+          },
+          "working_account_available_funds" : {
+            "type" : "number"
+          },
+          "reported_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "When Safaricom reported it; null when no payout has completed yet"
+          }
+        }
+      },
+      "MpesaIncomingPaymentDto" : {
+        "type" : "object",
+        "description" : "Incoming M-Pesa payment status view",
+        "properties" : {
+          "uuid" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "shortcode_uuid" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "payment_type" : {
+            "type" : "string",
+            "enum" : [ "STK_PUSH", "C2B" ]
+          },
+          "transaction_id" : {
+            "type" : "string"
+          },
+          "checkout_request_id" : {
+            "type" : "string"
+          },
+          "merchant_request_id" : {
+            "type" : "string"
+          },
+          "phone_number" : {
+            "type" : "string"
+          },
+          "amount" : {
+            "type" : "number"
+          },
+          "account_reference" : {
+            "type" : "string"
+          },
+          "transaction_desc" : {
+            "type" : "string"
+          },
+          "result_code" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ]
+          },
+          "transaction_date" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "processed_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      }
+    }
+  }
+}
