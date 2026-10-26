@@ -35,6 +35,11 @@ describe("formatRelative", () => {
     assert.equal(formatRelative(now - 3 * 3600_000, now), "3 hours ago");
     assert.equal(formatRelative(now - 86400_000, now), "yesterday");
   });
+
+  it("rounds to the nearest unit instead of truncating", () => {
+    assert.equal(formatRelative(now + 2 * 86400_000 - 19_000, now), "in 2 days");
+    assert.equal(formatRelative(now + 26 * 3600_000, now), "tomorrow");
+  });
 });
 
 describe("formatCount and maskPhone", () => {

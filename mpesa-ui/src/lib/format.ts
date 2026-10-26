@@ -69,7 +69,8 @@ export function formatRelative(value: DateInput, now: number | Date = Date.now()
   const seconds = Math.round((date.getTime() - Number(now)) / 1000);
   if (Math.abs(seconds) < 5) return "just now";
   const [unit, size] = UNITS.find(([, span]) => Math.abs(seconds) >= span) ?? ["second", 1];
-  return relativeFormat.format(Math.trunc(seconds / size), unit);
+  // Round, not truncate: an expiry 47 h 59 min away is "in 2 days", not "tomorrow".
+  return relativeFormat.format(Math.round(seconds / size), unit);
 }
 
 /** `3,598`; "—" when missing. */
