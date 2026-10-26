@@ -138,7 +138,7 @@ function DetailContent({
       value: callback.payment_uuid ? (
         <Link
           href={`/transactions?tx=${callback.payment_uuid}`}
-          className="font-medium text-primary underline-offset-4 hover:underline"
+          className="font-medium text-link underline-offset-4 hover:underline"
         >
           Open transaction
         </Link>
