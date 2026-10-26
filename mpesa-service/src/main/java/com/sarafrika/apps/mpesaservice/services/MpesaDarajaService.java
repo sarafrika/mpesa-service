@@ -124,6 +124,11 @@ public interface MpesaDarajaService {
      */
     MpesaApiResponse<TransactionStatusResponse> queryTransactionStatus(UUID shortcodeUuid, String transactionId, String remarks);
 
+    /** Transaction Status for a receipt, or (when the receipt is null) a request's original conversation id;
+     * Safaricom posts the answer to the transaction-status result URL. */
+    MpesaApiResponse<TransactionStatusResponse> queryTransactionStatus(MpesaShortCode shortcode, String transactionId,
+                                                                       String originalConversationId, String remarks);
+
     // ==================== 6. ACCOUNT BALANCE QUERY ====================
 
     /**

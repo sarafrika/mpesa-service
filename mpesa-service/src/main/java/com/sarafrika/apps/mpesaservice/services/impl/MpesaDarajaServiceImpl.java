@@ -15,9 +15,12 @@ import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.QRTransactionType;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -285,6 +288,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         if (configured != null && !configured.isBlank()) {
             return configured;
         }
+        return callbackUrl(path);
+    }
+
+    private String callbackUrl(String path) {
         return callbackBaseUrl.replaceAll("/+$", "") + path;
     }
 
@@ -347,6 +354,32 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             long processingTime = System.currentTimeMillis() - startTime;
             return MpesaApiResponse.success(response, HttpStatus.OK.value(), processingTime);
 
+        } catch (Exception e) {
+            return handleException(e, startTime, "Transaction status query");
+        }
+    }
+
+    @Override
+    public MpesaApiResponse<TransactionStatusResponse> queryTransactionStatus(MpesaShortCode shortcode,
+                                                                              String transactionId,
+                                                                              String originalConversationId,
+                                                                              String remarks) {
+        long startTime = System.currentTimeMillis();
+        try {
+            String accessToken = getAccessToken(shortcode);
+            if (accessToken == null) {
+                return MpesaApiResponse.error("AUTH_FAILED",
+                        "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
+            }
+            Map<String, Object> payload = buildTransactionStatusPayload(shortcode, transactionId, remarks);
+            // Lets Safaricom find a B2C/B2B request that never got a receipt (unverified outside the portal).
+            if (transactionId == null && originalConversationId != null) {
+                payload.remove("TransactionID");
+                payload.put("OriginalConversationID", originalConversationId);
+            }
+            TransactionStatusResponse response = getHttpClient(shortcode.getEnvironment())
+                    .queryTransactionStatus("Bearer " + accessToken, payload);
+            return MpesaApiResponse.success(response, HttpStatus.OK.value(), System.currentTimeMillis() - startTime);
         } catch (Exception e) {
             return handleException(e, startTime, "Transaction status query");
         }
@@ -475,6 +508,7 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             payment.setMerchantRequestId(response.merchantRequestId());
             payment.setTransactionId(response.checkoutRequestId());
             payment.setStatus(IncomingPaymentStatus.PENDING);
+            payment.setClientId(callingClientId());
             incomingPaymentService.create(payment);
             log.debug("Persisted PENDING STK Push payment for checkoutRequestId: {}", response.checkoutRequestId());
         } catch (Exception e) {
@@ -482,6 +516,14 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             log.error("Failed to persist PENDING STK Push payment for shortcode {}: {}",
                     shortcodeUuid, e.getMessage(), e);
         }
+    }
+
+    /** The product (Keycloak azp) whose token asked for this, so its payment events reach it. */
+    private static String callingClientId() {
+        if (SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken jwt) {
+            return jwt.getToken().getClaimAsString("azp");
+        }
+        return null;
     }
 
     private MpesaShortCode getShortcodeOrThrow(UUID shortcodeUuid) {
@@ -678,9 +720,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         payload.put("CommandID", "TransactionStatusQuery");
         payload.put("TransactionID", transactionId);
         payload.put("PartyA", shortcode.getShortcode());
-        payload.put("IdentifierType", "4");
-        payload.put("ResultURL", shortcode.getCallbackUrl());
-        payload.put("QueueTimeOutURL", shortcode.getCallbackUrl());
+        // IdentifierType 2 is a till number, 4 an organisation shortcode (paybill).
+        payload.put("IdentifierType", shortcode.getShortcodeType() == ShortcodeType.TILL ? "2" : "4");
+        payload.put("ResultURL", callbackUrl("/transaction-status/result"));
+        payload.put("QueueTimeOutURL", callbackUrl("/transaction-status/timeout"));
         payload.put("Remarks", remarks != null ? remarks : "Transaction Status Query");
         payload.put("Occasion", "TransactionStatusQuery");
         return payload;

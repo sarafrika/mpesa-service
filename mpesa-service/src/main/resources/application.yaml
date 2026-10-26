@@ -116,6 +116,13 @@ mpesa:
     testing:
       enabled: ${CALLBACK_TESTING_ENABLED:false}
 
+  # STK requests still PENDING after status-query-after get an STK push query and are settled.
+  stk:
+    status-query-enabled: ${MPESA_STK_STATUS_QUERY_ENABLED:true}
+    status-query-after: ${MPESA_STK_STATUS_QUERY_AFTER:10m}
+    status-query-interval-ms: ${MPESA_STK_STATUS_QUERY_INTERVAL_MS:60000}
+    status-query-batch: 50
+
 # Request logging configuration
 logging:
   level:

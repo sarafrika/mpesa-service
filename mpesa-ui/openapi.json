@@ -544,74 +544,6 @@
         },
         "type" : "object"
       },
-      "C2BConfirmationCallback" : {
-        "description" : "C2B confirmation callback from Daraja API",
-        "properties" : {
-          "BillRefNumber" : {
-            "description" : "Bill reference number/account number",
-            "example" : "account001",
-            "type" : "string"
-          },
-          "BusinessShortCode" : {
-            "description" : "Business shortcode that received payment",
-            "example" : 600134,
-            "type" : "string"
-          },
-          "FirstName" : {
-            "description" : "Customer first name",
-            "example" : "John",
-            "type" : "string"
-          },
-          "InvoiceNumber" : {
-            "description" : "Invoice number if applicable",
-            "type" : "string"
-          },
-          "LastName" : {
-            "description" : "Customer last name",
-            "example" : "Doe",
-            "type" : "string"
-          },
-          "MSISDN" : {
-            "description" : "Customer phone number",
-            "example" : 254708374149,
-            "type" : "string"
-          },
-          "MiddleName" : {
-            "description" : "Customer middle name",
-            "example" : "J",
-            "type" : "string"
-          },
-          "OrgAccountBalance" : {
-            "description" : "Organization account balance after transaction",
-            "type" : "number"
-          },
-          "ThirdPartyTransID" : {
-            "description" : "Third party transaction ID",
-            "type" : "string"
-          },
-          "TransAmount" : {
-            "description" : "Transaction amount",
-            "example" : 100.0,
-            "type" : "number"
-          },
-          "TransID" : {
-            "description" : "Transaction ID",
-            "example" : "LHG31AA5TX",
-            "type" : "string"
-          },
-          "TransTime" : {
-            "description" : "Transaction time in format YYYYMMDDHHMMSS",
-            "example" : 20230727104247,
-            "type" : "string"
-          },
-          "TransType" : {
-            "description" : "Transaction type",
-            "example" : "Pay Bill",
-            "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
       "C2BValidationRequest" : {
         "description" : "C2B validation request from Daraja API",
         "properties" : {
@@ -680,13 +612,12 @@
         "description" : "C2B validation response to send to Daraja API",
         "properties" : {
           "ResultCode" : {
-            "description" : "Result code (0 = accept, 1 = reject)",
+            "description" : "\"0\" accepts; C2B00011-C2B00016 reject",
             "example" : 0,
-            "format" : "int32",
-            "type" : "integer"
+            "type" : "string"
           },
           "ResultDesc" : {
-            "description" : "Result description",
+            "description" : "Accepted or Rejected",
             "example" : "Accepted",
             "type" : "string"
           }
@@ -1120,6 +1051,38 @@
         "required" : [ "items", "page", "size", "total_items", "total_pages" ],
         "type" : "object"
       },
+      "PageResponseTransactionDto" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TransactionDto"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "example" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "example" : 25,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "total_items" : {
+            "example" : 120,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "example" : 5,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "items", "page", "size", "total_items", "total_pages" ],
+        "type" : "object"
+      },
       "PaybillHealthDto" : {
         "properties" : {
           "active" : {
@@ -1365,6 +1328,50 @@
         "required" : [ "amount", "business_name", "shortcode", "shortcode_uuid" ],
         "type" : "object"
       },
+      "StatusQueryDto" : {
+        "properties" : {
+          "completed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "method" : {
+            "enum" : [ "TRANSACTION_STATUS", "STK_QUERY" ],
+            "type" : "string"
+          },
+          "receipt" : {
+            "type" : "string"
+          },
+          "requested_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requested_by" : {
+            "type" : "string"
+          },
+          "result_code" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "COMPLETED", "FAILED", "TIMED_OUT" ],
+            "type" : "string"
+          },
+          "transaction_status" : {
+            "description" : "Safaricom's TransactionStatus, e.g. Completed",
+            "example" : "Completed",
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "method", "requested_at", "status", "uuid" ],
+        "type" : "object"
+      },
       "StkPushRequest" : {
         "description" : "Request to initiate an STK Push payment",
         "properties" : {
@@ -1428,6 +1435,31 @@
         },
         "type" : "object"
       },
+      "TimelineEventDto" : {
+        "properties" : {
+          "at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "example" : "result_received",
+            "type" : "string"
+          },
+          "title" : {
+            "example" : "Result callback: Success",
+            "type" : "string"
+          },
+          "tone" : {
+            "enum" : [ "success", "warning", "danger", "info", "muted" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "kind", "title", "tone" ],
+        "type" : "object"
+      },
       "TimeseriesPointDto" : {
         "properties" : {
           "bucket_start" : {
@@ -1455,6 +1487,181 @@
           }
         },
         "required" : [ "bucket_start", "collections_amount", "collections_count", "payouts_amount", "payouts_count" ],
+        "type" : "object"
+      },
+      "TransactionDetailDto" : {
+        "properties" : {
+          "can_query_status" : {
+            "description" : "Whether Safaricom can be asked for its status (a known shortcode, and a receipt, checkout id or conversation id to ask about)",
+            "type" : "boolean"
+          },
+          "charges_paid" : {
+            "type" : "number"
+          },
+          "command_id" : {
+            "type" : "string"
+          },
+          "first_name" : {
+            "type" : "string"
+          },
+          "initiator_name" : {
+            "type" : "string"
+          },
+          "invoice_number" : {
+            "type" : "string"
+          },
+          "last_name" : {
+            "type" : "string"
+          },
+          "merchant_request_id" : {
+            "type" : "string"
+          },
+          "middle_name" : {
+            "type" : "string"
+          },
+          "occasion" : {
+            "type" : "string"
+          },
+          "org_account_balance" : {
+            "description" : "The paybill's balance after a C2B payment, as Safaricom reported it",
+            "type" : "number"
+          },
+          "raw_callback" : {
+            "additionalProperties" : true,
+            "description" : "Safaricom's last callback for it, exactly as received"
+          },
+          "remarks" : {
+            "type" : "string"
+          },
+          "status_queries" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StatusQueryDto"
+            },
+            "type" : "array"
+          },
+          "timed_out_at" : {
+            "description" : "Set when Safaricom reported a queue timeout; the outcome is then still unknown",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "timeline" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TimelineEventDto"
+            },
+            "type" : "array"
+          },
+          "transaction" : {
+            "$ref" : "#/components/schemas/TransactionDto"
+          },
+          "transaction_desc" : {
+            "type" : "string"
+          },
+          "utility_account_available_funds" : {
+            "type" : "number"
+          },
+          "working_account_available_funds" : {
+            "type" : "number"
+          }
+        },
+        "required" : [ "can_query_status", "status_queries", "timeline", "transaction" ],
+        "type" : "object"
+      },
+      "TransactionDto" : {
+        "properties" : {
+          "account_reference" : {
+            "description" : "BillRefNumber or STK account reference; the client reference for payouts",
+            "example" : "ELM-004512",
+            "type" : "string"
+          },
+          "amount" : {
+            "example" : 4500.0,
+            "type" : "number"
+          },
+          "business_name" : {
+            "example" : "Elimika Fees",
+            "type" : "string"
+          },
+          "c2b_channel" : {
+            "enum" : [ "PAYBILL", "BUY_GOODS" ],
+            "type" : "string"
+          },
+          "checkout_request_id" : {
+            "example" : "ws_CO_26102026143140",
+            "type" : "string"
+          },
+          "client_id" : {
+            "description" : "The product (Keycloak azp) that asked for it",
+            "example" : "elimika-backend",
+            "type" : "string"
+          },
+          "conversation_id" : {
+            "example" : "AG_20261026_0000a91c",
+            "type" : "string"
+          },
+          "created_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "customer_name" : {
+            "example" : "JANE W KAMAU",
+            "type" : "string"
+          },
+          "direction" : {
+            "enum" : [ "in", "out" ],
+            "type" : "string"
+          },
+          "originator_conversation_id" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "description" : "Payer or recipient MSISDN as Safaricom gave it",
+            "example" : 254712345612,
+            "type" : "string"
+          },
+          "processed_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "receipt" : {
+            "description" : "M-Pesa receipt; null until Safaricom issues one",
+            "example" : "TJQ4K2L9XA",
+            "type" : "string"
+          },
+          "result_code" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "result_desc" : {
+            "type" : "string"
+          },
+          "shortcode" : {
+            "example" : 600100,
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "description" : "Null for a C2B payment to a shortcode not configured here",
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
+            "type" : "string"
+          },
+          "transaction_date" : {
+            "description" : "When M-Pesa says it happened",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "C2B", "STK_PUSH", "B2C", "B2B" ],
+            "type" : "string"
+          },
+          "uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "amount", "created_at", "direction", "status", "type", "uuid" ],
         "type" : "object"
       },
       "TransactionReversalResult" : {
@@ -1750,6 +1957,143 @@
           }
         },
         "required" : [ "amount", "count", "payment_type" ],
+        "type" : "object"
+      },
+      "UpdateValidationRulesRequest" : {
+        "properties" : {
+          "account_pattern" : {
+            "example" : "^ELM-[0-9]{6}$",
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "lookup_timeout_ms" : {
+            "example" : 2000,
+            "format" : "int32",
+            "maximum" : 5000,
+            "minimum" : 100,
+            "type" : "integer"
+          },
+          "lookup_url" : {
+            "example" : "https://elimika.example/mpesa/accounts",
+            "maxLength" : 500,
+            "minLength" : 0,
+            "pattern" : "^$|^https?://\\S+$",
+            "type" : "string"
+          },
+          "max_amount" : {
+            "example" : 250000.0,
+            "minimum" : 1.0,
+            "type" : "number"
+          },
+          "min_amount" : {
+            "example" : 10.0,
+            "minimum" : 1.0,
+            "type" : "number"
+          },
+          "on_lookup_failure" : {
+            "enum" : [ "ACCEPT", "REJECT" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "on_lookup_failure" ],
+        "type" : "object"
+      },
+      "ValidationDryRunRequest" : {
+        "properties" : {
+          "account" : {
+            "example" : "ELM-004512",
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "amount" : {
+            "example" : 4500.0,
+            "minimum" : 0.01,
+            "type" : "number"
+          },
+          "msisdn" : {
+            "example" : 254712345678,
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "rules" : {
+            "$ref" : "#/components/schemas/UpdateValidationRulesRequest",
+            "description" : "Unsaved rules to try; the saved rules are used when absent"
+          }
+        },
+        "required" : [ "account", "amount" ],
+        "type" : "object"
+      },
+      "ValidationDryRunResult" : {
+        "properties" : {
+          "accepted" : {
+            "type" : "boolean"
+          },
+          "reason" : {
+            "example" : "Account 'X1' does not match ^ELM-[0-9]{6}$",
+            "type" : "string"
+          },
+          "result_code" : {
+            "example" : "C2B00012",
+            "type" : "string"
+          }
+        },
+        "required" : [ "accepted", "reason", "result_code" ],
+        "type" : "object"
+      },
+      "ValidationRulesDto" : {
+        "properties" : {
+          "account_pattern" : {
+            "description" : "Java regex the whole account number must match; null accepts any",
+            "example" : "^ELM-[0-9]{6}$",
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "configured" : {
+            "type" : "boolean"
+          },
+          "lookup_timeout_ms" : {
+            "example" : 2000,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lookup_url" : {
+            "description" : "Product endpoint asked to confirm each account",
+            "example" : "https://elimika.example/mpesa/accounts",
+            "type" : "string"
+          },
+          "max_amount" : {
+            "example" : 250000.0,
+            "type" : "number"
+          },
+          "min_amount" : {
+            "example" : 10.0,
+            "type" : "number"
+          },
+          "on_lookup_failure" : {
+            "enum" : [ "ACCEPT", "REJECT" ],
+            "type" : "string"
+          },
+          "shortcode_uuid" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "updated_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "updated_by" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "configured", "lookup_timeout_ms", "on_lookup_failure", "shortcode_uuid" ],
         "type" : "object"
       }
     }
@@ -2220,6 +2564,456 @@
         "tags" : [ "Admin: Metrics" ]
       }
     },
+    "/api/v1/admin/shortcodes/{uuid}/validation-rules" : {
+      "get" : {
+        "operationId" : "getValidationRules",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationRulesDto"
+                }
+              }
+            },
+            "description" : "The rules; configured is false when none were saved"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "A shortcode's C2B validation rules",
+        "tags" : [ "Admin: C2B validation" ]
+      },
+      "put" : {
+        "operationId" : "updateValidationRules",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateValidationRulesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationRulesDto"
+                }
+              }
+            },
+            "description" : "The saved rules"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "A field is invalid, e.g. the pattern does not compile"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Replace a shortcode's C2B validation rules",
+        "tags" : [ "Admin: C2B validation" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/validation-rules/dry-run" : {
+      "post" : {
+        "operationId" : "dryRunValidationRules",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ValidationDryRunRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationDryRunResult"
+                }
+              }
+            },
+            "description" : "What Safaricom would be told"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "A field is invalid"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          }
+        },
+        "summary" : "Run a pretend payment through the saved rules, or through unsaved ones",
+        "tags" : [ "Admin: C2B validation" ]
+      }
+    },
+    "/api/v1/admin/transactions" : {
+      "get" : {
+        "operationId" : "listTransactions",
+        "parameters" : [ {
+          "description" : "Zero-based page number",
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Page size; values above 100 are clamped to 100",
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 25,
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        }, {
+          "description" : "field,asc|desc; repeatable. Fields: created_at, amount. Default created_at,desc",
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "example" : "created_at,desc",
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        }, {
+          "description" : "Money in or money out",
+          "in" : "query",
+          "name" : "direction",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "in", "out" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "C2B", "STK_PUSH", "B2C", "B2B" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "PENDING", "SUCCESS", "FAILED", "CANCELLED" ],
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "shortcode_uuid",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Payer or recipient phone; 07…, 7… and +254… are all understood",
+          "in" : "query",
+          "name" : "phone",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Receipt, checkout id or conversation id (exact), or account/client reference (prefix)",
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Created at or after (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "from",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Created before (ISO-8601 with offset)",
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageResponseTransactionDto"
+                }
+              }
+            },
+            "description" : "A page of transactions"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Bad paging, sort or filter value"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          }
+        },
+        "summary" : "List incoming and outgoing payments, newest first",
+        "tags" : [ "Admin: Transactions" ]
+      }
+    },
+    "/api/v1/admin/transactions/{uuid}" : {
+      "get" : {
+        "operationId" : "getTransaction",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransactionDetailDto"
+                }
+              }
+            },
+            "description" : "The transaction"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-viewer"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such transaction"
+          }
+        },
+        "summary" : "One transaction with its timeline and raw callback",
+        "tags" : [ "Admin: Transactions" ]
+      }
+    },
+    "/api/v1/admin/transactions/{uuid}/query-status" : {
+      "post" : {
+        "operationId" : "queryTransactionStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusQueryDto"
+                }
+              }
+            },
+            "description" : "The query was sent; an STK query is already answered"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Requires mpesa-operator"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such transaction"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Nothing Safaricom could be asked about, or no initiator"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom refused the query"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Safaricom could not be reached"
+          }
+        },
+        "summary" : "Ask Safaricom for the transaction's status; the answer settles it when it arrives",
+        "tags" : [ "Admin: Transactions" ]
+      }
+    },
     "/api/v1/callbacks/account-balance/result" : {
       "post" : {
         "operationId" : "handleAccountBalanceResult",
@@ -2367,7 +3161,8 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/C2BConfirmationCallback"
+                "additionalProperties" : { },
+                "type" : "object"
               }
             }
           },
@@ -2508,6 +3303,35 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/TransactionStatusResult"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CallbackAcknowledgment"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "b-2-cb-2-b-callback-controller" ]
+      }
+    },
+    "/api/v1/callbacks/transaction-status/timeout" : {
+      "post" : {
+        "operationId" : "handleTransactionStatusTimeout",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "additionalProperties" : { },
+                "type" : "object"
               }
             }
           },
@@ -2736,6 +3560,9 @@
     }
   },
   "tags" : [ {
+    "description" : "Every deposit, STK request and payout across all paybills",
+    "name" : "Admin: Transactions"
+  }, {
     "description" : "Initiate STK Push payments and poll incoming payment status",
     "name" : "M-Pesa Payments"
   }, {
@@ -2744,6 +3571,9 @@
   }, {
     "description" : "Figures for the console Overview",
     "name" : "Admin: Metrics"
+  }, {
+    "description" : "How a paybill answers Safaricom's C2B validation request",
+    "name" : "Admin: C2B validation"
   }, {
     "description" : "Send B2C payouts and poll their outcome",
     "name" : "M-Pesa Payouts"

@@ -7,7 +7,10 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentReposito
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
+import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,7 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
 
     private final MpesaIncomingPaymentRepository repository;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final DateTimeFormatter MPESA_TIMESTAMP_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -199,13 +203,38 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
             }
         }
 
+        IncomingPaymentStatus previous = payment.getStatus();
         payment.setStatus(resolveStatus(resultCode));
         payment.setProcessedAt(LocalDateTime.now());
 
         MpesaIncomingPayment saved = repository.save(payment);
         log.info("STK Push callback processed for checkoutRequestId: {} -> status: {}",
                 checkoutRequestId, saved.getStatus());
+        // A retried callback (or one after the status job settled it) must not announce the payment twice.
+        if (saved.getStatus() != previous) {
+            eventPublisher.publishEvent(stkEvent(saved));
+        }
         return saved;
+    }
+
+    private PaymentEvent stkEvent(MpesaIncomingPayment payment) {
+        String type = switch (payment.getStatus()) {
+            case SUCCESS -> PaymentEvent.STK_COMPLETED;
+            case CANCELLED -> PaymentEvent.STK_CANCELLED;
+            default -> PaymentEvent.STK_FAILED;
+        };
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("checkout_request_id", payment.getCheckoutRequestId());
+        data.put("merchant_request_id", payment.getMerchantRequestId());
+        data.put("receipt", Objects.equals(payment.getTransactionId(), payment.getCheckoutRequestId())
+                ? null : payment.getTransactionId());
+        data.put("amount", payment.getAmount());
+        data.put("phone_number", payment.getPhoneNumber());
+        data.put("account_reference", payment.getAccountReference());
+        data.put("result_code", payment.getResultCode());
+        data.put("result_desc", payment.getResultDesc());
+        data.put("status", payment.getStatus().name());
+        return new PaymentEvent(type, payment.getShortcodeUuid(), payment.getUuid(), payment.getClientId(), data);
     }
 
     @Override
