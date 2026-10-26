@@ -39,7 +39,6 @@ type NavItem = {
   badge?: ComponentType;
 };
 
-// Items without `ready` arrive with the admin API; they stay visible so the shape is clear.
 const NAV: { label: string; items: NavItem[] }[] = [
   {
     label: "Monitor",
@@ -67,7 +66,7 @@ const NAV: { label: string; items: NavItem[] }[] = [
     label: "System",
     items: [
       { title: "Callback inbox", href: "/callbacks", icon: Inbox, ready: true },
-      { title: "Audit log", href: "/audit", icon: ScrollText },
+      { title: "Audit log", href: "/audit", icon: ScrollText, ready: true },
     ],
   },
 ];
