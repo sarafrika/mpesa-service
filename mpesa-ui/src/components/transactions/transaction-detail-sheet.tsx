@@ -64,7 +64,17 @@ export function TransactionDetailSheet({ uuid, onClose }: TransactionDetailSheet
 }
 
 function DetailBody({ uuid }: { uuid: string }) {
-  const query = useGetTransaction(uuid);
+  // A reversal on its way to Safaricom settles by itself; keep asking until it does.
+  const query = useGetTransaction(uuid, {
+    query: {
+      refetchInterval: (q) => {
+        const reversal = q.state.data?.status === 200 ? q.state.data.data.reversal : undefined;
+        return reversal && (reversal.status === "SENDING" || reversal.status === "SENT")
+          ? 5000
+          : false;
+      },
+    },
+  });
   const detail = query.data?.status === 200 ? query.data.data : undefined;
 
   if (!detail) {
@@ -120,7 +130,7 @@ function DetailContent({
             description:
               answer?.method === "STK_QUERY"
                 ? (answer.result_desc ?? "The transaction was updated.")
-                : "Safaricom answers in a few seconds; the timeline updates when it does.",
+                : "The timeline updates when Safaricom's answer arrives.",
           },
         );
         queryClient.invalidateQueries({ queryKey: getGetTransactionQueryKey(tx.uuid) });
@@ -194,8 +204,8 @@ function DetailContent({
             <CircleHelp aria-hidden />
             <AlertTitle>Outcome not known yet</AlertTitle>
             <AlertDescription>
-              Safaricom did not answer when this was sent, so the money may have moved. Do not send
-              it again; query its status or wait for Safaricom's result.
+              No answer came back when this was sent, so the money may have moved. Do not send it
+              again; query its status or wait for the result.
             </AlertDescription>
           </Alert>
         )}

@@ -57,6 +57,46 @@ export function isRunning(status: string): boolean {
   return status === "APPROVED" || status === "EXECUTING";
 }
 
+// Reversal states still waiting on a result; OUTCOME_UNKNOWN can still settle when a late result arrives.
+const REVERSAL_MOVING = new Set(["SENDING", "SENT"]);
+const REVERSAL_SETTLING = new Set(["OUTCOME_UNKNOWN"]);
+
+type PollState = {
+  status: string;
+  reversal?: { status: string } | null;
+  decided_at?: string | null;
+};
+
+/** True while the request or its reversal can still change on its own. */
+export function isInFlight(detail: PollState): boolean {
+  if (isRunning(detail.status)) return true;
+  const reversal = detail.reversal?.status;
+  return (
+    reversal !== undefined && (REVERSAL_MOVING.has(reversal) || REVERSAL_SETTLING.has(reversal))
+  );
+}
+
+/**
+ * How long to wait before asking again, or false once nothing can change: quick right after the
+ * decision, then backing off; slower still after a failed refresh or while the outcome is unknown.
+ */
+export function approvalPollDelay(
+  detail: PollState | undefined,
+  now: number,
+  lastFetchFailed = false,
+): number | false {
+  if (!detail || !isInFlight(detail)) return false;
+  const decided = detail.decided_at ? Date.parse(detail.decided_at) : Number.NaN;
+  const elapsed = Number.isFinite(decided) ? Math.max(0, now - decided) : 0;
+  let delay =
+    elapsed < 30_000 ? 2000 : elapsed < 120_000 ? 5000 : elapsed < 600_000 ? 15_000 : 30_000;
+  const reversal = detail.reversal?.status;
+  if (!isRunning(detail.status) && reversal && REVERSAL_SETTLING.has(reversal)) {
+    delay = Math.max(delay, 60_000);
+  }
+  return lastFetchFailed ? Math.min(delay * 2, 120_000) : delay;
+}
+
 /** Why the signed-in user cannot decide, or undefined when they can. */
 export function decisionBlocker(options: {
   status: string;

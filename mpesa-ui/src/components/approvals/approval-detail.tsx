@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRight, Info, MousePointerClick } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   getGetApprovalQueryKey,
@@ -35,9 +35,11 @@ import { useHasRole } from "@/hooks/use-has-role";
 import { describeApiError, isApiError } from "@/lib/api-errors";
 import { formatDateTime, formatKes, formatRelative } from "@/lib/format";
 import {
+  approvalPollDelay,
   approvalTypeLabel,
   approvalTypeTone,
   decisionBlocker,
+  isInFlight,
   isRunning,
   preCheckLabel,
   preCheckTone,
@@ -47,18 +49,34 @@ import { ToneBadge } from "./tone-badge";
 
 type ApprovalDetailProps = { uuid?: string; onDecided?: () => void };
 
-/** The open request: facts, pre-checks and the checker's decision. Polls while it runs. */
+/** The open request: facts, pre-checks and the checker's decision. Polls while it or its reversal runs. */
 export function ApprovalDetail({ uuid, onDecided }: ApprovalDetailProps) {
+  const queryClient = useQueryClient();
   const query = useGetApproval(uuid ?? "", {
     query: {
       enabled: Boolean(uuid),
       refetchInterval: (q) => {
         const data = q.state.data;
-        return data?.status === 200 && isRunning(data.data.status) ? 3000 : false;
+        return approvalPollDelay(
+          data?.status === 200 ? data.data : undefined,
+          Date.now(),
+          q.state.status === "error",
+        );
       },
     },
   });
   const detail = query.data?.status === 200 ? query.data.data : undefined;
+  const inFlight = detail ? isInFlight(detail) : undefined;
+
+  // Once it settles, the queue and the badge count move on too.
+  const wasInFlight = useRef(inFlight);
+  useEffect(() => {
+    if (wasInFlight.current && inFlight === false) {
+      queryClient.invalidateQueries({ queryKey: getListApprovalsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetApprovalSummaryQueryKey() });
+    }
+    wasInFlight.current = inFlight;
+  }, [inFlight, queryClient]);
 
   if (!uuid) {
     return (
@@ -224,7 +242,7 @@ function DetailContent({
         <Alert>
           <Info aria-hidden />
           <AlertDescription className="flex flex-col items-start gap-3">
-            Safaricom never confirmed this reversal, so it holds the payment. If the M-Pesa
+            No result has come back for this reversal, so it holds the payment. If the M-Pesa
             statement shows it did not happen, close it as failed; that frees the payment for a new
             request.
             <CloseAsFailedDialog

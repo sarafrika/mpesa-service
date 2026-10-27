@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  approvalPollDelay,
   approvalTypeLabel,
   asApprovalTab,
   batchProgress,
@@ -9,6 +10,52 @@ import {
   previewRows,
   tabStatuses,
 } from "./approval-format.ts";
+
+describe("approval polling", () => {
+  const decided = "2026-10-27T11:57:00Z";
+  const at = (seconds: number) => Date.parse(decided) + seconds * 1000;
+
+  it("stops once the request and its reversal are final", () => {
+    assert.equal(approvalPollDelay(undefined, at(0)), false);
+    assert.equal(approvalPollDelay({ status: "WAITING" }, at(0)), false);
+    assert.equal(approvalPollDelay({ status: "EXECUTED" }, at(0)), false);
+    assert.equal(
+      approvalPollDelay({ status: "FAILED", reversal: { status: "FAILED" } }, at(0)),
+      false,
+    );
+    assert.equal(
+      approvalPollDelay({ status: "EXECUTED", reversal: { status: "REVERSED" } }, at(0)),
+      false,
+    );
+  });
+
+  it("keeps polling a sent request until the reversal settles", () => {
+    const sent = { status: "EXECUTED", reversal: { status: "SENT" }, decided_at: decided };
+    assert.equal(approvalPollDelay(sent, at(5)), 2000);
+    assert.equal(
+      approvalPollDelay({ status: "EXECUTING", reversal: { status: "SENDING" } }, at(5)),
+      2000,
+    );
+  });
+
+  it("backs off the longer it runs and after a failed refresh", () => {
+    const running = { status: "EXECUTING", decided_at: decided };
+    assert.equal(approvalPollDelay(running, at(10)), 2000);
+    assert.equal(approvalPollDelay(running, at(60)), 5000);
+    assert.equal(approvalPollDelay(running, at(300)), 15_000);
+    assert.equal(approvalPollDelay(running, at(3600)), 30_000);
+    assert.equal(approvalPollDelay(running, at(60), true), 10_000);
+  });
+
+  it("checks an unknown outcome only now and then", () => {
+    const unknown = {
+      status: "EXECUTED",
+      reversal: { status: "OUTCOME_UNKNOWN" },
+      decided_at: decided,
+    };
+    assert.equal(approvalPollDelay(unknown, at(5)), 60_000);
+  });
+});
 
 describe("approval tabs", () => {
   it("falls back to Waiting and maps Approved to every status after approval", () => {
