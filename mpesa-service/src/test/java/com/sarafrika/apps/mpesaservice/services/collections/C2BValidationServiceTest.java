@@ -64,6 +64,32 @@ class C2BValidationServiceTest {
         shortcode.setShortcode("600100");
         shortcode.setIsActive(true);
         when(shortcodes.findByShortcode("600100")).thenReturn(Optional.of(shortcode));
+        when(shortcodes.findByNumber(org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
+        when(shortcodes.findFirstByShortcodeTypeAndStoreNumber(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(Optional.empty());
+    }
+
+    @Test
+    void aTillIsFoundByItsStoreNumberAndIgnoresTheAccountPattern() {
+        MpesaShortCode till = new MpesaShortCode();
+        till.setUuid(UUID.randomUUID());
+        till.setShortcode("5123456");
+        till.setStoreNumber("174300");
+        till.setShortcodeType(com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType.TILL);
+        till.setIsActive(true);
+        when(shortcodes.findByShortcode("174300")).thenReturn(Optional.empty());
+        when(shortcodes.findFirstByShortcodeTypeAndStoreNumber(
+                com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType.TILL, "174300")).thenReturn(Optional.of(till));
+        C2BValidationRule rule = rule("^ELM-[0-9]{6}$", "5", null, null);
+        rule.setActive(true);
+        when(rules.findByShortcodeUuid(till.getUuid())).thenReturn(Optional.of(rule));
+        C2BValidationRequest buyGoods = new C2BValidationRequest("Buy Goods", "T9", "20261026143208",
+                new BigDecimal("10"), "174300", null, null, null, "254712345678", null, null, null);
+
+        assertThat(service.validate(buyGoods).accepted()).isTrue();
+        C2BValidationRequest tooSmall = new C2BValidationRequest("Buy Goods", "T9", "20261026143208",
+                new BigDecimal("1"), "174300", null, null, null, "254712345678", null, null, null);
+        assertThat(service.validate(tooSmall).resultCode()).isEqualTo(C2BResultCodes.INVALID_AMOUNT);
     }
 
     @AfterEach

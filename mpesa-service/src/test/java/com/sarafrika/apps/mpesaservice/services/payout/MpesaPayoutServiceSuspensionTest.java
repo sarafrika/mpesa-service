@@ -34,6 +34,7 @@ class MpesaPayoutServiceSuspensionTest {
         MpesaShortCode code = new MpesaShortCode();
         code.setUuid(UUID.randomUUID());
         code.setShortcode("600200");
+        code.setShortcodeType(com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType.B2C);
         code.setInitiatorName("api");
         code.setIsActive(false);
         when(payments.findByClientIdAndClientReference(any(), any())).thenReturn(Optional.empty());

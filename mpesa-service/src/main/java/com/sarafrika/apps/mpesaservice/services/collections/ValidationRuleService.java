@@ -14,7 +14,11 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.security.OutboundUrlGuard;
 import com.sarafrika.apps.mpesaservice.utils.Times;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.utils.enums.LookupFailurePolicy;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
+import java.math.BigDecimal;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,7 +47,12 @@ public class ValidationRuleService {
 
     @Transactional
     public ValidationRulesDto update(UUID shortcodeUuid, UpdateValidationRulesRequest request) {
-        shortcode(shortcodeUuid);
+        MpesaShortCode shortcode = shortcode(shortcodeUuid);
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.C2B_VALIDATION);
+        if (shortcode.getShortcodeType() == ShortcodeType.TILL && StringUtils.hasText(request.accountPattern())) {
+            throw new InvalidRequestException("account_pattern", "is not used on a till: Buy Goods payments carry "
+                    + "no account number");
+        }
         check(request);
         C2BValidationRule rule = ruleRepository.findByShortcodeUuid(shortcodeUuid).orElseGet(() -> {
             C2BValidationRule created = new C2BValidationRule();
@@ -66,10 +75,13 @@ public class ValidationRuleService {
         return after;
     }
 
-    /** Runs a pretend payment through the saved rules (or the draft in the request), lookup included. */
+    /** Runs a pretend payment through the saved rules (or the draft in the request), lookup included. A missing
+     * account or amount is filled with a sample the rules accept: an account built from the pattern, and the
+     * rule minimum (or 1). */
     @Transactional(readOnly = true)
     public ValidationDryRunResult dryRun(UUID shortcodeUuid, ValidationDryRunRequest request) {
         MpesaShortCode shortcode = shortcode(shortcodeUuid);
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.C2B_VALIDATION);
         C2BValidationService.RuleSet rules;
         if (request.rules() != null) {
             check(request.rules());
@@ -81,9 +93,32 @@ public class ValidationRuleService {
         } else {
             rules = ruleRepository.findByShortcodeUuid(shortcodeUuid).map(C2BValidationService.RuleSet::of).orElse(null);
         }
-        ValidationDecision decision = validationService.evaluate(rules, shortcode.getShortcode(), request.account(),
-                request.amount(), request.msisdn(), "DRYRUN");
-        return new ValidationDryRunResult(decision.accepted(), decision.resultCode(), decision.reason());
+        rules = C2BValidationService.forType(rules, shortcode.getShortcodeType());
+        String account = request.account() != null ? request.account() : sampleAccount(shortcode, rules);
+        BigDecimal amount = request.amount() != null ? request.amount()
+                : rules != null && rules.minAmount() != null && rules.minAmount().signum() > 0 ? rules.minAmount()
+                : BigDecimal.ONE;
+        ValidationDecision decision = validationService.evaluate(rules, shortcode.getShortcode(), account,
+                amount, request.msisdn(), "DRYRUN");
+        return new ValidationDryRunResult(decision.accepted(), decision.resultCode(), decision.reason(), account,
+                amount);
+    }
+
+    private static String sampleAccount(MpesaShortCode shortcode, C2BValidationService.RuleSet rules) {
+        if (shortcode.getShortcodeType() == ShortcodeType.TILL) {
+            return "";
+        }
+        String pattern = rules == null || !rules.active() ? null : rules.accountPattern();
+        if (!StringUtils.hasText(pattern)) {
+            return StringUtils.hasText(shortcode.getAccountReference()) ? shortcode.getAccountReference().trim()
+                    : "TEST-001";
+        }
+        String sample = AccountSamples.sample(pattern);
+        if (sample == null) {
+            throw new InvalidRequestException("account", "is required: no sample account could be built from the "
+                    + "account pattern " + pattern + ", so enter one that matches");
+        }
+        return sample;
     }
 
     private void check(UpdateValidationRulesRequest request) {

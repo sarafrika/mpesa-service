@@ -1,7 +1,9 @@
 package com.sarafrika.apps.mpesaservice.dtos.admin.shortcode;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
@@ -48,5 +50,27 @@ public record ShortcodeDetailDto(
         @JsonProperty("health") ShortcodeHealthDto health,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                 description = "Sarafrika products with an active grant on this shortcode")
-        @JsonProperty("products") java.util.List<ShortcodeSummaryDto.ProductRef> products) {
+        @JsonProperty("products") java.util.List<ShortcodeSummaryDto.ProductRef> products,
+        @Schema(example = "174300", description = "A till's store/HO number (the Go-Live shortcode); null otherwise")
+        @JsonProperty("store_number") String storeNumber,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "False for a till whose store number was copied from the till number and not confirmed")
+        @JsonProperty("store_number_confirmed") boolean storeNumberConfirmed,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "What this shortcode's type can do; the console shows tabs, switches and actions from it")
+        @JsonProperty("capabilities") java.util.List<ShortcodeCapability> capabilities) {
+
+    public ShortcodeDetailDto(UUID uuid, String shortcode, String businessName, ShortcodeType shortcodeType,
+                              Environment environment, ShortcodeStatus status, boolean active, String accountReference,
+                              String transactionDesc, BigDecimal minAmount, BigDecimal maxAmount, String callbackUrl,
+                              String confirmationUrl, String validationUrl, String b2cResultUrl, String b2cTimeoutUrl,
+                              LocalDateTime activatedAt, LocalDateTime suspendedAt, LocalDateTime createdAt,
+                              LocalDateTime updatedAt, String createdBy, String updatedBy,
+                              ShortcodeCredentialsDto credentials, ShortcodeHealthDto health,
+                              java.util.List<ShortcodeSummaryDto.ProductRef> products) {
+        this(uuid, shortcode, businessName, shortcodeType, environment, status, active, accountReference,
+                transactionDesc, minAmount, maxAmount, callbackUrl, confirmationUrl, validationUrl, b2cResultUrl,
+                b2cTimeoutUrl, activatedAt, suspendedAt, createdAt, updatedAt, createdBy, updatedBy, credentials, health,
+                products, null, true, ShortcodeCapabilities.list(shortcodeType));
+    }
 }

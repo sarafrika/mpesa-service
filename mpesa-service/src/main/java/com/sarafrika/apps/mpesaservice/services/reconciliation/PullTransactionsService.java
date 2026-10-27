@@ -16,6 +16,8 @@ import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.features.ShortcodeFeatures;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import java.math.BigDecimal;
@@ -84,6 +86,7 @@ public class PullTransactionsService {
     @Transactional
     public PullTransactionsStatusDto register(UUID shortcodeUuid, String nominatedNumber) {
         MpesaShortCode shortcode = shortcode(shortcodeUuid);
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.PULL_TRANSACTIONS);
         requireEnabled(shortcodeUuid);
         String number = nominatedNumber(nominatedNumber);
         String callbackUrl = callbackUrl();
@@ -122,6 +125,7 @@ public class PullTransactionsService {
 
     /** Every C2B row Safaricom has for the window, paging with OffSetValue until a page is empty or repeats. */
     public List<StatementLine> fetch(MpesaShortCode shortcode, LocalDateTime start, LocalDateTime end) {
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.PULL_TRANSACTIONS);
         requireEnabled(shortcode.getUuid());
         boolean registered = registrations.findByShortcodeUuid(shortcode.getUuid())
                 .map(PullTransactionRegistration::isRegistered).orElse(false);

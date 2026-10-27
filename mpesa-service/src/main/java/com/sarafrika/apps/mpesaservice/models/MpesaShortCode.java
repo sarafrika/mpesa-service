@@ -38,6 +38,14 @@ public class MpesaShortCode extends BaseEntity {
     @Column(name = "shortcode_type")
     private ShortcodeType shortcodeType;
 
+    /** A till's store or Head Office number (the Go-Live shortcode); null for every other type. */
+    @Column(name = "store_number")
+    private String storeNumber;
+
+    /** When someone last confirmed the store number; null on tills migrated with store number = till number. */
+    @Column(name = "store_number_confirmed_at")
+    private LocalDateTime storeNumberConfirmedAt;
+
     @Column(name = "business_name")
     private String businessName;
 

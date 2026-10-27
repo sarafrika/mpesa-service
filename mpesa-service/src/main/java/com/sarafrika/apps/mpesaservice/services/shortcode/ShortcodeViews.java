@@ -49,7 +49,15 @@ final class ShortcodeViews {
                                        List<ShortcodeSummaryDto.ProductRef> products) {
         return new ShortcodeSummaryDto(code.getUuid(), code.getShortcode(), code.getBusinessName(),
                 code.getShortcodeType(), code.getEnvironment(), status(code), Boolean.TRUE.equals(code.getIsActive()),
-                credentialsUpdatedAt(code), code.getCreatedAt(), health, products);
+                credentialsUpdatedAt(code), code.getCreatedAt(), health, products, code.getStoreNumber(),
+                ShortcodeCapabilities.list(code.getShortcodeType()));
+    }
+
+    /** False only for a till whose store number is still the till number and was never confirmed. */
+    static boolean storeNumberConfirmed(MpesaShortCode code) {
+        return code.getShortcodeType() != com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType.TILL
+                || code.getStoreNumberConfirmedAt() != null
+                || code.getStoreNumber() != null && !code.getStoreNumber().equals(code.getShortcode());
     }
 
     /** stkCallbackUrl is the URL STK requests are sent with; every URL is shown with its token masked. */
@@ -62,7 +70,8 @@ final class ShortcodeViews {
                 CallbackUrls.masked(code.getValidationUrl()), CallbackUrls.masked(code.getB2cResultUrl()),
                 CallbackUrls.masked(code.getB2cTimeoutUrl()), code.getActivatedAt(), code.getSuspendedAt(), code.getCreatedAt(),
                 code.getUpdatedAt(), code.getCreatedBy(), code.getUpdatedBy(),
-                credentials(code), health, products);
+                credentials(code), health, products, code.getStoreNumber(), storeNumberConfirmed(code),
+                ShortcodeCapabilities.list(code.getShortcodeType()));
     }
 
     /** The non-secret fields an audit entry shows before and after a change. */
@@ -70,6 +79,7 @@ final class ShortcodeViews {
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("shortcode", code.getShortcode());
         profile.put("shortcode_type", code.getShortcodeType());
+        profile.put("store_number", code.getStoreNumber());
         profile.put("business_name", code.getBusinessName());
         profile.put("environment", code.getEnvironment());
         profile.put("status", status(code));

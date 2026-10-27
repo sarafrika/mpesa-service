@@ -4,6 +4,9 @@ import org.springframework.beans.factory.annotation.Value;
 
 import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
 import com.sarafrika.apps.mpesaservice.services.shortcode.CallbackUrls;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedException;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 
 import com.sarafrika.apps.mpesaservice.clients.DarajaHttpException;
 import com.sarafrika.apps.mpesaservice.clients.MpesaDarajaHttpClient;
@@ -101,7 +104,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
                         + " is suspended; STK push is refused", HttpStatus.SERVICE_UNAVAILABLE.value());
             }
 
-            // Validate STK Push capability
+            MpesaApiResponse<StkPushResponse> unsupported = unsupported(shortcode, ShortcodeCapability.STK_PUSH);
+            if (unsupported != null) {
+                return unsupported;
+            }
             if (!isSTKPushEnabled(shortcode)) {
                 return MpesaApiResponse.error("INVALID_CONFIG",
                         "STK Push not enabled for this shortcode", HttpStatus.BAD_REQUEST.value());
@@ -145,6 +151,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
         try {
             MpesaShortCode shortcode = getShortcodeOrThrow(shortcodeUuid);
+            MpesaApiResponse<StkStatusResponse> unsupported = unsupported(shortcode, ShortcodeCapability.STK_PUSH);
+            if (unsupported != null) {
+                return unsupported;
+            }
             String accessToken = getAccessToken(shortcode);
 
             if (accessToken == null) {
@@ -176,6 +186,11 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
         try {
             MpesaShortCode shortcode = getShortcodeOrThrow(shortcodeUuid);
+            MpesaApiResponse<C2BRegistrationResponse> unsupported =
+                    unsupported(shortcode, ShortcodeCapability.C2B_REGISTER);
+            if (unsupported != null) {
+                return unsupported;
+            }
             String accessToken = getAccessToken(shortcode);
 
             if (accessToken == null) {
@@ -243,6 +258,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
         try {
             MpesaShortCode shortcode = getShortcodeOrThrow(shortcodeUuid);
+            MpesaApiResponse<B2CPaymentResponse> unsupported = unsupported(shortcode, ShortcodeCapability.B2C_PAYOUT);
+            if (unsupported != null) {
+                return unsupported;
+            }
             String accessToken = getAccessToken(shortcode);
 
             if (accessToken == null) {
@@ -270,6 +289,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         long startTime = System.currentTimeMillis();
         String accessToken;
         Map<String, Object> payload = new HashMap<>();
+        MpesaApiResponse<B2CPaymentResponse> unsupported = unsupported(shortcode, ShortcodeCapability.B2C_PAYOUT);
+        if (unsupported != null) {
+            return unsupported;
+        }
         try {
             accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
@@ -456,6 +479,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         long startTime = System.currentTimeMillis();
         String accessToken;
         Map<String, Object> payload;
+        MpesaApiResponse<TransactionReversalResponse> unsupported = unsupported(shortcode, ShortcodeCapability.REVERSAL);
+        if (unsupported != null) {
+            return unsupported;
+        }
         try {
             accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
@@ -490,6 +517,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
         try {
             MpesaShortCode shortcode = getShortcodeOrThrow(shortcodeUuid);
+            MpesaApiResponse<QRCodeResponse> unsupported = unsupported(shortcode, ShortcodeCapability.QR);
+            if (unsupported != null) {
+                return unsupported;
+            }
             String accessToken = getAccessToken(shortcode);
 
             if (accessToken == null) {
@@ -614,10 +645,17 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return LocalDateTime.now().format(TIMESTAMP_FORMATTER);
     }
 
-    private String generatePassword(MpesaShortCode shortcode) {
-        String timestamp = getCurrentTimestamp();
-        String password = shortcode.getShortcode() + shortcode.getPasskey() + timestamp;
+    /** base64(BusinessShortCode + passkey + Timestamp), with the same timestamp the payload carries. */
+    static String generatePassword(String businessShortCode, String passkey, String timestamp) {
+        String password = businessShortCode + passkey + timestamp;
         return Base64.getEncoder().encodeToString(password.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** A 409 reply, sent before any token is fetched, when the shortcode's type cannot do this. */
+    static <T> MpesaApiResponse<T> unsupported(MpesaShortCode shortcode, ShortcodeCapability capability) {
+        String refusal = ShortcodeCapabilities.refusal(shortcode, capability);
+        return refusal == null ? null
+                : MpesaApiResponse.error(CapabilityNotSupportedException.CODE, refusal, HttpStatus.CONFLICT.value());
     }
 
     private <T> MpesaApiResponse<T> handleException(Exception e, long startTime, String operation) {
@@ -685,13 +723,18 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     public MpesaApiResponse<Map<String, Object>> registerPullTransactions(MpesaShortCode shortcode,
                                                                          String nominatedNumber, String callbackUrl) {
         long startTime = System.currentTimeMillis();
+        MpesaApiResponse<Map<String, Object>> unsupported = unsupported(shortcode, ShortcodeCapability.PULL_TRANSACTIONS);
+        if (unsupported != null) {
+            return unsupported;
+        }
         try {
             String accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
                 return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
             }
             Map<String, Object> payload = new HashMap<>();
-            payload.put("ShortCode", shortcode.getShortcode());
+            // "ShortCode used during Go-Live" (PullTransaction doc): a till's store/HO number.
+            payload.put("ShortCode", ShortcodeCapabilities.goLiveNumber(shortcode));
             payload.put("RequestType", "Pull");
             payload.put("NominatedNumber", nominatedNumber);
             payload.put("CallBackURL", callbackUrl);
@@ -707,13 +750,17 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     public MpesaApiResponse<Map<String, Object>> queryPullTransactions(MpesaShortCode shortcode, LocalDateTime start,
                                                                       LocalDateTime end, int offset) {
         long startTime = System.currentTimeMillis();
+        MpesaApiResponse<Map<String, Object>> unsupported = unsupported(shortcode, ShortcodeCapability.PULL_TRANSACTIONS);
+        if (unsupported != null) {
+            return unsupported;
+        }
         try {
             String accessToken = getAccessToken(shortcode);
             if (accessToken == null) {
                 return MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", HttpStatus.UNAUTHORIZED.value());
             }
             Map<String, Object> payload = new HashMap<>();
-            payload.put("ShortCode", shortcode.getShortcode());
+            payload.put("ShortCode", ShortcodeCapabilities.goLiveNumber(shortcode));
             payload.put("StartDate", start.format(PULL_TIME));
             payload.put("EndDate", end.format(PULL_TIME));
             payload.put("OffSetValue", String.valueOf(offset));
@@ -727,13 +774,18 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
     // ==================== PAYLOAD BUILDERS ====================
 
-    private Map<String, Object> buildSTKPushPayload(MpesaShortCode shortcode, String phoneNumber,
-                                                    BigDecimal amount, String accountReference, String transactionDesc) {
+    // STK FAQ 10 (MpesaExpressSimulate): a till sends BusinessShortCode = its store/HO number (the Go-Live
+    // shortcode the passkey belongs to), PartyB = the till and CustomerBuyGoodsOnline; a paybill sends itself twice.
+    Map<String, Object> buildSTKPushPayload(MpesaShortCode shortcode, String phoneNumber,
+                                            BigDecimal amount, String accountReference, String transactionDesc) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("BusinessShortCode", shortcode.getShortcode());
-        payload.put("Password", generatePassword(shortcode));
-        payload.put("Timestamp", getCurrentTimestamp());
-        payload.put("TransactionType", "CustomerPayBillOnline");
+        String goLive = ShortcodeCapabilities.goLiveNumber(shortcode);
+        String timestamp = getCurrentTimestamp();
+        payload.put("BusinessShortCode", goLive);
+        payload.put("Password", generatePassword(goLive, shortcode.getPasskey(), timestamp));
+        payload.put("Timestamp", timestamp);
+        payload.put("TransactionType", shortcode.getShortcodeType() == ShortcodeType.TILL
+                ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline");
         payload.put("Amount", amount);
         payload.put("PartyA", phoneNumber);
         payload.put("PartyB", shortcode.getShortcode());
@@ -744,19 +796,23 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    private Map<String, Object> buildSTKStatusPayload(MpesaShortCode shortcode, String checkoutRequestId) {
+    // STK Query reuses the push's BusinessShortCode and password (mirror/MpesaExpressQuery.md).
+    Map<String, Object> buildSTKStatusPayload(MpesaShortCode shortcode, String checkoutRequestId) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("BusinessShortCode", shortcode.getShortcode());
-        payload.put("Password", generatePassword(shortcode));
-        payload.put("Timestamp", getCurrentTimestamp());
+        String goLive = ShortcodeCapabilities.goLiveNumber(shortcode);
+        String timestamp = getCurrentTimestamp();
+        payload.put("BusinessShortCode", goLive);
+        payload.put("Password", generatePassword(goLive, shortcode.getPasskey(), timestamp));
+        payload.put("Timestamp", timestamp);
         payload.put("CheckoutRequestID", checkoutRequestId);
         return payload;
     }
 
-    private Map<String, Object> buildC2BRegistrationPayload(MpesaShortCode shortcode, String confirmationUrl,
-                                                            String validationUrl, String responseType) {
+    // Which number a till registers is unconfirmed (SHORTCODE-TYPES.md item 1): the Go-Live shortcode is used.
+    Map<String, Object> buildC2BRegistrationPayload(MpesaShortCode shortcode, String confirmationUrl,
+                                                    String validationUrl, String responseType) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("ShortCode", shortcode.getShortcode());
+        payload.put("ShortCode", ShortcodeCapabilities.goLiveNumber(shortcode));
         payload.put("ResponseType", "Cancelled".equals(responseType) ? "Cancelled" : "Completed");
         payload.put("ConfirmationURL", confirmationUrl);
         payload.put("ValidationURL", validationUrl);
@@ -766,8 +822,9 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     private Map<String, Object> buildC2BSimulationPayload(MpesaShortCode shortcode, String phoneNumber,
                                                           BigDecimal amount, String billRefNumber) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("ShortCode", shortcode.getShortcode());
-        payload.put("CommandID", "CustomerPayBillOnline");
+        payload.put("ShortCode", ShortcodeCapabilities.goLiveNumber(shortcode));
+        payload.put("CommandID", shortcode.getShortcodeType() == ShortcodeType.TILL
+                ? "CustomerBuyGoodsOnline" : "CustomerPayBillOnline");
         payload.put("Amount", amount);
         payload.put("Msisdn", phoneNumber);
         payload.put("BillRefNumber", billRefNumber != null ? billRefNumber : shortcode.getAccountReference());
@@ -811,16 +868,17 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    private Map<String, Object> buildTransactionStatusPayload(MpesaShortCode shortcode,
-                                                              String transactionId, String remarks) {
+    // IdentifierType 4 (organisation shortcode) is the only documented value (TransactionStatus doc), so a till
+    // queries as its Go-Live store/HO number; "2" for tills is unconfirmed (SHORTCODE-TYPES.md item 2).
+    Map<String, Object> buildTransactionStatusPayload(MpesaShortCode shortcode,
+                                                      String transactionId, String remarks) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("Initiator", shortcode.getInitiatorName());
         payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "TransactionStatusQuery");
         payload.put("TransactionID", transactionId);
-        payload.put("PartyA", shortcode.getShortcode());
-        // IdentifierType 2 is a till number, 4 an organisation shortcode (paybill).
-        payload.put("IdentifierType", shortcode.getShortcodeType() == ShortcodeType.TILL ? "2" : "4");
+        payload.put("PartyA", ShortcodeCapabilities.goLiveNumber(shortcode));
+        payload.put("IdentifierType", "4");
         payload.put("ResultURL", callbackUrl(shortcode, "/transaction-status/result"));
         payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/transaction-status/timeout"));
         payload.put("Remarks", remarks != null ? remarks : "Transaction Status Query");
@@ -829,13 +887,13 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     }
 
     // Fields per developer.safaricom.co.ke/apis/AccountBalance; IdentifierType 4 (organisation shortcode) is
-    // the only value the page documents, so tills are not given a different type here.
-    private Map<String, Object> buildAccountBalancePayload(MpesaShortCode shortcode, String remarks) {
+    // the only value the page documents, so a till queries as its Go-Live store/HO number.
+    Map<String, Object> buildAccountBalancePayload(MpesaShortCode shortcode, String remarks) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("Initiator", shortcode.getInitiatorName());
         payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "AccountBalance");
-        payload.put("PartyA", shortcode.getShortcode());
+        payload.put("PartyA", ShortcodeCapabilities.goLiveNumber(shortcode));
         payload.put("IdentifierType", "4");
         payload.put("Remarks", remarks != null && !remarks.isBlank() ? remarks : "Account balance");
         payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/account-balance/timeout"));
@@ -843,17 +901,17 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    private Map<String, Object> buildTransactionReversalPayload(MpesaShortCode shortcode, String transactionId,
-                                                                BigDecimal amount, String remarks) {
-        // Fields as on developer.safaricom.co.ke/apis/Reversal: ReceiverParty is the organisation shortcode,
-        // RecieverIdentifierType (Safaricom's spelling) "11", Remarks 2-100 characters, no Occasion.
+    Map<String, Object> buildTransactionReversalPayload(MpesaShortCode shortcode, String transactionId,
+                                                        BigDecimal amount, String remarks) {
+        // developer.safaricom.co.ke/apis/Reversal: ReceiverParty the organisation shortcode (a till's Go-Live
+        // store/HO number; unconfirmed, SHORTCODE-TYPES.md item 3), RecieverIdentifierType "11", no Occasion.
         Map<String, Object> payload = new HashMap<>();
         payload.put("Initiator", shortcode.getInitiatorName());
         payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
         payload.put("CommandID", "TransactionReversal");
         payload.put("TransactionID", transactionId);
         payload.put("Amount", amount.stripTrailingZeros().toPlainString());
-        payload.put("ReceiverParty", shortcode.getShortcode());
+        payload.put("ReceiverParty", ShortcodeCapabilities.goLiveNumber(shortcode));
         payload.put("RecieverIdentifierType", "11");
         payload.put("ResultURL", callbackUrl(shortcode, "/reversal/result"));
         payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/reversal/timeout"));
@@ -874,6 +932,7 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             payload.put("Amount", amount.stripTrailingZeros().scale() <= 0 ? amount.toBigInteger() : amount);
         }
         payload.put("TrxCode", transactionType.getCode());
+        // The QR "captures the till number" (DynamicQRCode doc): CPI is the till, never its store number.
         payload.put("CPI", shortcode.getShortcode());
         payload.put("Size", qrCodeSize != null ? qrCodeSize.toString() : "300");
         return payload;

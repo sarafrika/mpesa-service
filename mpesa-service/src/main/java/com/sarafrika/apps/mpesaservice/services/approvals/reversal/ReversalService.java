@@ -18,6 +18,8 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalGateway;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalTypes;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReversalStatus;
 import java.math.BigDecimal;
@@ -133,6 +135,10 @@ public class ReversalService {
                 : shortcodes.findByUuid(payment.getShortcodeUuid()).orElse(null);
         if (shortcode == null) {
             return "The payment's paybill is not configured here, so it cannot be reversed.";
+        }
+        String unsupported = ShortcodeCapabilities.refusal(shortcode, ShortcodeCapability.REVERSAL);
+        if (unsupported != null) {
+            return unsupported;
         }
         if (!StringUtils.hasText(shortcode.getInitiatorName())) {
             return "Paybill " + shortcode.getShortcode() + " has no API initiator; Safaricom's Reversal API needs "

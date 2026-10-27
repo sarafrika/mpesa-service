@@ -16,6 +16,8 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentReposito
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentType;
 import java.math.BigDecimal;
@@ -66,6 +68,7 @@ public class MpesaPayoutService {
         }
         MpesaShortCode shortcode = shortCodeRepository.findByUuid(request.shortcodeUuid())
                 .orElseThrow(() -> new IllegalArgumentException("Shortcode not found: " + request.shortcodeUuid()));
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.B2C_PAYOUT);
         if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
             throw new IllegalStateException("Shortcode " + shortcode.getShortcode() + " is suspended; payouts are refused");
         }

@@ -23,6 +23,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.daraja.RequestTaxRemittanceReq
 import com.sarafrika.apps.mpesaservice.dtos.admin.daraja.StartB2bCheckoutRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.features.ShortcodeFeatureDto;
 import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
+import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedException;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
@@ -153,7 +154,7 @@ class DarajaProductsIntegrationTest {
         jdbc.update("DELETE FROM mpesa_incoming_payments");
         jdbc.update("DELETE FROM shortcode_features");
         jdbc.update("DELETE FROM mpesa_shortcodes");
-        shortcode = shortcode(ShortcodeType.PAYBILL);
+        shortcode = shortcode(ShortcodeType.ONE_ACCOUNT);
         when(credentials.credentialFor(any())).thenReturn("encrypted");
         when(gateway.submit(any())).thenAnswer(call -> UUID.randomUUID());
     }
@@ -432,6 +433,27 @@ class DarajaProductsIntegrationTest {
         features.set(till.getUuid(), DarajaFeature.B2B_EXPRESS_CHECKOUT, true, "admin");
         assertThatThrownBy(() -> checkouts.start(till.getUuid(), checkout()))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("paybill");
+    }
+
+    @Test
+    void aSwitchForSomethingTheTypeCannotDoStaysOffAndItsFlowsAreRefused() {
+        MpesaShortCode till = shortcode(ShortcodeType.TILL);
+        MpesaShortCode b2c = shortcode(ShortcodeType.B2C);
+
+        assertThatThrownBy(() -> featureAdmin.update(till.getUuid(), DarajaFeature.BUSINESS_TO_POCHI, true))
+                .isInstanceOf(CapabilityNotSupportedException.class).hasMessageContaining("till");
+        assertThatThrownBy(() -> featureAdmin.update(b2c.getUuid(), DarajaFeature.PULL_TRANSACTIONS, true))
+                .isInstanceOf(CapabilityNotSupportedException.class);
+        assertThat(featureAdmin.update(till.getUuid(), DarajaFeature.BUSINESS_TO_POCHI, false).enabled()).isFalse();
+        assertThat(featureAdmin.list(till.getUuid())).filteredOn(f -> !f.available())
+                .extracting(ShortcodeFeatureDto::feature)
+                .containsExactlyInAnyOrder(DarajaFeature.BUSINESS_TO_POCHI, DarajaFeature.B2B_EXPRESS_CHECKOUT);
+        assertThat(featureAdmin.update(b2c.getUuid(), DarajaFeature.BUSINESS_TO_POCHI, true).enabled()).isTrue();
+
+        // A switch left on from before is no way round the type.
+        features.set(till.getUuid(), DarajaFeature.BUSINESS_TO_POCHI, true, "admin");
+        assertThatThrownBy(() -> payouts.requestPochi(till.getUuid(), pochi("100")))
+                .isInstanceOf(CapabilityNotSupportedException.class);
     }
 
     // ---- helpers

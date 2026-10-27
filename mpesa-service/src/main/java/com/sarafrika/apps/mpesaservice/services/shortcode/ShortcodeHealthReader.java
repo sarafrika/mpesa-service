@@ -12,7 +12,7 @@ import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
-import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -113,7 +113,7 @@ public class ShortcodeHealthReader {
     }
 
     static C2bRegistrationState c2bState(MpesaShortCode code, C2bRegistration latest) {
-        if (code.getShortcodeType() == ShortcodeType.B2C) {
+        if (!ShortcodeCapabilities.has(code, ShortcodeCapability.C2B_REGISTER)) {
             return C2bRegistrationState.NOT_APPLICABLE;
         }
         if (latest == null) {

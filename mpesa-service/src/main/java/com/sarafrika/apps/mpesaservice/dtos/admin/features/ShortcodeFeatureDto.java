@@ -15,5 +15,12 @@ public record ShortcodeFeatureDto(
         @Schema(nullable = true, description = "Who last switched it; null when it was never switched")
         @JsonProperty("updated_by") String updatedBy,
         @Schema(nullable = true)
-        @JsonProperty("updated_at") OffsetDateTime updatedAt) {
+        @JsonProperty("updated_at") OffsetDateTime updatedAt,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "False when the shortcode's type cannot use this product; it cannot be switched on")
+        @JsonProperty("available") boolean available) {
+
+    public ShortcodeFeatureDto(DarajaFeature feature, boolean enabled, String updatedBy, OffsetDateTime updatedAt) {
+        this(feature, enabled, updatedBy, updatedAt, true);
+    }
 }
