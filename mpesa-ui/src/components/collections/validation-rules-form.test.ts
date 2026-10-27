@@ -70,8 +70,11 @@ describe("validation rules form", () => {
   });
 
   it("says what a dry run tried", () => {
-    assert.equal(describeTried({ account: "ELM-000000", amount: 1 }), "ELM-000000 for KES 1");
-    assert.equal(describeTried({ account: "", amount: 10.5 }), "A payment of KES 10.5, no account");
+    assert.equal(
+      describeTried({ account: "ELM-000000", amount: 1 }),
+      "account ELM-000000, KES 1.00",
+    );
+    assert.equal(describeTried({ account: "", amount: 10.5 }), "KES 10.50 with no account number");
   });
 
   it("keeps account-number rules off a till", () => {

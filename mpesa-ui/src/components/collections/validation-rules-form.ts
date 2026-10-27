@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { UpdateValidationRulesRequest, ValidationRulesDto } from "@/api/generated/model";
+import { formatKes } from "../../lib/format.ts";
 
 const amount = z
   .string()
@@ -90,13 +91,12 @@ export function toRequest(
   };
 }
 
-/** What a dry run tried, as the service reports it: "ELM-000000 for KES 1", or no account on a till. */
+/** What a dry run tried: "account ELM-000000, KES 10.00", or "KES 1.00 with no account number". */
 export function describeTried(result: { account?: string; amount?: number }): string {
-  const amount =
-    result.amount != null
-      ? `KES ${result.amount.toLocaleString("en-KE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
-      : "an amount";
-  return result.account ? `${result.account} for ${amount}` : `A payment of ${amount}, no account`;
+  const amount = result.amount != null ? formatKes(result.amount) : "an amount";
+  return result.account
+    ? `account ${result.account}, ${amount}`
+    : `${amount} with no account number`;
 }
 
 /** One line per rule, like the paybill's C2B section shows them. */
