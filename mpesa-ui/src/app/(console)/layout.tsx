@@ -8,7 +8,8 @@ export default function ConsoleLayout({ children }: LayoutProps<"/">) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      {/* min-w-0 keeps wide tables scrolling inside their card instead of widening the page. */}
+      <SidebarInset className="min-w-0">
         <OfflineBanner />
         <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1" />
@@ -18,7 +19,7 @@ export default function ConsoleLayout({ children }: LayoutProps<"/">) {
             <UserMenu />
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-6 p-4 md:p-8">{children}</main>
+        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-8">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );
