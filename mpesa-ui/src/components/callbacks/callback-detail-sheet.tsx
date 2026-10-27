@@ -167,7 +167,9 @@ function DetailContent({
         {callback.error && (
           <Alert className="border-destructive/30 bg-destructive-soft text-destructive">
             <CircleAlert aria-hidden />
-            <AlertTitle>Processing failed</AlertTitle>
+            <AlertTitle>
+              {callback.status === "FAILED" ? "Our handler failed" : "What went wrong"}
+            </AlertTitle>
             <AlertDescription className="break-words">{callback.error}</AlertDescription>
           </Alert>
         )}

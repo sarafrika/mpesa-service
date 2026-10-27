@@ -93,9 +93,8 @@ export function BatchSummary({ batch }: { batch: PayoutBatchDto }) {
       </ul>
       {batch.counts.unknown > 0 && (
         <p className="text-warning text-xs">
-          Safaricom never confirmed receiving{" "}
-          {batch.counts.unknown === 1 ? "one payout" : "some payouts"}, so they may still be paid.
-          They are never sent again; query their status from Transactions.
+          No answer came back for {batch.counts.unknown === 1 ? "one payout" : "some payouts"}, so
+          they may still be paid. They are never sent again; query their status from Transactions.
         </p>
       )}
     </div>

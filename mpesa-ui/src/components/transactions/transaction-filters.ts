@@ -1,4 +1,5 @@
 import type { ListTransactionsParams } from "@/api/generated/model";
+import { asStatusCode } from "../../lib/status.ts";
 
 export const TYPE_OPTIONS = [
   { value: "all", label: "All" },
@@ -18,7 +19,8 @@ export const STATUS_OPTIONS = [
 ] as const;
 
 export type TypeFilter = (typeof TYPE_OPTIONS)[number]["value"];
-export type StatusFilter = (typeof STATUS_OPTIONS)[number]["value"];
+// Any enum-style status passes, so one the service adds later still filters from the URL.
+export type StatusFilter = string;
 
 const TYPE_LABELS: Record<string, string> = {
   C2B: "C2B deposit",
@@ -37,7 +39,7 @@ export function asTypeFilter(value: string | null): TypeFilter {
 }
 
 export function asStatusFilter(value: string | null): StatusFilter {
-  return STATUS_OPTIONS.some((option) => option.value === value) ? (value as StatusFilter) : "any";
+  return asStatusCode(value);
 }
 
 // 0712 345 678, 712345678, +254712345678 and 254712345678 are phones; anything else is a reference or id.

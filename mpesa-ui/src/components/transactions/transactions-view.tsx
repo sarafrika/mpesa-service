@@ -24,6 +24,7 @@ import { StaleNotice } from "@/components/stale-notice";
 import { Button } from "@/components/ui/button";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
+import { withCurrentStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { DateRangeFilter } from "./date-range-filter";
 import { type PaybillOption, PaybillSelect } from "./paybill-select";
@@ -48,7 +49,7 @@ function filterParams(params: URLSearchParams, sort: string | undefined): Export
   return {
     ...(sort ? { sort: [sort] } : {}),
     ...(type !== "all" ? { type } : {}),
-    ...(status !== "any" ? { status } : {}),
+    ...(status !== "any" ? { status: status as ExportTransactionsParams["status"] } : {}),
     ...(paybill ? { shortcode_uuid: paybill } : {}),
     ...searchParams(params.get("q") ?? ""),
     ...dateRangeParams(params.get("from") ?? undefined, params.get("to") ?? undefined),
@@ -181,7 +182,7 @@ export function TransactionsView() {
               <span className="text-muted-foreground text-xs">Status</span>
               <FilterChips
                 label="Status"
-                options={STATUS_OPTIONS}
+                options={withCurrentStatus(STATUS_OPTIONS, status)}
                 value={status}
                 onChange={(value) => setFilters({ status: value === "any" ? undefined : value })}
               />

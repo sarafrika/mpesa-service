@@ -1,3 +1,5 @@
+import { asStatusCode } from "../../lib/status.ts";
+
 export const STATUS_OPTIONS = [
   { value: "any", label: "Any" },
   { value: "FAILED", label: "Failed" },
@@ -6,7 +8,8 @@ export const STATUS_OPTIONS = [
   { value: "REPLAYED", label: "Replayed" },
 ] as const;
 
-export type StatusFilter = (typeof STATUS_OPTIONS)[number]["value"];
+// A status the service adds later (REJECTED, say) still filters from the URL; it is then shown as a chip.
+export type StatusFilter = string;
 
 // The service names a kind after its callback path; OTHER is any path it does not know.
 const KIND_LABELS: Record<string, string> = {
@@ -49,7 +52,7 @@ export function attachTarget(kind: string): string {
 }
 
 export function asStatusFilter(value: string | null): StatusFilter {
-  return STATUS_OPTIONS.some((option) => option.value === value) ? (value as StatusFilter) : "any";
+  return asStatusCode(value);
 }
 
 export function asKind(value: string | null): string | undefined {

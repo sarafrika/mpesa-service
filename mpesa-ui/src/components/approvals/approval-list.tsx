@@ -38,7 +38,7 @@ const EMPTY_COPY: Record<ApprovalTab, { title: string; description: string }> = 
   },
   approved: {
     title: "No approved requests yet",
-    description: "Requests a checker approved show here with what Safaricom answered.",
+    description: "Requests a checker approved show here with how each one ended.",
   },
   rejected: {
     title: "No rejected requests",

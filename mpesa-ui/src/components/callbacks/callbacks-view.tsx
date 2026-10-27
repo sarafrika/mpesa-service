@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
+import { withCurrentStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { CallbackDetailSheet } from "./callback-detail-sheet";
 import { asKind, asStatusFilter, KIND_OPTIONS, STATUS_OPTIONS } from "./callback-filters";
@@ -70,7 +71,7 @@ export function CallbacksView() {
     page,
     size,
     ...(sort ? { sort: [sort] } : {}),
-    ...(status !== "any" ? { status } : {}),
+    ...(status !== "any" ? { status: status as ListCallbacksParams["status"] } : {}),
     ...(kind ? { kind } : {}),
     ...(urlQuery.trim() ? { q: urlQuery.trim() } : {}),
     ...dateRangeParams(from, to),
@@ -139,7 +140,7 @@ export function CallbacksView() {
             <span className="text-muted-foreground text-xs">Status</span>
             <FilterChips
               label="Status"
-              options={STATUS_OPTIONS}
+              options={withCurrentStatus(STATUS_OPTIONS, status)}
               value={status}
               onChange={(value) => setFilters({ status: value === "any" ? undefined : value })}
             />

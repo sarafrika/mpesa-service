@@ -49,8 +49,8 @@ export function AttachResult({ detail }: { detail: CallbackDetailDto }) {
           Attach to its {what}
         </h2>
         <p className="text-muted-foreground text-xs">
-          No {what} matched this result, usually because Safaricom never gave us its ids. Pick the
-          one the M-Pesa statement shows it belongs to.
+          No {what} matched this result, usually because its ids match nothing we sent. Pick the one
+          the M-Pesa statement shows it belongs to.
         </p>
       </div>
       {!list ? (
