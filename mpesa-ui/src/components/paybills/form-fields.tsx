@@ -10,10 +10,19 @@ type TextFieldProps = ComponentProps<typeof Input> & {
   label: ReactNode;
   description?: ReactNode;
   error?: HookFieldError;
+  /** Classes for the input itself (e.g. `font-mono`); `className` styles the wrapper. */
+  inputClassName?: string;
 };
 
 /** A labelled input with its hint and inline error; pass `{...register("name")}` through. */
-export function TextField({ label, description, error, className, ...input }: TextFieldProps) {
+export function TextField({
+  label,
+  description,
+  error,
+  className,
+  inputClassName,
+  ...input
+}: TextFieldProps) {
   const id = useId();
   return (
     <Field data-invalid={error ? true : undefined} className={className}>
@@ -22,6 +31,7 @@ export function TextField({ label, description, error, className, ...input }: Te
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={description ? `${id}-hint` : undefined}
+        className={inputClassName}
         {...input}
       />
       {description && <FieldDescription id={`${id}-hint`}>{description}</FieldDescription>}

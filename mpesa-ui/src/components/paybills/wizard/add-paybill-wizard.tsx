@@ -439,7 +439,7 @@ function Wizard() {
                     label={fields.storeNumber ? "Till number" : "Shortcode"}
                     inputMode="numeric"
                     placeholder={fields.storeNumber ? "123456" : "600100"}
-                    className="font-mono"
+                    inputClassName="font-mono"
                     description={
                       fields.storeNumber ? "The number customers pay with Buy Goods." : undefined
                     }
@@ -451,7 +451,7 @@ function Wizard() {
                       label="Store or Head Office number"
                       inputMode="numeric"
                       placeholder="654321"
-                      className="font-mono"
+                      inputClassName="font-mono"
                       description={STORE_NUMBER_HINT}
                       error={errors.store_number}
                       {...form.register("store_number")}
@@ -539,7 +539,7 @@ function Wizard() {
                     label="Consumer key"
                     type="password"
                     autoComplete="off"
-                    className="font-mono"
+                    inputClassName="font-mono"
                     description={CREDENTIAL_HINTS.consumer}
                     error={errors.consumer_key}
                     {...form.register("consumer_key")}
@@ -548,7 +548,7 @@ function Wizard() {
                     label="Consumer secret"
                     type="password"
                     autoComplete="off"
-                    className="font-mono"
+                    inputClassName="font-mono"
                     description="From the same Daraja app as the key."
                     error={errors.consumer_secret}
                     {...form.register("consumer_secret")}
@@ -558,7 +558,8 @@ function Wizard() {
                       label="Lipa na M-Pesa passkey"
                       type="password"
                       autoComplete="off"
-                      className="font-mono sm:col-span-2"
+                      className="sm:col-span-2"
+                      inputClassName="font-mono"
                       description={`${
                         fields.storeNumber ? CREDENTIAL_HINTS.tillPasskey : CREDENTIAL_HINTS.passkey
                       } You can add it later.`}
@@ -607,7 +608,7 @@ function Wizard() {
                       id="security-credential"
                       rows={3}
                       autoComplete="off"
-                      className="font-mono text-xs"
+                      className="font-mono text-xs placeholder:font-sans"
                       placeholder={CREDENTIAL_HINTS.securityCredential}
                       {...form.register("security_credential")}
                     />

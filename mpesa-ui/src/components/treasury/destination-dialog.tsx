@@ -138,7 +138,7 @@ export function DestinationDialog({ shortcodeUuid, destination, trigger }: Desti
             <TextField
               label={type === "TILL" ? "Till number" : "Paybill number"}
               inputMode="numeric"
-              className="font-mono"
+              inputClassName="font-mono"
               error={errors.receiver_shortcode}
               {...form.register("receiver_shortcode")}
             />

@@ -178,7 +178,7 @@ export function SendTestStkDialog({
             label="Phone"
             inputMode="numeric"
             placeholder="2547XXXXXXXX"
-            className="font-mono"
+            inputClassName="font-mono"
             error={errors.phone_number}
             {...form.register("phone_number")}
           />

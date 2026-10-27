@@ -82,7 +82,7 @@ export function StoreNumberDialog({ shortcode }: { shortcode: ShortcodeDetail })
           <TextField
             label="Store or Head Office number"
             inputMode="numeric"
-            className="font-mono"
+            inputClassName="font-mono"
             description={STORE_NUMBER_HINT}
             error={errors.store_number}
             {...form.register("store_number")}

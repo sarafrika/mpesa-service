@@ -158,7 +158,7 @@ export function UpdateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
               id="update-security-credential"
               rows={3}
               autoComplete="off"
-              className="font-mono text-xs"
+              className="font-mono text-xs placeholder:font-sans"
               placeholder="Generated on the Daraja portal; used instead of the initiator password"
               aria-invalid={errors.security_credential ? true : undefined}
               {...form.register("security_credential")}

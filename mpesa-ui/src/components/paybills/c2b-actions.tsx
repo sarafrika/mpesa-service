@@ -180,7 +180,7 @@ export function SimulateC2bDialog({ shortcode }: { shortcode: ShortcodeDetail })
           <TextField
             label="Phone"
             inputMode="numeric"
-            className="font-mono"
+            inputClassName="font-mono"
             error={errors.phone_number}
             {...form.register("phone_number")}
           />
