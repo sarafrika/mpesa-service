@@ -56,14 +56,3 @@ Never resend a payout that came back with `outcome_unknown: true`. Safaricom may
 ## Settings
 
 Every setting and its default is in `mpesa-service/src/main/resources/application.yaml`. In production, set at least the database, `KEYCLOAK_ISSUER_URI`, `MPESA_ENCRYPTION_KEY` and `CALLBACK_BASE_URL`. The console's settings are in `mpesa-ui/.env.example`.
-
-## Still to check with Safaricom
-
-Some things rest only on Safaricom's sandbox docs:
-
-- the live URLs for Tax Remittance and B2B Express Checkout. I made both settings that default to the sandbox paths.
-- whether Pull Transactions wants the phone number as `07…` or `2547…`. The service sends `07…`, like Safaricom's example.
-- whether a phone payment prompt (STK push) to a paybill always triggers a C2B confirmation too. The service handles it either way.
-- which time zone C2B times are in. The service stores them as they arrive.
-
-I left out Ratiba, Safaricom's standing orders, because its docs contradict each other.
