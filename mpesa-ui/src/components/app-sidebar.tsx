@@ -14,6 +14,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { type ComponentType, Suspense } from "react";
 import { ApprovalsBadge } from "@/components/approvals/approvals-badge";
 import {
@@ -29,6 +30,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { visibleNav } from "@/lib/nav";
+import type { ConsoleRole } from "@/lib/roles";
 
 type NavItem = {
   title: string;
@@ -37,6 +40,8 @@ type NavItem = {
   ready?: boolean;
   /** A count beside the item, e.g. requests waiting for a checker. */
   badge?: ComponentType;
+  /** Hidden unless the user has one of these; the page itself still shows a 403 to a direct visit. */
+  needs?: ConsoleRole | readonly ConsoleRole[];
 };
 
 const NAV: { label: string; items: NavItem[] }[] = [
@@ -66,12 +71,14 @@ const NAV: { label: string; items: NavItem[] }[] = [
     label: "System",
     items: [
       { title: "Callback inbox", href: "/callbacks", icon: Inbox, ready: true },
-      { title: "Audit log", href: "/audit", icon: ScrollText, ready: true },
+      { title: "Audit log", href: "/audit", icon: ScrollText, ready: true, needs: "mpesa-admin" },
     ],
   },
 ];
 
 export function AppSidebar() {
+  const { data: session } = useSession();
+  const groups = visibleNav(NAV, session?.roles);
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -92,7 +99,7 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {NAV.map((group) => (
+        {groups.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
