@@ -5,6 +5,7 @@ import {
   asStatusFilter,
   attachTarget,
   kindLabel,
+  STATUS_OPTIONS,
   shortEndpoint,
 } from "./callback-filters.ts";
 
@@ -15,6 +16,11 @@ test("status and kind filters only take known values", () => {
   assert.equal(asKind("B2C_RESULT"), "B2C_RESULT");
   assert.equal(asKind("DROP TABLE"), undefined);
   assert.equal(asKind("toString"), undefined);
+});
+
+test("rejected callbacks are a filter of their own", () => {
+  assert.ok(STATUS_OPTIONS.some((option) => option.value === "REJECTED"));
+  assert.equal(asStatusFilter("REJECTED"), "REJECTED");
 });
 
 test("kinds and endpoints read as short labels", () => {

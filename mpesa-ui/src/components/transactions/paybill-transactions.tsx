@@ -40,7 +40,7 @@ export function PaybillTransactions({ shortcodeUuid }: PaybillTransactionsProps)
   return (
     <SectionCard
       title="Transactions"
-      description="Deposits, STK requests and payouts on this paybill, newest first."
+      description="Deposits, STK requests and payouts on this shortcode, newest first."
       contentClassName="gap-3 px-0"
       actions={
         <Button asChild variant="link" size="sm" className="px-0">
@@ -67,7 +67,7 @@ export function PaybillTransactions({ shortcodeUuid }: PaybillTransactionsProps)
       ) : data.items.length === 0 ? (
         <EmptyState
           icon={ArrowLeftRight}
-          title="No transactions on this paybill yet"
+          title="No transactions on this shortcode yet"
           description="Deposits, STK requests and payouts appear here as soon as Safaricom reports them."
           action={
             <Button asChild variant="outline" size="sm">

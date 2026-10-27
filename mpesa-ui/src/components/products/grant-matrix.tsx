@@ -6,6 +6,8 @@ import { useState } from "react";
 import { useListShortcodes } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { grantableOperations } from "@/components/paybills/capabilities";
+import { TypeBadge } from "@/components/paybills/paybill-badges";
 import { SearchInput } from "@/components/search-input";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -161,6 +163,7 @@ function MatrixBody({
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium font-mono text-sm tabular-nums">{code.shortcode}</span>
               <span className="min-w-0 flex-1 truncate text-sm">{code.business_name}</span>
+              <TypeBadge type={code.shortcode_type} />
               {!code.is_active && <StatusBadge status="INACTIVE" />}
               {code.environment === "SANDBOX" && <StatusBadge status="SANDBOX" />}
             </div>
@@ -168,7 +171,10 @@ function MatrixBody({
               aria-label={`Operations on ${code.shortcode}`}
               className="m-0 flex flex-wrap gap-x-4 gap-y-2 border-0 p-0"
             >
-              {OPERATIONS.map((operation) => {
+              {OPERATIONS.filter(
+                (operation) =>
+                  grantableOperations(code).includes(operation) || chosen.includes(operation),
+              ).map((operation) => {
                 const id = `grant-${code.uuid}-${operation}`;
                 return (
                   <label

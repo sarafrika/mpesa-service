@@ -1,7 +1,7 @@
 "use client";
 
 import { RotateCw, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { useTestShortcodeConnection } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import { KeyValueList } from "@/components/key-value-list";
@@ -13,9 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDateTime, formatKes } from "@/lib/format";
 import { okData, useInvalidateShortcodes } from "../api";
+import { can, collects, paysOut, takesAccountNumbers } from "../capabilities";
 import { HealthCheckCard } from "../paybill-badges";
-import { healthChecks, TYPE_LABELS } from "../paybill-health";
+import { healthChecks } from "../paybill-health";
 import { EditProfileDialog } from "../profile-dialog";
+import { typeLabel } from "../shortcode-types";
+import { STORE_NUMBER_HINT, StoreNumberDialog } from "../store-number-dialog";
 import type { PaybillSectionProps } from "./types";
 
 export function OverviewSection({ shortcode }: PaybillSectionProps) {
@@ -35,10 +38,30 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
     },
   });
   const checks = healthChecks(shortcode.health, now);
-  const c2b = shortcode.shortcode_type !== "B2C";
+  const incoming = collects(shortcode);
+  const outgoing = paysOut(shortcode);
+  const till = shortcode.shortcode_type === "TILL";
+  const unconfirmedStore = till && !shortcode.store_number_confirmed;
 
   return (
     <div className="grid gap-4">
+      {unconfirmedStore && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/30 bg-warning-soft p-3.5 text-sm text-warning"
+        >
+          <TriangleAlert className="size-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-[1_1_16rem]">
+            <strong className="font-semibold">Confirm the store number.</strong> This till uses{" "}
+            {shortcode.store_number ?? "no number"} as its store/HO number, copied from the till
+            number when store numbers were added. {STORE_NUMBER_HINT}
+          </span>
+          <RoleGate needs="mpesa-operator">
+            <StoreNumberDialog shortcode={shortcode} />
+          </RoleGate>
+        </div>
+      )}
+
       <SectionCard
         title="Health checks"
         actions={
@@ -71,58 +94,87 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
           {checks.map((check) => (
             <HealthCheckCard key={check.key} check={check} />
           ))}
-          <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-sm">
-                {c2b ? "Collected today" : "Paid out today"}
-              </span>
-              <StatusBadge status={c2b ? "Incoming" : "Outgoing"} tone={c2b ? "success" : "info"} />
-            </div>
-            <span className="font-semibold text-lg">
-              {c2b ? (
-                <Money amount={shortcode.health.collected_today} />
-              ) : (
-                <Money amount={shortcode.health.paid_out_today} direction="out" />
-              )}
-            </span>
-            <span className="text-muted-foreground text-xs">
-              {c2b
-                ? "Successful STK and C2B since midnight"
-                : "Successful B2C payouts since midnight"}
-            </span>
-          </div>
+          {incoming && (
+            <TodayCard
+              title="Collected today"
+              badge="Incoming"
+              amount={<Money amount={shortcode.health.collected_today} />}
+              note="Successful STK and C2B since midnight"
+            />
+          )}
+          {outgoing && (
+            <TodayCard
+              title="Paid out today"
+              badge="Outgoing"
+              amount={<Money amount={shortcode.health.paid_out_today} direction="out" />}
+              note="Successful B2C payouts since midnight"
+            />
+          )}
         </div>
       </SectionCard>
 
       <SectionCard
         title="Profile"
-        description="Limits and defaults apply to STK pushes and payouts on this shortcode."
+        description={
+          incoming && outgoing
+            ? "Limits and defaults apply to STK pushes and payouts on this shortcode."
+            : outgoing
+              ? "Limits and defaults apply to payouts on this shortcode."
+              : "Limits and defaults apply to STK pushes on this shortcode."
+        }
         actions={
           <RoleGate needs="mpesa-operator">
-            <EditProfileDialog shortcode={shortcode} />
+            <div className="flex flex-wrap gap-2">
+              {till && shortcode.store_number_confirmed && (
+                <StoreNumberDialog shortcode={shortcode} />
+              )}
+              <EditProfileDialog shortcode={shortcode} />
+            </div>
           </RoleGate>
         }
       >
         <KeyValueList
           items={[
             { label: "Business name", value: shortcode.business_name },
-            { label: "Shortcode", value: shortcode.shortcode, mono: true },
-            {
-              label: "Type",
-              value: TYPE_LABELS[shortcode.shortcode_type] ?? shortcode.shortcode_type,
-            },
+            ...(till
+              ? [
+                  { label: "Till number", value: shortcode.shortcode, mono: true },
+                  {
+                    label: "Store/HO number",
+                    value: shortcode.store_number ? (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono">{shortcode.store_number}</span>
+                        {!shortcode.store_number_confirmed && (
+                          <StatusBadge status="Not confirmed" tone="warning" />
+                        )}
+                      </span>
+                    ) : (
+                      "Not set"
+                    ),
+                  },
+                ]
+              : [{ label: "Shortcode", value: shortcode.shortcode, mono: true }]),
+            { label: "Type", value: typeLabel(shortcode.shortcode_type) },
             {
               label: "Amount limits",
               value: `${formatKes(shortcode.min_amount)} to ${formatKes(shortcode.max_amount)}`,
             },
-            { label: "Account reference", value: shortcode.account_reference },
+            ...(takesAccountNumbers(shortcode)
+              ? [{ label: "Account reference", value: shortcode.account_reference }]
+              : []),
             { label: "Description", value: shortcode.transaction_desc },
-            { label: "STK callback URL", value: shortcode.callback_url, mono: true },
-            {
-              label: "B2C result URL",
-              value: shortcode.b2c_result_url ?? "Service default",
-              mono: Boolean(shortcode.b2c_result_url),
-            },
+            ...(can(shortcode, "STK_PUSH")
+              ? [{ label: "STK callback URL", value: shortcode.callback_url, mono: true }]
+              : []),
+            ...(outgoing
+              ? [
+                  {
+                    label: "B2C result URL",
+                    value: shortcode.b2c_result_url ?? "Service default",
+                    mono: Boolean(shortcode.b2c_result_url),
+                  },
+                ]
+              : []),
             {
               label: "Added",
               value: `${formatDateTime(shortcode.created_at)} by ${shortcode.created_by ?? "—"}`,
@@ -137,6 +189,29 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
           ]}
         />
       </SectionCard>
+    </div>
+  );
+}
+
+function TodayCard({
+  title,
+  badge,
+  amount,
+  note,
+}: {
+  title: string;
+  badge: "Incoming" | "Outgoing";
+  amount: ReactNode;
+  note: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium text-sm">{title}</span>
+        <StatusBadge status={badge} tone={badge === "Incoming" ? "success" : "info"} />
+      </div>
+      <span className="font-semibold text-lg">{amount}</span>
+      <span className="text-muted-foreground text-xs">{note}</span>
     </div>
   );
 }

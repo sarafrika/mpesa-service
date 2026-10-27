@@ -15,6 +15,7 @@ import type { QrCodeDto, ShortcodeDetail } from "@/api/generated/model";
 import { Money } from "@/components/money";
 import { toastApiError } from "@/components/paybills/api";
 import { FormRootError, TextField } from "@/components/paybills/form-fields";
+import { typeNoun } from "@/components/paybills/shortcode-types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,9 +39,10 @@ import { applyFieldErrors } from "@/lib/api-errors";
 import { qrImageHref, RecentQrCodes } from "./recent-qr-codes";
 
 // Daraja TrxCode: PB pays a paybill, BG a till (Buy Goods); the service refuses the one that does not fit.
+// A till's QR is Buy Goods; paybills and One Account are Pay Bill (DynamicQRCode doc, TrxCode).
 const TYPES = [
-  { value: "PB", label: "Pay Bill (PB)", fits: "PAYBILL" },
-  { value: "BG", label: "Buy Goods (BG)", fits: "TILL" },
+  { value: "PB", label: "Pay Bill (PB)", fits: (type: string) => type !== "TILL" },
+  { value: "BG", label: "Buy Goods (BG)", fits: (type: string) => type === "TILL" },
 ] as const;
 const SIZES = ["200", "300", "500"] as const;
 
@@ -148,7 +150,11 @@ export function QrCodeDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
             />
             <TextField
               label="Reference"
-              description="Account number or invoice the payment is for"
+              description={
+                shortcode.shortcode_type === "TILL"
+                  ? "Invoice or note the payment is for"
+                  : "Account number or invoice the payment is for"
+              }
               error={errors.ref_no}
               {...form.register("ref_no")}
             />
@@ -175,7 +181,7 @@ export function QrCodeDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
                           <SelectItem
                             key={type.value}
                             value={type.value}
-                            disabled={type.fits !== shortcode.shortcode_type}
+                            disabled={!type.fits(shortcode.shortcode_type)}
                           >
                             {type.label}
                           </SelectItem>
@@ -185,7 +191,7 @@ export function QrCodeDialog({ shortcode }: { shortcode: ShortcodeDetail }) {
                     <FieldDescription>
                       {shortcode.shortcode_type === "TILL"
                         ? "A till takes Buy Goods"
-                        : "A paybill takes Pay Bill"}
+                        : `A ${typeNoun(shortcode.shortcode_type)} takes Pay Bill`}
                     </FieldDescription>
                   </Field>
                 )}

@@ -21,6 +21,8 @@ const TONES: Record<string, Tone> = {
   PROCESSED: "success",
   REPLAYED: "success",
   FAILED: "danger",
+  // Refused before any handler ran (an unknown callback URL): nothing to apply or replay.
+  REJECTED: "warning",
 };
 
 /** Inbox statuses as word and colour: handled ones green, failures red, in-progress blue. */

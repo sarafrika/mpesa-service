@@ -23,7 +23,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { okData, toastApiError, useInvalidateShortcodes } from "./api";
+import { can, paysOut } from "./capabilities";
 import { FormRootError, TextField } from "./form-fields";
+import { initiatorPurpose } from "./shortcode-types";
 
 const FIELDS = [
   "consumer_key",
@@ -49,7 +51,8 @@ export function UpdateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: EMPTY });
   const update = useUpdateShortcodeCredentials({ mutation: { meta: { errorToast: false } } });
   const { errors } = form.formState;
-  const b2c = shortcode.shortcode_type === "B2C";
+  const stk = can(shortcode, "STK_PUSH");
+  const till = shortcode.shortcode_type === "TILL";
 
   async function submit(values: Values) {
     const data = Object.fromEntries(
@@ -115,28 +118,28 @@ export function UpdateCredentialsDialog({ shortcode }: { shortcode: ShortcodeDet
               error={errors.consumer_secret}
               {...form.register("consumer_secret")}
             />
-            {!b2c && (
+            {stk && (
               <TextField
                 label="Lipa na M-Pesa passkey"
                 type="password"
                 autoComplete="off"
-                description={
+                description={`${
                   shortcode.credentials.passkey_masked
                     ? `Now ${shortcode.credentials.passkey_masked}`
                     : "Not set"
-                }
+                }${till && shortcode.store_number ? `. Issued for store ${shortcode.store_number}` : ""}`}
                 error={errors.passkey}
                 {...form.register("passkey")}
               />
             )}
             <TextField
-              label="B2C initiator name"
+              label="Initiator name"
               autoComplete="off"
-              description={
+              description={`${
                 shortcode.credentials.initiator_name
                   ? `Now ${shortcode.credentials.initiator_name}`
                   : "Not set"
-              }
+              }. ${initiatorPurpose(paysOut(shortcode))}`}
               error={errors.initiator_name}
               {...form.register("initiator_name")}
             />

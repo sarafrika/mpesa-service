@@ -52,15 +52,19 @@ import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { okData } from "./api";
-import { EnvironmentBadge, InlineHealthChecks, PaybillStatusBadge } from "./paybill-badges";
-import { TYPE_LABELS } from "./paybill-health";
+import { collects, paysOut } from "./capabilities";
+import {
+  EnvironmentBadge,
+  InlineHealthChecks,
+  PaybillStatusBadge,
+  TypeBadge,
+} from "./paybill-badges";
+import { SHORTCODE_TYPES, shortcodeNumbers, TYPE_SHORT_LABELS } from "./shortcode-types";
 
 const TYPE_OPTIONS = [
   { value: "all", label: "All" },
-  { value: "PAYBILL", label: "Paybill" },
-  { value: "TILL", label: "Till" },
-  { value: "B2C", label: "B2C" },
-] as const;
+  ...SHORTCODE_TYPES.map((value) => ({ value, label: TYPE_SHORT_LABELS[value] })),
+];
 
 const STATUS_OPTIONS = [
   { value: "all", label: "Any status" },
@@ -113,7 +117,7 @@ function PaybillsHeader() {
           <RoleGate needs="mpesa-operator">
             <Button asChild>
               <Link href="/paybills/new">
-                <Plus /> Add paybill
+                <Plus /> Add shortcode
               </Link>
             </Button>
           </RoleGate>
@@ -211,7 +215,7 @@ function PaybillTotals() {
           value={formatCount(data.initiator_errors_24h)}
           note={
             data.initiator_errors_24h > 0
-              ? "Payouts refused for the initiator's credentials. Update them on the paybill."
+              ? "Payouts refused for the initiator's credentials. Update them on the shortcode's Credentials tab."
               : undefined
           }
           noteTone="warning"
@@ -345,7 +349,7 @@ function PaybillTable() {
       ) : !data ? (
         <ErrorState
           error={query.error}
-          resource="paybill list"
+          resource="shortcode list"
           onRetry={() => query.refetch()}
           retrying={query.isFetching}
         />
@@ -376,13 +380,13 @@ function PaybillTable() {
         ) : (
           <EmptyState
             icon={CreditCard}
-            title="No paybills yet"
-            description="Add Sarafrika's first paybill or till to start collecting through the console."
+            title="No shortcodes yet"
+            description="Add Sarafrika's first paybill, till or B2C shortcode to collect or pay out through the console."
             action={
               <RoleGate needs="mpesa-operator">
                 <Button size="sm" asChild>
                   <Link href="/paybills/new">
-                    <Plus /> Add paybill
+                    <Plus /> Add shortcode
                   </Link>
                 </Button>
               </RoleGate>
@@ -407,7 +411,7 @@ function PaybillTable() {
                   onSort={paging.setSort}
                   className="pl-4 md:pl-5"
                 >
-                  Paybill
+                  Shortcode
                 </SortableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Product</TableHead>
@@ -434,11 +438,13 @@ function PaybillTable() {
                     >
                       <span className="font-semibold">{row.business_name}</span>
                       <span className="text-muted-foreground text-xs tabular-nums">
-                        {row.shortcode}
+                        {shortcodeNumbers(row)}
                       </span>
                     </Link>
                   </TableCell>
-                  <TableCell>{TYPE_LABELS[row.shortcode_type] ?? row.shortcode_type}</TableCell>
+                  <TableCell>
+                    <TypeBadge type={row.shortcode_type} />
+                  </TableCell>
                   <TableCell>
                     {row.products.length === 0 ? (
                       <span className="text-muted-foreground">Unassigned</span>
@@ -453,7 +459,7 @@ function PaybillTable() {
                     <InlineHealthChecks health={row.health} now={now} />
                   </TableCell>
                   <TableCell className="text-right font-semibold">
-                    {row.shortcode_type === "B2C" ? (
+                    {paysOut(row) && !collects(row) ? (
                       <Money amount={row.health.paid_out_today} direction="out" hideCode />
                     ) : (
                       <Money amount={row.health.collected_today} hideCode />

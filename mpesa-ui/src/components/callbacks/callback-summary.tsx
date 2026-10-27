@@ -7,7 +7,7 @@ import { StaleNotice } from "@/components/stale-notice";
 import { StatCard } from "@/components/stat-card";
 import { formatCount } from "@/lib/format";
 
-/** Received, failed and replayed callbacks over the last 24 hours. */
+/** Received, failed, rejected and replayed callbacks over the last 24 hours. */
 export function CallbackSummary() {
   const query = useGetCallbackSummary({ query: { refetchInterval: 60_000 } });
   const summary = query.data?.status === 200 ? query.data.data : undefined;
@@ -21,13 +21,13 @@ export function CallbackSummary() {
         retrying={query.isFetching}
       />
     ) : (
-      <StatRowSkeleton count={3} />
+      <StatRowSkeleton count={4} />
     );
   }
   return (
     <div className="flex flex-col gap-2">
       <StaleNotice query={query} />
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Received · 24 h"
           value={formatCount(summary.total)}
@@ -42,6 +42,16 @@ export function CallbackSummary() {
           value={formatCount(summary.failed)}
           note={summary.failed > 0 ? "Acknowledged but not applied" : "Nothing to replay"}
           noteTone={summary.failed > 0 ? "danger" : "success"}
+        />
+        <StatCard
+          label="Rejected · 24 h"
+          value={formatCount(summary.rejected)}
+          note={
+            summary.rejected > 0
+              ? "Refused before any handler ran; nothing to replay"
+              : "No callback to an unknown URL"
+          }
+          noteTone={summary.rejected > 0 ? "warning" : "success"}
         />
         <StatCard
           label="Replayed · 24 h"

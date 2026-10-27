@@ -34,6 +34,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { okData, toastApiError, useInvalidateShortcodes } from "./api";
+import { takesAccountNumbers } from "./capabilities";
 import { FormRootError, TextField } from "./form-fields";
 
 export const RESPONSE_TYPES: { value: C2bResponseType; label: string }[] = [
@@ -139,6 +140,7 @@ export function SimulateC2bDialog({ shortcode }: { shortcode: ShortcodeDetail })
   });
   const simulate = useSimulateShortcodeC2b({ mutation: { meta: { errorToast: false } } });
   const { errors } = form.formState;
+  const accountNumbers = takesAccountNumbers(shortcode);
 
   async function submit(values: SimulateValues) {
     try {
@@ -147,7 +149,7 @@ export function SimulateC2bDialog({ shortcode }: { shortcode: ShortcodeDetail })
         data: {
           phone_number: values.phone_number,
           amount: Number(values.amount),
-          bill_ref_number: values.bill_ref_number || undefined,
+          bill_ref_number: (accountNumbers && values.bill_ref_number) || undefined,
         },
       });
       toast.success("Safaricom accepted the simulation", {
@@ -189,11 +191,13 @@ export function SimulateC2bDialog({ shortcode }: { shortcode: ShortcodeDetail })
               error={errors.amount}
               {...form.register("amount")}
             />
-            <TextField
-              label="Account number"
-              error={errors.bill_ref_number}
-              {...form.register("bill_ref_number")}
-            />
+            {accountNumbers && (
+              <TextField
+                label="Account number"
+                error={errors.bill_ref_number}
+                {...form.register("bill_ref_number")}
+              />
+            )}
           </div>
           <FormRootError message={errors.root?.server?.message} />
           <DialogFooter>

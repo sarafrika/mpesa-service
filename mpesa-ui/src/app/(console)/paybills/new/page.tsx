@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SectionBoundary } from "@/components/error-boundary";
 import { AddPaybillWizard } from "@/components/paybills/wizard/add-paybill-wizard";
 
-export const metadata: Metadata = { title: "Add paybill" };
+export const metadata: Metadata = { title: "Add a shortcode" };
 
 export default function AddPaybillPage() {
   return (

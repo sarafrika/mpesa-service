@@ -28,7 +28,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { okData, toastApiError, useInvalidateShortcodes } from "./api";
+import { activationBlockers, takesAccountNumbers } from "./capabilities";
 import { FormRootError, TextField } from "./form-fields";
+import { typeNoun } from "./shortcode-types";
 
 /** mpesa-admin: suspend refuses STK pushes and payouts at once; activate lets them through again. */
 export function LifecycleButton({ shortcode }: { shortcode: ShortcodeDetail }) {
@@ -75,7 +77,8 @@ export function LifecycleButton({ shortcode }: { shortcode: ShortcodeDetail }) {
   }
 
   const draft = shortcode.status === "DRAFT";
-  const blocked = draft && shortcode.health.token_ok !== true;
+  const blockers = draft ? activationBlockers(shortcode) : [];
+  const blocked = blockers.length > 0;
   return (
     <ConfirmDialog
       title={`Activate ${shortcode.business_name}?`}
@@ -87,10 +90,7 @@ export function LifecycleButton({ shortcode }: { shortcode: ShortcodeDetail }) {
       confirmLabel="Activate"
       pending={activate.isPending}
       trigger={
-        <Button
-          disabled={blocked}
-          title={blocked ? "Run the checks first: Daraja must issue a token" : undefined}
-        >
+        <Button disabled={blocked} title={blocked ? blockers.join(" ") : undefined}>
           <Power /> Activate
         </Button>
       }
@@ -156,7 +156,7 @@ export function SendTestStkDialog({
           disabled={disabled}
           title={
             disabled
-              ? "Only an active paybill or till with a passkey can send STK pushes"
+              ? `Only an active ${typeNoun(shortcode.shortcode_type)} with a passkey can send STK pushes`
               : undefined
           }
         >
@@ -167,8 +167,10 @@ export function SendTestStkDialog({
         <DialogHeader>
           <DialogTitle>Send a test STK push</DialogTitle>
           <DialogDescription>
-            The phone gets a real M-Pesa prompt from {shortcode.business_name} for KES 1 to 10,
-            against its default account reference.
+            The phone gets a real M-Pesa prompt from {shortcode.business_name} for KES 1 to 10
+            {takesAccountNumbers(shortcode)
+              ? ", against its default account reference."
+              : `, paid to till ${shortcode.shortcode}.`}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-4" noValidate>

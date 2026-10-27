@@ -14,6 +14,8 @@ import type { BulkPayoutUploadDto } from "@/api/generated/model";
 import { MaskedPhone } from "@/components/masked-phone";
 import { Money } from "@/components/money";
 import { OptionsError } from "@/components/options-error";
+import { paysOut } from "@/components/paybills/capabilities";
+import { typeLabel } from "@/components/paybills/shortcode-types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -60,7 +62,7 @@ type Errors = Partial<Record<"shortcode_uuid" | "title" | "reason" | "file" | "r
 const PICKER_SIZE = 100;
 const VALID_PAGE = 50;
 
-/** Pick a paybill and a CSV, check every row, then send the valid rows for approval. */
+/** Pick a payout shortcode and a CSV, check every row, then send the valid rows for approval. */
 export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDialogProps) {
   const id = useId();
   const queryClient = useQueryClient();
@@ -72,19 +74,18 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
   const [errors, setErrors] = useState<Errors>({});
   const [search, setSearch] = useState("");
   const q = useDebouncedValue(search.trim());
-  // Bulk payouts are B2C payments, so only active B2C shortcodes can pay them.
+  // Bulk payouts are B2C payments: only active shortcodes whose capabilities include them can pay.
   const shortcodes = useListShortcodes(
     {
       size: PICKER_SIZE,
       status: "ACTIVE",
-      type: "B2C",
       q: q || undefined,
       sort: ["business_name,asc"],
     },
     { query: { enabled: open } },
   );
   const page = shortcodes.data?.status === 200 ? shortcodes.data.data : undefined;
-  const paybills = page?.items ?? [];
+  const paybills = (page?.items ?? []).filter((code) => paysOut(code));
   const upload = useUploadBulkPayout({ mutation: { meta: { errorToast: false } } });
 
   function reset() {
@@ -115,13 +116,13 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
       setErrors(next);
       return;
     }
-    const copy = describeApiError(error, { requiredRole: "mpesa-operator", resource: "paybill" });
+    const copy = describeApiError(error, { requiredRole: "mpesa-operator", resource: "shortcode" });
     setErrors({ root: `${copy.title}. ${copy.description}` });
   }
 
   function missing(forSubmit: boolean): Errors {
     const next: Errors = {};
-    if (!shortcode) next.shortcode_uuid = "Pick the paybill that pays";
+    if (!shortcode) next.shortcode_uuid = "Pick the shortcode that pays";
     if (!title.trim()) next.title = "Give the batch a title";
     if (!file) next.file = "Choose a CSV file";
     if (forSubmit && !reason.trim()) next.reason = "Say why this batch is paid";
@@ -201,22 +202,22 @@ export function BulkUploadDialog({ open, onOpenChange, onCreated }: BulkUploadDi
                       : !page && shortcodes.isError
                         ? "Shortcodes could not be loaded"
                         : paybills.length === 0
-                          ? "No active B2C shortcode"
-                          : "Choose a B2C shortcode"
+                          ? "No active B2C or One Account shortcode"
+                          : "Choose a B2C or One Account shortcode"
                   }
                 />
               </SelectTrigger>
               <SelectContent>
                 {paybills.map((code) => (
                   <SelectItem key={code.uuid} value={code.uuid}>
-                    {code.business_name} · {code.shortcode}
+                    {code.business_name} · {code.shortcode} · {typeLabel(code.shortcode_type, true)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {page && page.total_items > paybills.length && (
+            {page && page.total_items > page.items.length && (
               <FieldDescription>
-                {`Showing the first ${formatCount(paybills.length)} of ${formatCount(page.total_items)}; search to narrow.`}
+                {`Looked through the first ${formatCount(page.items.length)} of ${formatCount(page.total_items)} active shortcodes; search to narrow.`}
               </FieldDescription>
             )}
             <OptionsError what="the B2C shortcodes" query={shortcodes} />

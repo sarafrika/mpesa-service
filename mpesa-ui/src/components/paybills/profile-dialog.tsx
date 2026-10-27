@@ -22,6 +22,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { toastApiError, useInvalidateShortcodes } from "./api";
+import { takesAccountNumbers } from "./capabilities";
 import { amountText, FormRootError, TextField, toAmount } from "./form-fields";
 
 const schema = UpdateShortcodeBody.pick({ account_reference: true, transaction_desc: true })
@@ -58,6 +59,7 @@ export function EditProfileDialog({ shortcode }: { shortcode: ShortcodeDetail })
   });
   const update = useUpdateShortcode({ mutation: { meta: { errorToast: false } } });
   const { errors } = form.formState;
+  const accountNumbers = takesAccountNumbers(shortcode);
 
   async function submit(values: Values) {
     try {
@@ -67,7 +69,7 @@ export function EditProfileDialog({ shortcode }: { shortcode: ShortcodeDetail })
           business_name: values.business_name,
           min_amount: toAmount(values.min_amount),
           max_amount: toAmount(values.max_amount),
-          account_reference: values.account_reference ?? "",
+          account_reference: accountNumbers ? (values.account_reference ?? "") : undefined,
           transaction_desc: values.transaction_desc ?? "",
         },
       });
@@ -96,7 +98,8 @@ export function EditProfileDialog({ shortcode }: { shortcode: ShortcodeDetail })
         <DialogHeader>
           <DialogTitle>Edit profile</DialogTitle>
           <DialogDescription>
-            Changes apply to new STK pushes and payouts. Leave a default empty to clear it.
+            Changes apply to what this shortcode sends from now on. Leave a default empty to clear
+            it.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-4" noValidate>
@@ -119,11 +122,13 @@ export function EditProfileDialog({ shortcode }: { shortcode: ShortcodeDetail })
               {...form.register("max_amount")}
             />
           </div>
-          <TextField
-            label="Default account reference"
-            error={errors.account_reference}
-            {...form.register("account_reference")}
-          />
+          {accountNumbers && (
+            <TextField
+              label="Default account reference"
+              error={errors.account_reference}
+              {...form.register("account_reference")}
+            />
+          )}
           <TextField
             label="Default description"
             error={errors.transaction_desc}

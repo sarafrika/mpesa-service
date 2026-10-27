@@ -62,19 +62,26 @@ const NEW_PRODUCT = "__new__";
 // The service caps a page at 100; past that the picker asks for a search instead of paging.
 const PICKER_LIMIT = 100;
 
-export type ProductAccessProps = { shortcodeUuid: string };
+export type ProductAccessProps = {
+  shortcodeUuid: string;
+  /** The operations this shortcode's capabilities allow; leave out to offer every one. */
+  operations?: readonly Operation[];
+};
 
-/** Which products may use this paybill on the machine API, and for which operations; admins edit. */
-export function ProductAccess({ shortcodeUuid }: ProductAccessProps) {
+/** Which products may use this shortcode on the machine API, and for which operations; admins edit. */
+export function ProductAccess(props: ProductAccessProps) {
   return (
     <SectionBoundary title="Product access">
-      <ProductAccessCard shortcodeUuid={shortcodeUuid} />
+      <ProductAccessCard {...props} />
     </SectionBoundary>
   );
 }
 
 // Unprefixed URL paging like the other paybill tabs, which clear page, size and sort on a tab switch.
-function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
+function ProductAccessCard({
+  shortcodeUuid,
+  operations: allowed = OPERATIONS,
+}: ProductAccessProps) {
   const paging = usePaging({ size: 10 });
   const [editing, setEditing] = useState<ProductGrant | null>(null);
   const [granting, setGranting] = useState(false);
@@ -93,7 +100,7 @@ function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
   return (
     <SectionCard
       title="Product access"
-      description="Which Sarafrika products may call the machine API with this paybill, and for which operations."
+      description="Which Sarafrika products may call the machine API with this shortcode, and for which operations."
       actions={
         <RoleGate needs="mpesa-admin">
           <Button variant="outline" size="sm" onClick={() => setGranting(true)}>
@@ -119,7 +126,7 @@ function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
       ) : !data || data.items.length === 0 ? (
         <EmptyState
           icon={Boxes}
-          title="No product may use this paybill"
+          title="No product may use this shortcode"
           description="Products are refused on the machine API until they are granted operations here."
           action={
             <RoleGate needs="mpesa-admin">
@@ -156,12 +163,14 @@ function ProductAccessCard({ shortcodeUuid }: ProductAccessProps) {
         <EditAccessDialog
           grant={editing}
           shortcodeUuid={shortcodeUuid}
+          allowed={allowed}
           onClose={() => setEditing(null)}
         />
       )}
       {granting && (
         <GrantProductDialog
           shortcodeUuid={shortcodeUuid}
+          allowed={allowed}
           taken={data?.items.map((grant) => grant.client_id) ?? []}
           onClose={() => setGranting(false)}
         />
@@ -214,15 +223,18 @@ function OperationChecks({
   onChange,
   disabled,
   idPrefix,
+  allowed,
 }: {
   value: Operation[];
   onChange: (next: Operation[]) => void;
   disabled?: boolean;
   idPrefix: string;
+  allowed: readonly Operation[];
 }) {
+  const offered = OPERATIONS.filter((op) => allowed.includes(op));
   return (
     <fieldset aria-label="Operations" className="m-0 flex flex-col gap-2.5 border-0 p-0">
-      {OPERATIONS.map((operation) => {
+      {offered.map((operation) => {
         const id = `${idPrefix}-${operation}`;
         return (
           <label key={operation} htmlFor={id} className="flex cursor-pointer items-start gap-2.5">
@@ -251,13 +263,17 @@ function OperationChecks({
 function EditAccessDialog({
   grant,
   shortcodeUuid,
+  allowed,
   onClose,
 }: {
   grant: ProductGrant;
   shortcodeUuid: string;
+  allowed: readonly Operation[];
   onClose: () => void;
 }) {
   const [operations, setOperations] = useState<Operation[]>(grant.operations as Operation[]);
+  // An operation granted before the type allowed less stays listed so it can be taken away.
+  const [offered] = useState(() => [...allowed, ...(grant.operations as Operation[])]);
   const [active, setActive] = useState(grant.active);
   const [removing, setRemoving] = useState(false);
   const refresh = useRefreshProducts();
@@ -293,6 +309,7 @@ function EditAccessDialog({
             onChange={setOperations}
             disabled={busy}
             idPrefix="edit-access"
+            allowed={offered}
           />
           <label htmlFor="edit-access-active" className="flex items-center justify-between gap-3">
             <span className="flex flex-col">
@@ -326,13 +343,13 @@ function EditAccessDialog({
         open={removing}
         onOpenChange={(open) => !open && setRemoving(false)}
         title={`Remove ${grant.product_name}'s access?`}
-        description="Its calls on this paybill are refused from now on, and it stops getting webhooks for it."
+        description="Its calls on this shortcode are refused from now on, and it stops getting webhooks for it."
         confirmLabel="Remove access"
         destructive
         onConfirm={async () => {
           await remove.mutateAsync({ clientId: grant.client_id, shortcodeUuid });
           await refresh();
-          toast.success(`${grant.product_name} can no longer use this paybill`);
+          toast.success(`${grant.product_name} can no longer use this shortcode`);
           onClose();
         }}
       />
@@ -342,10 +359,12 @@ function EditAccessDialog({
 
 function GrantProductDialog({
   shortcodeUuid,
+  allowed,
   taken,
   onClose,
 }: {
   shortcodeUuid: string;
+  allowed: readonly Operation[];
   taken: string[];
   onClose: () => void;
 }) {
@@ -474,6 +493,7 @@ function GrantProductDialog({
           onChange={setOperations}
           disabled={upsert.isPending}
           idPrefix="grant-access"
+          allowed={allowed}
         />
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={upsert.isPending}>

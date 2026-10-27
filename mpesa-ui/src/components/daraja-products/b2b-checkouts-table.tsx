@@ -46,7 +46,7 @@ export function B2bCheckouts({
   return (
     <SectionCard
       title="B2B Express Checkout"
-      description="Prompts asking a merchant's till to pay this paybill. A paid prompt becomes an incoming payment."
+      description="Prompts asking a merchant's till to pay this shortcode. A paid prompt becomes an incoming payment."
       actions={action}
     >
       {data && <StaleNotice query={list} />}

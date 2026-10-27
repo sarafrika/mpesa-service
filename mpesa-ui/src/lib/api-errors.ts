@@ -135,7 +135,10 @@ export function describeApiError(error: unknown, options: DescribeOptions = {}):
     return {
       ...base,
       kind: "conflict",
-      title: "That clashes with something that already exists",
+      // 409 covers duplicates and things a shortcode's type cannot do; the server's sentence says which.
+      title: server
+        ? "The M-Pesa service refused this"
+        : "That clashes with something that already exists",
       description: server ?? "Refresh and check the current state before trying again.",
     };
   }

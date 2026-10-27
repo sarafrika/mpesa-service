@@ -1,7 +1,13 @@
 import type { ComponentType } from "react";
-import type { ShortcodeDetail } from "@/api/generated/model";
 import { ValidationRulesEditor } from "@/components/collections/validation-rules-editor";
 import { FeaturesSection } from "@/components/daraja-products/features-section";
+import {
+  grantableOperations,
+  PAYBILL_TABS,
+  type PaybillTabId,
+  type TabRule,
+  takesAccountNumbers,
+} from "@/components/paybills/capabilities";
 import { C2bSection } from "@/components/paybills/sections/c2b-section";
 import { CredentialsSection } from "@/components/paybills/sections/credentials-section";
 import { FloatSection } from "@/components/paybills/sections/float-section";
@@ -12,18 +18,21 @@ import { PaybillTransactions } from "@/components/transactions/paybill-transacti
 
 export type { PaybillSectionProps };
 
-export type PaybillSection = {
+export type PaybillSection = TabRule & {
   /** Tab value, kept in the URL as ?tab=<id>; unique and stable. */
   id: string;
   label: string;
-  /** Leave out to show the tab on every shortcode, e.g. `(s) => s.shortcode_type !== "B2C"`. */
-  visible?: (shortcode: ShortcodeDetail) => boolean;
   /** Rendered inside its own SectionBoundary, so a failing tab never breaks the page. */
   Component: ComponentType<PaybillSectionProps>;
 };
 
 function ValidationRulesSection({ shortcode }: PaybillSectionProps) {
-  return <ValidationRulesEditor shortcodeUuid={shortcode.uuid} />;
+  return (
+    <ValidationRulesEditor
+      shortcodeUuid={shortcode.uuid}
+      accountNumbers={takesAccountNumbers(shortcode)}
+    />
+  );
 }
 
 function TransactionsSection({ shortcode }: PaybillSectionProps) {
@@ -31,27 +40,24 @@ function TransactionsSection({ shortcode }: PaybillSectionProps) {
 }
 
 function ProductAccessSection({ shortcode }: PaybillSectionProps) {
-  return <ProductAccess shortcodeUuid={shortcode.uuid} />;
+  return (
+    <ProductAccess shortcodeUuid={shortcode.uuid} operations={grantableOperations(shortcode)} />
+  );
 }
 
-// One entry per tab, in display order.
-export const PAYBILL_SECTIONS: readonly PaybillSection[] = [
-  { id: "overview", label: "Overview", Component: OverviewSection },
-  {
-    id: "c2b",
-    label: "C2B",
-    visible: (shortcode) => shortcode.shortcode_type !== "B2C",
-    Component: C2bSection,
-  },
-  {
-    id: "validation",
-    label: "Validation rules",
-    visible: (shortcode) => shortcode.shortcode_type !== "B2C",
-    Component: ValidationRulesSection,
-  },
-  { id: "products", label: "Product access", Component: ProductAccessSection },
-  { id: "credentials", label: "Credentials", Component: CredentialsSection },
-  { id: "float", label: "Float", Component: FloatSection },
-  { id: "transactions", label: "Transactions", Component: TransactionsSection },
-  { id: "features", label: "Features", Component: FeaturesSection },
-];
+const COMPONENTS: Record<PaybillTabId, ComponentType<PaybillSectionProps>> = {
+  overview: OverviewSection,
+  c2b: C2bSection,
+  validation: ValidationRulesSection,
+  products: ProductAccessSection,
+  credentials: CredentialsSection,
+  float: FloatSection,
+  transactions: TransactionsSection,
+  features: FeaturesSection,
+};
+
+// Which tabs a shortcode gets comes from its capabilities (PAYBILL_TABS[].needs), never from its type.
+export const PAYBILL_SECTIONS: readonly PaybillSection[] = PAYBILL_TABS.map((tab) => ({
+  ...tab,
+  Component: COMPONENTS[tab.id],
+}));
