@@ -1,42 +1,52 @@
 # mpesa-ui
 
-This is the console our team uses to manage Sarafrika's M-Pesa paybills. It's a React app with a small Next.js server in front of it. The server signs people in with Keycloak and passes their requests on to `mpesa-service`, so the browser never sees a token.
+The Sarafrika M-Pesa console: a React app served by a Next.js server.
+
+The server signs staff in with Keycloak (PKCE), keeps their tokens in an encrypted session cookie and forwards API calls to `mpesa-service`. The browser never receives a token.
+
+**Stack:** Next.js 16, React 19, Tailwind CSS 4, shadcn/ui, React Query with an Orval-generated client, and Biome.
 
 ## Getting started
 
-```
+```bash
 cp .env.example .env.local
 pnpm install
-pnpm dev       # starts on :3000
+pnpm dev
 ```
 
-| Command | What it does |
+The console runs on `localhost:3000`. It needs `mpesa-service` and Keycloak running; see the [root README](../README.md).
+
+## Scripts
+
+| Command | Purpose |
 |---|---|
-| `pnpm lint` | Checks lint and formatting with Biome |
-| `pnpm format` | Fixes what Biome can |
-| `pnpm test` | Runs the unit tests |
-| `pnpm api:spec` | Gets a fresh `openapi.json` from `mpesa-service` |
+| `pnpm dev` | Generates the API client, then starts the dev server |
+| `pnpm build` | Production build |
+| `pnpm lint` | Biome lint and format check |
+| `pnpm format` | Applies Biome fixes |
+| `pnpm test` | Unit tests |
+| `pnpm api:spec` | Exports `openapi.json` from `mpesa-service` |
 
-`pnpm dev` regenerates the API client from `openapi.json` before it starts. The generated code goes into `src/api/generated/`, which isn't committed, so don't edit it by hand.
+## Project structure
 
-## Where things are
-
-| Path | What's there |
+| Path | Contents |
 |---|---|
+| `src/app/(console)/` | Console screens, one folder per route |
+| `src/app/api/mpesa/[...path]/route.ts` | Proxy to `mpesa-service` |
 | `src/auth.ts` | Keycloak sign-in and token refresh |
-| `src/app/api/mpesa/[...path]/route.ts` | The proxy that forwards calls to the service |
-| `src/proxy.ts` | Sends anyone who isn't signed in to `/sign-in` |
-| `src/components/ui/` | shadcn components, as the CLI added them |
-| `src/components/` | Our own components, such as `StatusBadge`, `Money` and `ErrorState` |
-| `src/app/globals.css` | Colours for light and dark mode |
+| `src/proxy.ts` | Redirects signed-out users to `/sign-in` |
+| `src/components/` | Shared components such as `StatusBadge`, `Money` and `ErrorState` |
+| `src/components/ui/` | shadcn/ui components |
+| `src/api/generated/` | Orval output; generated, not committed |
+| `src/app/globals.css` | Theme tokens for light and dark mode |
 
-## Building a screen
+## Conventions
 
-- **Lists:** use `usePaging()` for the page, size and sort, which keeps them in the URL. Put `DataTablePagination` under the table.
-- **Loading:** show a skeleton shaped like the content, never a bare spinner.
+- **Lists** keep their page, size and sort in the URL with `usePaging()`, with `DataTablePagination` below the table.
+- **Loading** shows a skeleton shaped like the content.
 - **Errors:**
-  - Wrap each section in `SectionBoundary`, so one broken card doesn't take the whole page down.
-  - Use `ErrorState` for a failed load.
-  - If a refresh fails but data is already on screen, keep the data and add `StaleNotice`.
-- **Forms:** show field errors on the form with `applyFieldErrors`.
-- **Colours:** use the theme tokens, never a hard-coded colour. Money in is `--chart-1` and money out is `--chart-2`.
+  - Each section sits in a `SectionBoundary`, so a failure stays inside one card.
+  - Failed loads show `ErrorState`.
+  - If a refresh fails, the cached data stays on screen with a `StaleNotice`.
+- **Forms** show server validation errors on their fields with `applyFieldErrors`.
+- **Colours** come from theme tokens only. Money in uses `--chart-1` and money out `--chart-2`.
