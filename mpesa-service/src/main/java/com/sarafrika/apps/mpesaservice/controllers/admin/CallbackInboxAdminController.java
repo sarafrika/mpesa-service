@@ -68,7 +68,7 @@ public class CallbackInboxAdminController {
             @Parameter(description = "field,asc|desc; repeatable. Fields: received_at, attempts. Default received_at,desc",
                     array = @ArraySchema(schema = @Schema(type = "string", example = "received_at,desc")))
             @RequestParam(name = "sort", required = false) List<String> sort,
-            @Parameter(schema = @Schema(allowableValues = {"RECEIVED", "PROCESSED", "FAILED", "REPLAYED"}))
+            @Parameter(schema = @Schema(allowableValues = {"RECEIVED", "PROCESSED", "FAILED", "REPLAYED", "REJECTED"}))
             @RequestParam(name = "status", required = false) String status,
             @Parameter(description = "Callback kind, e.g. C2B_CONFIRMATION, STK_CALLBACK, B2C_RESULT")
             @RequestParam(name = "kind", required = false) String kind,

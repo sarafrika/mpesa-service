@@ -20,9 +20,10 @@ public record CallbackDto(
         @Schema(nullable = true, example = "196.201.214.200")
         @JsonProperty("source_ip") String sourceIp,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                allowableValues = {"RECEIVED", "PROCESSED", "FAILED", "REPLAYED"})
+                allowableValues = {"RECEIVED", "PROCESSED", "FAILED", "REPLAYED", "REJECTED"})
         @JsonProperty("status") String status,
-        @Schema(nullable = true, description = "Why processing failed; no stack traces")
+        @Schema(nullable = true, description = "Why processing failed, or for REJECTED why it was refused before "
+                + "any handler ran; no stack traces")
         @JsonProperty("error") String error,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Times the handler ran, replays included")
         @JsonProperty("attempts") int attempts,
