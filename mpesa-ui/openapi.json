@@ -1316,7 +1316,7 @@
             "type" : "string"
           },
           "error" : {
-            "description" : "Why processing failed; no stack traces",
+            "description" : "Why processing failed, or for REJECTED why it was refused before any handler ran; no stack traces",
             "type" : "string"
           },
           "kind" : {
@@ -1346,7 +1346,7 @@
             "type" : "string"
           },
           "status" : {
-            "enum" : [ "RECEIVED", "PROCESSED", "FAILED", "REPLAYED" ],
+            "enum" : [ "RECEIVED", "PROCESSED", "FAILED", "REPLAYED", "REJECTED" ],
             "type" : "string"
           },
           "uuid" : {
@@ -1380,6 +1380,7 @@
       "CallbackSummaryDto" : {
         "properties" : {
           "failed" : {
+            "description" : "Handled but not applied; rejected callbacks are not counted here",
             "format" : "int64",
             "type" : "integer"
           },
@@ -1389,6 +1390,11 @@
           },
           "received" : {
             "description" : "Still being handled",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "rejected" : {
+            "description" : "Refused before any handler ran (unknown callback URL); nothing to apply or replay",
             "format" : "int64",
             "type" : "integer"
           },
@@ -1407,7 +1413,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "failed", "processed", "received", "replayed", "since", "total" ],
+        "required" : [ "failed", "processed", "received", "rejected", "replayed", "since", "total" ],
         "type" : "object"
       },
       "CloseAsFailedRequest" : {
@@ -1609,7 +1615,7 @@
             "type" : "string"
           },
           "initiator_name" : {
-            "description" : "B2C initiator; required for B2C shortcodes",
+            "description" : "API initiator; needed before a B2C or One Account goes live, and for reversals, status, balance and B2B on the others",
             "example" : "elimika-api",
             "maxLength" : 100,
             "minLength" : 0,
@@ -1632,7 +1638,7 @@
             "type" : "number"
           },
           "passkey" : {
-            "description" : "Lipa na M-Pesa passkey; needed for STK push",
+            "description" : "Lipa na M-Pesa passkey; needed for STK push, issued for a till's store/HO number. Rejected for B2C (B2C FAQ 15: no passkey)",
             "maxLength" : 500,
             "minLength" : 0,
             "type" : "string",
@@ -1652,7 +1658,13 @@
             "type" : "string"
           },
           "shortcode_type" : {
-            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C", "ONE_ACCOUNT" ],
+            "type" : "string"
+          },
+          "store_number" : {
+            "description" : "A till's store or Head Office number (the Go-Live shortcode its passkey belongs to); required for TILL and rejected for every other type",
+            "example" : 174300,
+            "pattern" : "^[0-9]{5,10}$",
             "type" : "string"
           },
           "transaction_desc" : {
@@ -3943,6 +3955,14 @@
             "description" : "Where Safaricom posts STK push results",
             "type" : "string"
           },
+          "capabilities" : {
+            "description" : "What this shortcode's type can do; the console shows tabs, switches and actions from it",
+            "items" : {
+              "enum" : [ "C2B_REGISTER", "C2B_VALIDATION", "STK_PUSH", "QR", "PULL_TRANSACTIONS", "REVERSAL", "B2C_PAYOUT", "POCHI", "TRANSACTION_STATUS", "ACCOUNT_BALANCE", "B2B_EXPRESS_CHECKOUT" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "confirmation_url" : {
             "description" : "Last C2B confirmation URL registered with Safaricom",
             "type" : "string"
@@ -3985,11 +4005,20 @@
             "type" : "string"
           },
           "shortcode_type" : {
-            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C", "ONE_ACCOUNT" ],
             "type" : "string"
           },
           "status" : {
             "$ref" : "#/components/schemas/ShortcodeStatus"
+          },
+          "store_number" : {
+            "description" : "A till's store/HO number (the Go-Live shortcode); null otherwise",
+            "example" : 174300,
+            "type" : "string"
+          },
+          "store_number_confirmed" : {
+            "description" : "False for a till whose store number was copied from the till number and not confirmed",
+            "type" : "boolean"
           },
           "suspended_at" : {
             "format" : "date-time",
@@ -4013,11 +4042,15 @@
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "credentials", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "uuid" ],
+        "required" : [ "business_name", "capabilities", "credentials", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "store_number_confirmed", "uuid" ],
         "type" : "object"
       },
       "ShortcodeFeatureDto" : {
         "properties" : {
+          "available" : {
+            "description" : "False when the shortcode's type cannot use this product; it cannot be switched on",
+            "type" : "boolean"
+          },
           "enabled" : {
             "type" : "boolean"
           },
@@ -4034,7 +4067,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "enabled", "feature" ],
+        "required" : [ "available", "enabled", "feature" ],
         "type" : "object"
       },
       "ShortcodeFloatDto" : {
@@ -4212,6 +4245,14 @@
             "example" : "Elimika Fees",
             "type" : "string"
           },
+          "capabilities" : {
+            "description" : "What this shortcode's type can do",
+            "items" : {
+              "enum" : [ "C2B_REGISTER", "C2B_VALIDATION", "STK_PUSH", "QR", "PULL_TRANSACTIONS", "REVERSAL", "B2C_PAYOUT", "POCHI", "TRANSACTION_STATUS", "ACCOUNT_BALANCE", "B2B_EXPRESS_CHECKOUT" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "created_at" : {
             "format" : "date-time",
             "type" : "string"
@@ -4243,18 +4284,23 @@
             "type" : "string"
           },
           "shortcode_type" : {
-            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C", "ONE_ACCOUNT" ],
             "type" : "string"
           },
           "status" : {
             "$ref" : "#/components/schemas/ShortcodeStatus"
+          },
+          "store_number" : {
+            "description" : "A till's store/HO number (the Go-Live shortcode); null otherwise",
+            "example" : 174300,
+            "type" : "string"
           },
           "uuid" : {
             "format" : "uuid",
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "uuid" ],
+        "required" : [ "business_name", "capabilities", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "uuid" ],
         "type" : "object"
       },
       "ShortcodeTotals" : {
@@ -5114,6 +5160,11 @@
             "minimum" : 1,
             "type" : "number"
           },
+          "store_number" : {
+            "description" : "A till's store/HO number; sending it (even unchanged) confirms it. Tills only",
+            "pattern" : "^[0-9]{5,10}$",
+            "type" : "string"
+          },
           "transaction_desc" : {
             "maxLength" : 255,
             "minLength" : 0,
@@ -5214,12 +5265,14 @@
       "ValidationDryRunRequest" : {
         "properties" : {
           "account" : {
+            "description" : "Left out: an account built from the account pattern (400 on account when none can be built), the default account reference, or TEST-001",
             "example" : "ELM-004512",
             "maxLength" : 100,
             "minLength" : 0,
             "type" : "string"
           },
           "amount" : {
+            "description" : "Left out: the rule minimum, or 1",
             "example" : 4500.0,
             "minimum" : 0.01,
             "type" : "number"
@@ -5235,13 +5288,22 @@
             "description" : "Unsaved rules to try; the saved rules are used when absent"
           }
         },
-        "required" : [ "account", "amount" ],
         "type" : "object"
       },
       "ValidationDryRunResult" : {
         "properties" : {
           "accepted" : {
             "type" : "boolean"
+          },
+          "account" : {
+            "description" : "The account tried (empty on a till)",
+            "example" : "ELM-000000",
+            "type" : "string"
+          },
+          "amount" : {
+            "description" : "The amount tried",
+            "example" : 1,
+            "type" : "number"
           },
           "reason" : {
             "example" : "Account 'X1' does not match ^ELM-[0-9]{6}$",
@@ -6335,7 +6397,7 @@
           "name" : "status",
           "required" : false,
           "schema" : {
-            "enum" : [ "RECEIVED", "PROCESSED", "FAILED", "REPLAYED" ],
+            "enum" : [ "RECEIVED", "PROCESSED", "FAILED", "REPLAYED", "REJECTED" ],
             "type" : "string"
           }
         }, {
@@ -8469,7 +8531,7 @@
           "name" : "type",
           "required" : false,
           "schema" : {
-            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C", "ONE_ACCOUNT" ],
             "type" : "string"
           }
         }, {
@@ -8666,7 +8728,7 @@
           "name" : "type",
           "required" : false,
           "schema" : {
-            "enum" : [ "PAYBILL", "TILL", "B2C" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C", "ONE_ACCOUNT" ],
             "type" : "string"
           }
         }, {
