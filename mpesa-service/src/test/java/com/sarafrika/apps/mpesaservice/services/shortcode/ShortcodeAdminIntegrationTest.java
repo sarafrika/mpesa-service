@@ -23,6 +23,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeCrede
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeTotalsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkResultDto;
@@ -210,6 +211,25 @@ class ShortcodeAdminIntegrationTest {
     }
 
     @Test
+    void theC2bTotalCountsEveryUnsuspendedShortcodeThatCanRegisterUrls() {
+        signIn("mpesa-operator");
+        ShortcodeTotalsDto before = service.totals();
+        ShortcodeDetailDto paybill = service.create(named("Totals Fees", ShortcodeType.PAYBILL));
+        service.create(named("Totals Shop", ShortcodeType.TILL));
+        service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Totals Payouts",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null));
+        ShortcodeDetailDto suspended = service.create(named("Totals Old", ShortcodeType.PAYBILL));
+        jdbc.update("UPDATE mpesa_shortcodes SET is_active = false, activated_at = NOW() WHERE uuid = ?",
+                suspended.uuid());
+        registration(paybill.uuid(), true);
+
+        ShortcodeTotalsDto after = service.totals();
+
+        assertThat(after.c2bApplicable() - before.c2bApplicable()).isEqualTo(2);
+        assertThat(after.c2bRegistered() - before.c2bRegistered()).isEqualTo(1);
+    }
+
+    @Test
     void aMigratedTillsStoreNumberIsConfirmedByEditingIt() {
         signIn("mpesa-operator");
         String number = next();
@@ -288,6 +308,8 @@ class ShortcodeAdminIntegrationTest {
         assertThat(row.health().callbackFailures24h()).isEqualTo(1);
         assertThat(all.getContent().get(1).health().callbackFailures24h()).isZero();
         assertThat(row.health().lastPaymentAt()).isNotNull();
+        assertThat(row.health().lastPayoutAt()).isNotNull();
+        assertThat(all.getContent().get(1).health().lastPayoutAt()).isNull();
         assertThat(row.health().floatUtility()).isEqualByComparingTo("98500.00");
         assertThat(row.health().c2bState()).isEqualTo(C2bRegistrationState.REGISTERED);
         assertThat(all.getContent().get(1).health().c2bState()).isEqualTo(C2bRegistrationState.NOT_REGISTERED);

@@ -20,6 +20,8 @@ public record ShortcodeHealthDto(
         @JsonProperty("c2b_registered_at") LocalDateTime c2bRegisteredAt,
         @Schema(description = "Newest incoming payment (STK or C2B) on this shortcode")
         @JsonProperty("last_payment_at") LocalDateTime lastPaymentAt,
+        @Schema(description = "Newest payout (B2C or B2B) sent from this shortcode")
+        @JsonProperty("last_payout_at") LocalDateTime lastPayoutAt,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "902140.00",
                 description = "Successful incoming payments since midnight, server time, by when the money "
                         + "arrived (transaction time, else when it was stored)")

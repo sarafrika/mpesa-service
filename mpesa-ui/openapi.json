@@ -4197,6 +4197,11 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "last_payout_at" : {
+            "description" : "Newest payout (B2C or B2B) sent from this shortcode",
+            "format" : "date-time",
+            "type" : "string"
+          },
           "paid_out_today" : {
             "description" : "Successful B2C payouts since midnight",
             "type" : "number"
@@ -4311,7 +4316,7 @@
             "type" : "integer"
           },
           "c2b_applicable" : {
-            "description" : "Active shortcodes that take C2B payments",
+            "description" : "Active and draft shortcodes that can register C2B URLs",
             "format" : "int64",
             "type" : "integer"
           },

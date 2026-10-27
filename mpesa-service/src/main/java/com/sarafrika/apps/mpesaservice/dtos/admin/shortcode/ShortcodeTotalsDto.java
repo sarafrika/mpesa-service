@@ -19,7 +19,7 @@ public record ShortcodeTotalsDto(
         @JsonProperty("production") long production,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("sandbox") long sandbox,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Active shortcodes that take C2B payments")
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Active and draft shortcodes that can register C2B URLs")
         @JsonProperty("c2b_applicable") long c2bApplicable,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Of those, how many are registered")
         @JsonProperty("c2b_registered") long c2bRegistered,

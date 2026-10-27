@@ -54,6 +54,10 @@ public class ShortcodeHealthReader {
                 SELECT p.shortcodeUuid, MAX(p.createdAt) FROM MpesaIncomingPayment p
                 WHERE p.shortcodeUuid IN :ids GROUP BY p.shortcodeUuid""", Object[].class)
                 .setParameter("ids", ids).getResultList(), LocalDateTime.class);
+        Map<UUID, LocalDateTime> lastPayout = pairs(entityManager.createQuery("""
+                SELECT o.shortcodeUuid, MAX(o.createdAt) FROM MpesaOutgoingPayment o
+                WHERE o.shortcodeUuid IN :ids GROUP BY o.shortcodeUuid""", Object[].class)
+                .setParameter("ids", ids).getResultList(), LocalDateTime.class);
         Map<UUID, BigDecimal> today = pairs(entityManager.createQuery("""
                 SELECT p.shortcodeUuid, SUM(p.amount) FROM MpesaIncomingPayment p
                 WHERE p.shortcodeUuid IN :ids AND p.status = :status
@@ -99,7 +103,7 @@ public class ShortcodeHealthReader {
                     || !latestFloat.getProcessedAt().isAfter(balance.getReceivedAt()));
             result.put(id, new ShortcodeHealthDto(code.getLastConnectionOk(), code.getLastConnectionCheckedAt(),
                     code.getLastConnectionLatencyMs(), code.getLastConnectionError(), c2bState(code, registration),
-                    registration != null ? registration.getCreatedAt() : null, lastPayment.get(id),
+                    registration != null ? registration.getCreatedAt() : null, lastPayment.get(id), lastPayout.get(id),
                     today.getOrDefault(id, BigDecimal.ZERO),
                     useBalance ? balance.getUtilityAvailable()
                             : latestFloat != null ? latestFloat.getUtilityAccountAvailableFunds() : null,

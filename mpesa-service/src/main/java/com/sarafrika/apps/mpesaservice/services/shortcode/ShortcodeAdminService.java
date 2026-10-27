@@ -132,7 +132,8 @@ public class ShortcodeAdminService {
             if (code.getEnvironment() == Environment.PRODUCTION) {
                 production++;
             }
-            if (status == ShortcodeStatus.ACTIVE && h.c2bState() != C2bRegistrationState.NOT_APPLICABLE) {
+            // Drafts count too: their URLs must be registered before payments reach them.
+            if (status != ShortcodeStatus.SUSPENDED && h.c2bState() != C2bRegistrationState.NOT_APPLICABLE) {
                 c2bApplicable++;
                 if (h.c2bState() == C2bRegistrationState.REGISTERED) {
                     c2bRegistered++;
