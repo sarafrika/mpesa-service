@@ -3,6 +3,7 @@
 import { useListShortcodeFeatures } from "@/api/generated/endpoints/admin-features/admin-features";
 import { SectionBoundary } from "@/components/error-boundary";
 import { okData } from "@/components/paybills/api";
+import { can } from "@/components/paybills/capabilities";
 import type { PaybillSectionProps } from "@/components/paybills/sections/types";
 import { RoleGate } from "@/components/role-gate";
 import { B2bCheckoutDialog } from "./b2b-checkout-dialog";
@@ -20,12 +21,11 @@ export function FeaturesSection({ shortcode }: PaybillSectionProps) {
   const on = (feature: Feature) =>
     rows?.some((row) => row.feature === feature && row.enabled) ?? false;
   const active = shortcode.is_active;
-  const isPaybill = shortcode.shortcode_type === "PAYBILL";
 
   return (
     <div className="grid gap-4">
       <SectionBoundary title="Features">
-        <FeatureSwitches shortcodeUuid={shortcode.uuid} />
+        <FeatureSwitches shortcodeUuid={shortcode.uuid} shortcodeType={shortcode.shortcode_type} />
       </SectionBoundary>
       <SectionBoundary title="Tax remittances">
         <TaxRemittances
@@ -40,20 +40,22 @@ export function FeaturesSection({ shortcode }: PaybillSectionProps) {
           }
         />
       </SectionBoundary>
-      <SectionBoundary title="Pochi payments">
-        <PochiPayouts
-          shortcodeUuid={shortcode.uuid}
-          action={
-            <RoleGate needs="mpesa-operator">
-              <PochiPayoutDialog
-                shortcodeUuid={shortcode.uuid}
-                disabled={!on("BUSINESS_TO_POCHI") || !active}
-              />
-            </RoleGate>
-          }
-        />
-      </SectionBoundary>
-      {isPaybill && (
+      {can(shortcode, "POCHI") && (
+        <SectionBoundary title="Pochi payments">
+          <PochiPayouts
+            shortcodeUuid={shortcode.uuid}
+            action={
+              <RoleGate needs="mpesa-operator">
+                <PochiPayoutDialog
+                  shortcodeUuid={shortcode.uuid}
+                  disabled={!on("BUSINESS_TO_POCHI") || !active}
+                />
+              </RoleGate>
+            }
+          />
+        </SectionBoundary>
+      )}
+      {can(shortcode, "B2B_EXPRESS_CHECKOUT") && (
         <SectionBoundary title="B2B Express Checkout">
           <B2bCheckouts
             shortcodeUuid={shortcode.uuid}

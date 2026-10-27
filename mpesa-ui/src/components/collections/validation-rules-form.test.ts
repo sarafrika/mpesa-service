@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   describeRules,
+  describeTried,
   fromDto,
   toRequest,
   validationRulesSchema,
@@ -66,5 +67,34 @@ describe("validation rules form", () => {
     assert.deepEqual(describeRules({ ...filled, active: false }), [
       "Validation is off: every payment is accepted",
     ]);
+  });
+
+  it("says what a dry run tried", () => {
+    assert.equal(describeTried({ account: "ELM-000000", amount: 1 }), "ELM-000000 for KES 1");
+    assert.equal(describeTried({ account: "", amount: 10.5 }), "A payment of KES 10.5, no account");
+  });
+
+  it("keeps account-number rules off a till", () => {
+    const till = { accountNumbers: false };
+    assert.deepEqual(describeRules(filled, till), [
+      "Amount between KES 10 and KES 250,000",
+      "Ask the product to confirm the payment (timeout 2 s, reject if it can't answer)",
+    ]);
+    assert.equal(toRequest(filled, till).account_pattern, undefined);
+    assert.equal(toRequest(filled).account_pattern, "^ELM-[0-9]{6}$");
+    assert.equal(
+      fromDto(
+        {
+          configured: true,
+          active: true,
+          account_pattern: "^X$",
+          lookup_timeout_ms: 2000,
+          on_lookup_failure: "REJECT",
+          shortcode_uuid: "7b0c4a52-0000-4000-8000-000000000001",
+        },
+        till,
+      ).account_pattern,
+      "",
+    );
   });
 });

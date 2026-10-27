@@ -20,9 +20,10 @@ const LEVEL_TONE: Record<AttentionItemDtoLevel, Tone> = {
 };
 
 const ACTION: Record<string, string> = {
-  LOW_FLOAT: "Open paybill",
-  PAYBILL_STALE: "Open paybill",
-  PAYBILL_FAILING: "Open paybill",
+  LOW_FLOAT: "Open shortcode",
+  PAYBILL_STALE: "Open shortcode",
+  PAYBILL_FAILING: "Open shortcode",
+  TILL_STORE_NUMBER_UNCONFIRMED: "Confirm store number",
   STK_PENDING: "View",
   POSSIBLE_STK_DUPLICATES: "View",
   POSSIBLE_C2B_DUPLICATES: "View",
@@ -59,7 +60,7 @@ export function AttentionCard({ query }: { query: UseQueryResult<AttentionItemDt
         <EmptyState
           icon={CircleCheck}
           title="Nothing needs attention"
-          description="Low float, paybills that have gone quiet or keep failing, and STK requests stuck for more than five minutes show up here."
+          description="Low float, paybills and tills that have gone quiet or keep failing, tills whose store number needs confirming, and STK requests stuck for more than five minutes show up here."
         />
       ) : (
         <ul

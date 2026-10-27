@@ -36,6 +36,7 @@ import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   describeRules,
+  describeTried,
   fromDto,
   toRequest,
   type ValidationRulesValues,
@@ -46,12 +47,15 @@ export type ValidationRulesEditorProps = {
   shortcodeUuid: string;
   /** For the add-paybill wizard: no card around it and the dry run tucked under the form. */
   compact?: boolean;
+  /** False on a till: Buy Goods payments carry no account number, so only amount rules apply. */
+  accountNumbers?: boolean;
 };
 
 /** Edits how a paybill answers Safaricom's C2B validation request, with a dry run of a pretend payment. */
 export function ValidationRulesEditor({
   shortcodeUuid,
   compact = false,
+  accountNumbers = true,
 }: ValidationRulesEditorProps) {
   const query = useGetValidationRules(shortcodeUuid);
   const rules = query.data?.status === 200 ? query.data.data : undefined;
@@ -77,6 +81,7 @@ export function ValidationRulesEditor({
           shortcodeUuid={shortcodeUuid}
           rules={rules}
           compact={compact}
+          accountNumbers={accountNumbers}
         />
       </>
     );
@@ -86,7 +91,11 @@ export function ValidationRulesEditor({
   return (
     <SectionCard
       title="Validation rules"
-      description="Safaricom asks before each C2B payment completes. Without rules, every payment is accepted."
+      description={
+        accountNumbers
+          ? "Safaricom asks before each C2B payment completes. Without rules, every payment is accepted."
+          : "Safaricom asks before each C2B payment completes. Buy Goods payments carry no account number, so only amount rules apply."
+      }
     >
       {body}
     </SectionCard>
@@ -97,17 +106,20 @@ function RulesForm({
   shortcodeUuid,
   rules,
   compact,
+  accountNumbers,
 }: {
   shortcodeUuid: string;
   rules: ValidationRulesDto;
   compact: boolean;
+  accountNumbers: boolean;
 }) {
   const id = useId();
   const canEdit = useHasRole("mpesa-operator");
   const queryClient = useQueryClient();
+  const options = { accountNumbers };
   const form = useForm<ValidationRulesValues>({
     resolver: zodResolver(validationRulesSchema),
-    defaultValues: fromDto(rules),
+    defaultValues: fromDto(rules, options),
   });
   const {
     register,
@@ -123,7 +135,7 @@ function RulesForm({
       meta: { errorToast: false },
       onSuccess: (response) => {
         toast.success("Validation rules saved");
-        if (response.status === 200) form.reset(fromDto(response.data));
+        if (response.status === 200) form.reset(fromDto(response.data, options));
         queryClient.invalidateQueries({ queryKey: getGetValidationRulesQueryKey(shortcodeUuid) });
       },
       onError: (error) => {
@@ -138,7 +150,7 @@ function RulesForm({
   });
 
   const onSubmit = handleSubmit((submitted) =>
-    save.mutate({ uuid: shortcodeUuid, data: toRequest(submitted) }),
+    save.mutate({ uuid: shortcodeUuid, data: toRequest(submitted, options) }),
   );
 
   return (
@@ -162,20 +174,22 @@ function RulesForm({
             </Field>
 
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field data-invalid={Boolean(errors.account_pattern)}>
-                <FieldLabel htmlFor={`${id}-pattern`}>Account number pattern</FieldLabel>
-                <Input
-                  id={`${id}-pattern`}
-                  className="font-mono"
-                  placeholder="^ELM-[0-9]{6}$"
-                  aria-invalid={Boolean(errors.account_pattern)}
-                  {...register("account_pattern")}
-                />
-                <FieldDescription>
-                  A regular expression. Leave empty to accept any account.
-                </FieldDescription>
-                <FieldError errors={[errors.account_pattern]} />
-              </Field>
+              {accountNumbers && (
+                <Field data-invalid={Boolean(errors.account_pattern)}>
+                  <FieldLabel htmlFor={`${id}-pattern`}>Account number pattern</FieldLabel>
+                  <Input
+                    id={`${id}-pattern`}
+                    className="font-mono"
+                    placeholder="^ELM-[0-9]{6}$"
+                    aria-invalid={Boolean(errors.account_pattern)}
+                    {...register("account_pattern")}
+                  />
+                  <FieldDescription>
+                    A regular expression. Leave empty to accept any account.
+                  </FieldDescription>
+                  <FieldError errors={[errors.account_pattern]} />
+                </Field>
+              )}
               <Field data-invalid={Boolean(errors.on_lookup_failure)}>
                 <FieldLabel htmlFor={`${id}-failure`}>If the lookup can't be reached</FieldLabel>
                 <Controller
@@ -236,7 +250,7 @@ function RulesForm({
               <div className="flex flex-1 flex-col gap-3">
                 <div className="flex flex-col gap-0.5">
                   <FieldLabel htmlFor={`${id}-lookup`}>
-                    Ask the product to confirm each account
+                    Ask the product to confirm each {accountNumbers ? "account" : "payment"}
                   </FieldLabel>
                   <FieldDescription>
                     Calls the product's lookup webhook before accepting; Safaricom waits about 8 s
@@ -276,11 +290,13 @@ function RulesForm({
         </fieldset>
 
         <ul className="flex flex-col gap-1 text-muted-foreground text-sm">
-          {describeRules(values).map((line) => (
+          {describeRules(values, options).map((line) => (
             <li key={line}>{line}</li>
           ))}
           <li>
-            Anything else is rejected with C2B00012 (invalid account) or C2B00013 (invalid amount).
+            {accountNumbers
+              ? "Anything else is rejected with C2B00012 (invalid account) or C2B00013 (invalid amount)."
+              : "Anything else is rejected with C2B00013 (invalid amount)."}
           </li>
         </ul>
 
@@ -302,7 +318,7 @@ function RulesForm({
                 type="button"
                 variant="ghost"
                 disabled={!isDirty || save.isPending}
-                onClick={() => form.reset(fromDto(rules))}
+                onClick={() => form.reset(fromDto(rules, options))}
               >
                 Discard
               </Button>
@@ -323,6 +339,7 @@ function RulesForm({
           shortcodeUuid={shortcodeUuid}
           draft={values}
           draftValid={validationRulesSchema.safeParse(values).success}
+          accountNumbers={accountNumbers}
         />
       )}
     </div>
@@ -333,10 +350,12 @@ function DryRunPanel({
   shortcodeUuid,
   draft,
   draftValid,
+  accountNumbers,
 }: {
   shortcodeUuid: string;
   draft: ValidationRulesValues;
   draftValid: boolean;
+  accountNumbers: boolean;
 }) {
   const id = useId();
   const [account, setAccount] = useState("");
@@ -371,18 +390,20 @@ function DryRunPanel({
 
   function run(event: FormEvent) {
     event.preventDefault();
-    const value = Number(amount.replaceAll(",", ""));
-    if (!Number.isFinite(value) || value <= 0) {
-      setFieldErrors({ amount: "Enter an amount above zero" });
+    // Left empty, the service builds a sample that passes the rules and says what it tried.
+    const typed = amount.replaceAll(",", "").trim();
+    const value = typed ? Number(typed) : undefined;
+    if (value !== undefined && (!Number.isFinite(value) || value <= 0)) {
+      setFieldErrors({ amount: "Enter an amount above zero, or leave it empty" });
       return;
     }
     dryRun.mutate({
       uuid: shortcodeUuid,
       data: {
-        account,
+        account: accountNumbers ? account.trim() || undefined : undefined,
         amount: value,
         msisdn: msisdn.trim() || undefined,
-        rules: draftValid ? toRequest(draft) : undefined,
+        rules: draftValid ? toRequest(draft, { accountNumbers }) : undefined,
       },
     });
   }
@@ -400,23 +421,25 @@ function DryRunPanel({
         </h3>
         <p className="text-muted-foreground text-xs">
           Runs these rules, unsaved changes included, without touching M-Pesa. A lookup URL is
-          called for real.
+          called for real. Leave a field empty to try a sample the rules should accept.
         </p>
       </div>
-      <Field data-invalid={Boolean(fieldErrors.account)}>
-        <FieldLabel htmlFor={`${id}-account`}>Account number</FieldLabel>
-        <Input
-          id={`${id}-account`}
-          className="font-mono"
-          value={account}
-          onChange={(event) => setAccount(event.target.value)}
-          placeholder="ELM-004512"
-        />
-        <FieldError>{fieldErrors.account}</FieldError>
-      </Field>
+      {accountNumbers && (
+        <Field data-invalid={Boolean(fieldErrors.account)}>
+          <FieldLabel htmlFor={`${id}-account`}>Account number (optional)</FieldLabel>
+          <Input
+            id={`${id}-account`}
+            className="font-mono"
+            value={account}
+            onChange={(event) => setAccount(event.target.value)}
+            placeholder="ELM-004512"
+          />
+          <FieldError>{fieldErrors.account}</FieldError>
+        </Field>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field data-invalid={Boolean(fieldErrors.amount)}>
-          <FieldLabel htmlFor={`${id}-amount`}>Amount (KES)</FieldLabel>
+          <FieldLabel htmlFor={`${id}-amount`}>Amount (KES, optional)</FieldLabel>
           <Input
             id={`${id}-amount`}
             inputMode="decimal"
@@ -452,6 +475,7 @@ function DryRunPanel({
             />
             <span className="font-mono text-xs">{result.result_code}</span>
           </div>
+          <p className="text-muted-foreground text-xs">Tried {describeTried(result)}</p>
           <p className="text-sm">{result.reason}</p>
         </div>
       )}

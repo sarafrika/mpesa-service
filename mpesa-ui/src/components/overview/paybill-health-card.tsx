@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { ApiError, PaybillHealthDto, PaybillHealthDtoState } from "@/api/generated/model";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
+import { typeLabel } from "@/components/paybills/shortcode-types";
 import { SectionCard } from "@/components/section-card";
 import { StaleNotice } from "@/components/stale-notice";
 import { StatusBadge, type Tone } from "@/components/status-badge";
@@ -25,8 +26,6 @@ const STATE_TONE: Record<PaybillHealthDtoState, Tone> = {
   SUSPENDED: "neutral",
 };
 
-const SHORTCODE_TYPE: Record<string, string> = { PAYBILL: "Paybill", TILL: "Till", B2C: "B2C" };
-
 /** Adding a paybill needs mpesa-operator (admins inherit it); viewers see nothing. */
 export function AddPaybillButton({ variant = "default" }: { variant?: "default" | "outline" }) {
   const canAdd = useHasRole("mpesa-operator");
@@ -34,7 +33,7 @@ export function AddPaybillButton({ variant = "default" }: { variant?: "default" 
   return (
     <Button asChild variant={variant}>
       <Link href="/paybills/new">
-        <Plus /> Add paybill
+        <Plus /> Add shortcode
       </Link>
     </Button>
   );
@@ -117,7 +116,7 @@ export function PaybillHealthCard({
                 <span className="flex min-w-0 flex-[1_1_12rem] flex-col gap-0.5">
                   <span className="truncate font-medium text-sm">{row.business_name}</span>
                   <span className="text-muted-foreground text-xs">
-                    {row.shortcode} · {SHORTCODE_TYPE[row.shortcode_type] ?? "Paybill"} ·{" "}
+                    {row.shortcode} · {typeLabel(row.shortcode_type, true)} ·{" "}
                     {row.last_activity_at
                       ? `last activity ${formatRelative(row.last_activity_at, now ?? Date.now())}`
                       : "no traffic yet"}

@@ -23,6 +23,14 @@ describe("describeApiError", () => {
     assert.equal(describeApiError(error).description, "Shortcode 600100 already exists");
   });
 
+  it("shows a capability refusal in the service's words", () => {
+    const message = "Shortcode 600200 is a B2C disbursement shortcode, so it cannot do STK push.";
+    const copy = describeApiError(new ApiError(409, body(409, { message })));
+    assert.equal(copy.kind, "conflict");
+    assert.equal(copy.title, "The M-Pesa service refused this");
+    assert.equal(copy.description, message);
+  });
+
   it("lists field errors for validation failures", () => {
     const error = new ApiError(
       400,

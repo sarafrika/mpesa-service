@@ -1,6 +1,7 @@
 import { Check, CircleHelp, Minus, TriangleAlert, X } from "lucide-react";
 import type { ShortcodeHealth, ShortcodeSummary } from "@/api/generated/model";
 import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   type CheckState,
@@ -9,6 +10,16 @@ import {
   type HealthCheck,
   healthChecks,
 } from "./paybill-health";
+import { typeLabel } from "./shortcode-types";
+
+/** The shortcode's type as a plain outline badge: a kind, not a status, so no colour dot. */
+export function TypeBadge({ type, full = false }: { type: string; full?: boolean }) {
+  return (
+    <Badge variant="outline" className="font-normal">
+      {typeLabel(type, !full)}
+    </Badge>
+  );
+}
 
 const CHECK_ICON = { ok: Check, fail: X, warn: TriangleAlert, na: Minus, unknown: CircleHelp };
 const CHECK_TEXT: Record<CheckState, string> = {

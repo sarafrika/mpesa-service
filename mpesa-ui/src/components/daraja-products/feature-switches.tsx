@@ -10,16 +10,24 @@ import {
 import type { ShortcodeFeatureDto } from "@/api/generated/model";
 import { ErrorState } from "@/components/error-state";
 import { okData } from "@/components/paybills/api";
+import { typeNoun } from "@/components/paybills/shortcode-types";
 import { SectionCard } from "@/components/section-card";
 import { FormSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
+import { StatusBadge } from "@/components/status-badge";
 import { Switch } from "@/components/ui/switch";
 import { useHasRole } from "@/hooks/use-has-role";
 import { formatDateTime } from "@/lib/format";
 import { canToggle, FEATURE_INFO, type Feature, featureNote, isFeature } from "./feature-catalog";
 
 /** One switch per flagged Daraja product; only admins flip them, and unconfirmed products stay off. */
-export function FeatureSwitches({ shortcodeUuid }: { shortcodeUuid: string }) {
+export function FeatureSwitches({
+  shortcodeUuid,
+  shortcodeType,
+}: {
+  shortcodeUuid: string;
+  shortcodeType: string;
+}) {
   const list = useListShortcodeFeatures(shortcodeUuid);
   const data = okData(list.data);
   const isAdmin = useHasRole("mpesa-admin");
@@ -45,6 +53,7 @@ export function FeatureSwitches({ shortcodeUuid }: { shortcodeUuid: string }) {
                 row={row}
                 feature={row.feature as Feature}
                 isAdmin={isAdmin}
+                shortcodeType={shortcodeType}
               />
             ))}
         </ul>
@@ -61,9 +70,10 @@ type FeatureRowProps = {
   row: ShortcodeFeatureDto;
   feature: Feature;
   isAdmin: boolean;
+  shortcodeType: string;
 };
 
-function FeatureRow({ shortcodeUuid, row, feature, isAdmin }: FeatureRowProps) {
+function FeatureRow({ shortcodeUuid, row, feature, isAdmin, shortcodeType }: FeatureRowProps) {
   const queryClient = useQueryClient();
   const update = useUpdateShortcodeFeature({
     mutation: {
@@ -81,6 +91,22 @@ function FeatureRow({ shortcodeUuid, row, feature, isAdmin }: FeatureRowProps) {
   const note = featureNote(feature);
   const id = `feature-${feature}`;
   const enabled = info.available && row.enabled;
+
+  // The service says the shortcode's type cannot use this product: a reason, not a dead switch.
+  if (!row.available) {
+    return (
+      <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 p-4">
+        <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-1">
+          <span className="font-medium text-muted-foreground">{info.label}</span>
+          <p className="text-muted-foreground text-sm">{info.description}</p>
+          <p className="text-muted-foreground text-sm">
+            A {typeNoun(shortcodeType)} can't use {info.label}.
+          </p>
+        </div>
+        <StatusBadge status="Not for this type" tone="neutral" />
+      </li>
+    );
+  }
 
   return (
     <li className="flex items-start justify-between gap-4 p-4">

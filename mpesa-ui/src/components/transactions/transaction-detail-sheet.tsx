@@ -5,6 +5,7 @@ import { ChevronDown, CircleHelp, Lightbulb, RefreshCw, Undo2 } from "lucide-rea
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useGetShortcode } from "@/api/generated/endpoints/admin-shortcodes/admin-shortcodes";
 import {
   getGetTransactionQueryKey,
   getListTransactionsQueryKey,
@@ -17,6 +18,7 @@ import { ErrorState } from "@/components/error-state";
 import { type KeyValueItem, KeyValueList } from "@/components/key-value-list";
 import { MaskedPhone } from "@/components/masked-phone";
 import { Money } from "@/components/money";
+import { can } from "@/components/paybills/capabilities";
 import { RoleGate } from "@/components/role-gate";
 import { DetailPanelSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
@@ -119,6 +121,12 @@ function DetailContent({
   const receipt = tx.direction === "in" && tx.status === "SUCCESS" ? tx.receipt : undefined;
   const openReversal =
     detail.reversal && OPEN_REVERSAL.includes(detail.reversal.status) ? detail.reversal : undefined;
+  // A shortcode whose type cannot reverse (B2C: manual on the portal) gets no reversal button at all.
+  const owner = useGetShortcode(tx.shortcode_uuid ?? "", {
+    query: { enabled: tx.direction === "in" && Boolean(tx.shortcode_uuid), staleTime: 60_000 },
+  });
+  const ownerCode = owner.data?.status === 200 ? owner.data.data : undefined;
+  const reversible = tx.direction === "in" && (!ownerCode || can(ownerCode, "REVERSAL"));
   const statusQuery = useQueryTransactionStatus({
     mutation: {
       meta: { requiredRole: "mpesa-operator" },
@@ -267,7 +275,7 @@ function DetailContent({
               <RefreshCw className={statusQuery.isPending ? "animate-spin" : undefined} />
               {statusQuery.isPending ? "Asking Safaricom…" : "Query status"}
             </Button>
-            {tx.direction === "in" && (
+            {(reversible || openReversal) && (
               <RoleGate needs="mpesa-operator">
                 {openReversal ? (
                   <Button variant="outline" size="lg" asChild>
@@ -288,7 +296,7 @@ function DetailContent({
                 )}
               </RoleGate>
             )}
-            {tx.direction === "in" && !openReversal && detail.reverse_blocked_reason && (
+            {reversible && !openReversal && detail.reverse_blocked_reason && (
               <p className="text-muted-foreground text-xs">{detail.reverse_blocked_reason}</p>
             )}
             {!detail.can_query_status && (
@@ -303,7 +311,7 @@ function DetailContent({
           </p>
         )}
       </SheetFooter>
-      {receipt && (
+      {receipt && reversible && (
         <RequestReversalDialog
           transactionUuid={tx.uuid}
           receipt={receipt}

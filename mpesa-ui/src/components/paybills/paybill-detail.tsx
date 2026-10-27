@@ -18,16 +18,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isApiError } from "@/lib/api-errors";
 import { cn } from "@/lib/utils";
 import { okData } from "./api";
+import { can, type TabRule, visibleTabs } from "./capabilities";
 import { LifecycleButton, SendTestStkDialog } from "./lifecycle-actions";
 import { EnvironmentBadge, PaybillStatusBadge } from "./paybill-badges";
-import { initials, TYPE_LABELS } from "./paybill-health";
+import { initials } from "./paybill-health";
 import type { PaybillSectionProps } from "./sections/types";
+import { typeLabel } from "./shortcode-types";
 
 /** Structural copy of PaybillSection so this component doesn't import the route file. */
-type Section = {
-  id: string;
+type Section = TabRule & {
   label: string;
-  visible?: (shortcode: ShortcodeDetail) => boolean;
   Component: ComponentType<PaybillSectionProps>;
 };
 
@@ -48,12 +48,12 @@ export function PaybillDetail({ uuid, sections }: { uuid: string; sections: read
       <SectionCard className="mx-auto w-full max-w-xl">
         <ErrorState
           error={query.error}
-          resource="paybill"
+          resource="shortcode"
           onRetry={missing ? undefined : () => query.refetch()}
           retrying={query.isFetching}
           action={
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/paybills">Back to paybills</Link>
+              <Link href="/paybills">Back to paybills & tills</Link>
             </Button>
           }
         />
@@ -71,10 +71,9 @@ export function PaybillDetail({ uuid, sections }: { uuid: string; sections: read
 
 function DetailHeader({ shortcode }: { shortcode: ShortcodeDetail }) {
   const [now] = useState(() => Date.now());
-  const canPush =
-    shortcode.status === "ACTIVE" &&
-    shortcode.shortcode_type !== "B2C" &&
-    Boolean(shortcode.credentials.passkey_masked);
+  const stk = can(shortcode, "STK_PUSH");
+  const canPush = shortcode.status === "ACTIVE" && Boolean(shortcode.credentials.passkey_masked);
+  const till = shortcode.shortcode_type === "TILL";
   const onboarded = shortcode.created_at
     ? new Date(shortcode.created_at).toLocaleDateString("en-KE", { dateStyle: "medium" })
     : undefined;
@@ -106,10 +105,18 @@ function DetailHeader({ shortcode }: { shortcode: ShortcodeDetail }) {
           <PaybillStatusBadge row={shortcode} now={now} />
           <EnvironmentBadge environment={shortcode.environment} />
           <span>
-            {TYPE_LABELS[shortcode.shortcode_type] ?? shortcode.shortcode_type}{" "}
+            {typeLabel(shortcode.shortcode_type)} · {till && "Till "}
             <strong className="font-semibold text-foreground tabular-nums">
               {shortcode.shortcode}
             </strong>
+            {till && shortcode.store_number && (
+              <>
+                {" · Store "}
+                <strong className="font-semibold text-foreground tabular-nums">
+                  {shortcode.store_number}
+                </strong>
+              </>
+            )}
             {shortcode.products.length > 0 &&
               ` · Product: ${shortcode.products.map((product) => product.display_name ?? product.client_id).join(", ")}`}
             {onboarded && ` · Onboarded ${onboarded}`}
@@ -118,12 +125,12 @@ function DetailHeader({ shortcode }: { shortcode: ShortcodeDetail }) {
       }
       actions={
         <>
-          {shortcode.shortcode_type !== "B2C" && (
+          {stk && (
             <RoleGate needs="mpesa-operator">
               <SendTestStkDialog shortcode={shortcode} disabled={!canPush} />
             </RoleGate>
           )}
-          {shortcode.shortcode_type !== "B2C" && (
+          {can(shortcode, "QR") && (
             <RoleGate needs="mpesa-operator">
               <QrCodeDialog shortcode={shortcode} />
             </RoleGate>
@@ -147,7 +154,7 @@ function DetailTabs({
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const visible = sections.filter((section) => section.visible?.(shortcode) ?? true);
+  const visible = visibleTabs(sections, shortcode);
   const requested = params.get("tab");
   const current = visible.find((section) => section.id === requested)?.id ?? visible[0]?.id;
 
@@ -167,7 +174,7 @@ function DetailTabs({
     <Tabs value={current} onValueChange={select} className="gap-4">
       {/* pb-1 keeps the active underline inside the scroller, so no vertical scrollbar. */}
       <div className="overflow-x-auto border-b">
-        <TabsList variant="line" className="pb-1" aria-label="Paybill sections">
+        <TabsList variant="line" className="pb-1" aria-label="Shortcode sections">
           {visible.map((section) => (
             <TabsTrigger key={section.id} value={section.id}>
               {section.label}

@@ -20,12 +20,6 @@ export type HealthCheck = {
 
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 
-export const TYPE_LABELS: Record<string, string> = {
-  PAYBILL: "Paybill",
-  TILL: "Till",
-  B2C: "B2C",
-};
-
 export const ENVIRONMENT_LABELS: Record<string, string> = {
   SANDBOX: "Sandbox",
   PRODUCTION: "Production",

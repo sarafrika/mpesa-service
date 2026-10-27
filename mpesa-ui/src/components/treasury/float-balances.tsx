@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { Money } from "@/components/money";
 import { okData, useInvalidateShortcodes } from "@/components/paybills/api";
+import { floatIsUtility } from "@/components/paybills/capabilities";
 import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { StatCardSkeleton } from "@/components/skeletons";
@@ -65,7 +66,7 @@ export function FloatBalances({ shortcode }: { shortcode: ShortcodeDetail }) {
 
   if (!data) {
     return (
-      <SectionCard title="Float">
+      <SectionCard title={floatIsUtility(shortcode) ? "Utility account" : "Float"}>
         {status.isPending ? (
           <div className="grid gap-4 sm:grid-cols-3">
             <StatCardSkeleton />
@@ -99,10 +100,15 @@ export function FloatBalances({ shortcode }: { shortcode: ShortcodeDetail }) {
     </Button>
   );
 
+  const utility = floatIsUtility(shortcode);
   return (
     <SectionCard
-      title="Float"
-      description={describeSource(data)}
+      title={utility ? "Utility account" : "Float"}
+      description={
+        utility
+          ? `B2C payouts are paid from the Utility account; move money into it from the Working (MMF) account on the M-PESA org portal. ${describeSource(data)}`
+          : describeSource(data)
+      }
       actions={
         <RoleGate needs="mpesa-operator">
           <QueryBalanceButton

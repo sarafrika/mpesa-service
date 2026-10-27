@@ -55,11 +55,17 @@ function toNumber(value: string): number | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
-export function fromDto(dto: ValidationRulesDto | undefined): ValidationRulesValues {
+/** `accountNumbers: false` is a till: Buy Goods payments have no account, so no pattern is kept or sent. */
+export type RuleOptions = { accountNumbers?: boolean };
+
+export function fromDto(
+  dto: ValidationRulesDto | undefined,
+  { accountNumbers = true }: RuleOptions = {},
+): ValidationRulesValues {
   return {
     // A shortcode without saved rules starts with them switched on, ready to fill in.
     active: dto?.configured ? dto.active : true,
-    account_pattern: dto?.account_pattern ?? "",
+    account_pattern: accountNumbers ? (dto?.account_pattern ?? "") : "",
     min_amount: dto?.min_amount != null ? String(dto.min_amount) : "",
     max_amount: dto?.max_amount != null ? String(dto.max_amount) : "",
     use_lookup: Boolean(dto?.lookup_url),
@@ -69,10 +75,13 @@ export function fromDto(dto: ValidationRulesDto | undefined): ValidationRulesVal
   };
 }
 
-export function toRequest(values: ValidationRulesValues): UpdateValidationRulesRequest {
+export function toRequest(
+  values: ValidationRulesValues,
+  { accountNumbers = true }: RuleOptions = {},
+): UpdateValidationRulesRequest {
   return {
     active: values.active,
-    account_pattern: values.account_pattern.trim() || undefined,
+    account_pattern: accountNumbers ? values.account_pattern.trim() || undefined : undefined,
     min_amount: toNumber(values.min_amount),
     max_amount: toNumber(values.max_amount),
     lookup_url: values.use_lookup ? values.lookup_url.trim() || undefined : undefined,
@@ -81,11 +90,23 @@ export function toRequest(values: ValidationRulesValues): UpdateValidationRulesR
   };
 }
 
+/** What a dry run tried, as the service reports it: "ELM-000000 for KES 1", or no account on a till. */
+export function describeTried(result: { account?: string; amount?: number }): string {
+  const amount =
+    result.amount != null
+      ? `KES ${result.amount.toLocaleString("en-KE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+      : "an amount";
+  return result.account ? `${result.account} for ${amount}` : `A payment of ${amount}, no account`;
+}
+
 /** One line per rule, like the paybill's C2B section shows them. */
-export function describeRules(values: ValidationRulesValues): string[] {
+export function describeRules(
+  values: ValidationRulesValues,
+  { accountNumbers = true }: RuleOptions = {},
+): string[] {
   if (!values.active) return ["Validation is off: every payment is accepted"];
   const lines: string[] = [];
-  if (values.account_pattern.trim())
+  if (accountNumbers && values.account_pattern.trim())
     lines.push(`Account number matches ${values.account_pattern.trim()}`);
   const min = toNumber(values.min_amount);
   const max = toNumber(values.max_amount);
@@ -101,7 +122,7 @@ export function describeRules(values: ValidationRulesValues): string[] {
   }
   if (values.use_lookup && values.lookup_url.trim()) {
     lines.push(
-      `Ask the product to confirm the account (timeout ${Number(values.lookup_timeout_ms) / 1000} s, ` +
+      `Ask the product to confirm the ${accountNumbers ? "account" : "payment"} (timeout ${Number(values.lookup_timeout_ms) / 1000} s, ` +
         `${values.on_lookup_failure === "ACCEPT" ? "accept" : "reject"} if it can't answer)`,
     );
   }
