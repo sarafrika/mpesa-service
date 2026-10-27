@@ -18,27 +18,27 @@ The console runs on `localhost:3000`. It needs `mpesa-service` and Keycloak runn
 
 ## Scripts
 
-| Command | Purpose |
-|---|---|
-| `pnpm dev` | Generates the API client, then starts the dev server |
-| `pnpm build` | Production build |
-| `pnpm lint` | Biome lint and format check |
-| `pnpm format` | Applies Biome fixes |
-| `pnpm test` | Unit tests |
-| `pnpm api:spec` | Exports `openapi.json` from `mpesa-service` |
+| Command         | Purpose                                              |
+| --------------- | ---------------------------------------------------- |
+| `pnpm dev`      | Generates the API client, then starts the dev server |
+| `pnpm build`    | Production build                                     |
+| `pnpm lint`     | Biome lint and format check                          |
+| `pnpm format`   | Applies Biome fixes                                  |
+| `pnpm test`     | Unit tests                                           |
+| `pnpm api:spec` | Exports `openapi.json` from `mpesa-service`          |
 
 ## Project structure
 
-| Path | Contents |
-|---|---|
-| `src/app/(console)/` | Console screens, one folder per route |
-| `src/app/api/mpesa/[...path]/route.ts` | Proxy to `mpesa-service` |
-| `src/auth.ts` | Keycloak sign-in and token refresh |
-| `src/proxy.ts` | Redirects signed-out users to `/sign-in` |
-| `src/components/` | Shared components such as `StatusBadge`, `Money` and `ErrorState` |
-| `src/components/ui/` | shadcn/ui components |
-| `src/api/generated/` | Orval output; generated, not committed |
-| `src/app/globals.css` | Theme tokens for light and dark mode |
+| Path                                   | Contents                                                          |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| `src/app/(console)/`                   | Console screens, one folder per route                             |
+| `src/app/api/mpesa/[...path]/route.ts` | Proxy to `mpesa-service`                                          |
+| `src/auth.ts`                          | Keycloak sign-in and token refresh                                |
+| `src/proxy.ts`                         | Redirects signed-out users to `/sign-in`                          |
+| `src/components/`                      | Shared components such as `StatusBadge`, `Money` and `ErrorState` |
+| `src/components/ui/`                   | shadcn/ui components                                              |
+| `src/api/generated/`                   | Orval output; generated, not committed                            |
+| `src/app/globals.css`                  | Theme tokens for light and dark mode                              |
 
 ## Conventions
 
