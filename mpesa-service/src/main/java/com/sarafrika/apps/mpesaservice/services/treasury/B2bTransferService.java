@@ -22,6 +22,7 @@ import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalExecutor.Approved;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalExecutor.Outcome;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.daraja.NotSent;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -136,6 +137,10 @@ public class B2bTransferService {
             } else if (outcomeUnknown(response)) {
                 row.setOutcomeUnknown(true);
                 row.setResultDesc(UNKNOWN_OUTCOME);
+            } else if (NotSent.is(response)) {
+                row.setStatus(B2bTransferStatus.FAILED);
+                row.setResultDesc(truncate(NotSent.describe(response, "sweep")));
+                row.setCompletedAt(LocalDateTime.now());
             } else {
                 row.setStatus(B2bTransferStatus.FAILED);
                 row.setResultDesc(truncate(response.error() != null ? response.error().errorMessage()
@@ -149,7 +154,8 @@ public class B2bTransferService {
                 "approval_request_uuid", request.requestUuid().toString(), "status", after.getStatus().name(),
                 "outcome_unknown", after.isOutcomeUnknown(), "amount", after.getAmount().toPlainString()));
         if (after.getStatus() == B2bTransferStatus.FAILED) {
-            return new Outcome(false, "Safaricom refused the sweep: " + after.getResultDesc());
+            return new Outcome(false, NotSent.wrote(after.getResultDesc()) ? NotSent.outcome(after.getResultDesc())
+                    : "Safaricom refused the sweep: " + after.getResultDesc());
         }
         return new Outcome(true, after.isOutcomeUnknown() ? UNKNOWN_OUTCOME
                 : "Sent to Safaricom; the transfer settles when the B2B result arrives");

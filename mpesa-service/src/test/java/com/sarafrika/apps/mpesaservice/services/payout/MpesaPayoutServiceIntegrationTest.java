@@ -163,6 +163,19 @@ class MpesaPayoutServiceIntegrationTest {
     }
 
     @Test
+    void aPayoutWithoutADarajaTokenIsRecordedAsNotSent() {
+        when(darajaService.sendB2CPayout(any(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", 401));
+
+        MpesaOutgoingPayment payment = service.initiate("elimika-backend", request("WD-AUTH", "1500"));
+
+        assertThat(payment.getStatus()).isEqualTo(OutgoingPaymentStatus.FAILED);
+        assertThat(payment.isOutcomeUnknown()).isFalse();
+        assertThat(payment.getResultDesc()).startsWith("Not sent: We could not authenticate with Daraja")
+                .contains("payout").contains("Check the credentials");
+    }
+
+    @Test
     void badRequestsAreRefusedBeforeSafaricomIsCalled() {
         assertThatThrownBy(() -> service.initiate("elimika-backend", request("WD-4", "1500.50")))
                 .isInstanceOf(IllegalArgumentException.class);

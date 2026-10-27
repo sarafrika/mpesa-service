@@ -3,7 +3,7 @@ package com.sarafrika.apps.mpesaservice.services.approvals.reversal;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
 import com.sarafrika.apps.mpesaservice.dtos.TransactionReversalResponse;
-import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedException;
+import com.sarafrika.apps.mpesaservice.services.daraja.NotSent;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
@@ -34,10 +34,7 @@ public class ReversalExecutor implements ResumableExecutor, ApprovalLifecycle {
     static final String UNKNOWN = "Safaricom did not confirm it received this reversal, so it may still happen. "
             + "Wait for the result or check the transaction status; do not raise it again.";
     static final String SENT = "Sent to Safaricom; waiting for its result.";
-    static final String AUTH_FAILED = "AUTH_FAILED";
-    static final String NOT_AUTHENTICATED = "We could not authenticate with Daraja (it issued no access token for "
-            + "this shortcode's consumer key and secret), so nothing reached Safaricom. Check the credentials and run "
-            + "the connection check, then raise the reversal again.";
+    static final String AUTH_FAILED = NotSent.AUTH_FAILED;
 
     private final ReversalRequestRepository reversals;
     private final MpesaShortCodeRepository shortcodes;
@@ -128,16 +125,15 @@ public class ReversalExecutor implements ResumableExecutor, ApprovalLifecycle {
         } else {
             reversal.setStatus(ReversalStatus.FAILED);
             String code = response.error() == null ? null : response.error().errorCode();
-            if (data == null && AUTH_FAILED.equals(code)) {
-                // No token, so nothing reached the Reversal API: our side failed, not Safaricom's answer.
-                reversal.setResultCode(AUTH_FAILED);
-                reversal.setResultDesc(NOT_AUTHENTICATED);
+            if (data == null && NotSent.is(response)) {
+                // Nothing reached the Reversal API: our side failed, not Safaricom's answer.
+                reversal.setResultCode(AUTH_FAILED.equals(code) ? AUTH_FAILED : MpesaErrorResponse.NOT_SENT);
+                reversal.setResultDesc(clip(NotSent.describe(response, "reversal"), 500));
             } else if (data != null) {
                 reversal.setResultCode(data.responseCode());
                 reversal.setResultDesc(data.responseDescription());
             } else if (response.error() != null) {
-                reversal.setResultCode(CapabilityNotSupportedException.CODE.equals(code) ? MpesaErrorResponse.NOT_SENT
-                        : clip(code, 20));
+                reversal.setResultCode(clip(code, 20));
                 reversal.setResultDesc(clip(response.error().errorMessage(), 500));
             }
             reversal.setCompletedAt(Instant.now());

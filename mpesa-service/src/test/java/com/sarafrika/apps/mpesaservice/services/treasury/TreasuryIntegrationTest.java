@@ -419,6 +419,23 @@ class TreasuryIntegrationTest {
     }
 
     @Test
+    void aSweepWithoutADarajaTokenIsOurFailureNotSafaricomsRefusal() {
+        B2bDestinationDto bank = bank(shortcode);
+        when(daraja.sendB2BPayment(any(), any())).thenReturn(
+                MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", 401));
+        ApprovalExecutor.Approved approved = approved(bank, "1000");
+
+        ApprovalExecutor.Outcome outcome = executor.execute(approved);
+
+        assertThat(outcome.sent()).isFalse();
+        assertThat(outcome.message()).startsWith("Not sent: We could not authenticate with Daraja")
+                .contains("Check the credentials").doesNotContain("Safaricom refused");
+        B2bTransfer transfer = transferRepository.findByApprovalRequestUuid(approved.requestUuid()).orElseThrow();
+        assertThat(transfer.getStatus()).isEqualTo(B2bTransferStatus.FAILED);
+        assertThat(transfer.isOutcomeUnknown()).isFalse();
+    }
+
+    @Test
     void aResultForASweepSafaricomNeverAcknowledgedMatchesTheOneOpenTransferThatFits() throws Exception {
         B2bDestinationDto bank = bank(shortcode);
         when(daraja.sendB2BPayment(any(), any())).thenReturn(

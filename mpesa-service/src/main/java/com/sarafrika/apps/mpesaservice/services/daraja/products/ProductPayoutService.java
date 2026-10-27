@@ -27,6 +27,7 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackOutcome;
+import com.sarafrika.apps.mpesaservice.services.daraja.NotSent;
 import com.sarafrika.apps.mpesaservice.services.features.FeatureGate;
 import com.sarafrika.apps.mpesaservice.services.features.ShortcodeFeatures;
 import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
@@ -295,6 +296,10 @@ public class ProductPayoutService {
             } else if (DarajaReplies.outcomeUnknown(response)) {
                 row.setOutcomeUnknown(true);
                 row.setResultDesc(UNKNOWN_OUTCOME);
+            } else if (NotSent.is(response)) {
+                row.setStatus(ProductPayoutStatus.FAILED);
+                row.setResultDesc(DarajaReplies.truncate(NotSent.describe(response, label(product) + " payment"), 500));
+                row.setCompletedAt(LocalDateTime.now());
             } else {
                 row.setStatus(ProductPayoutStatus.FAILED);
                 row.setResultDesc(DarajaReplies.truncate(DarajaReplies.refusal(response, "ResponseDescription"), 500));
@@ -307,7 +312,8 @@ public class ProductPayoutService {
                 "status", after.getStatus().name(), "outcome_unknown", after.isOutcomeUnknown(),
                 "amount", after.getAmount().toPlainString()));
         if (after.getStatus() == ProductPayoutStatus.FAILED) {
-            return new Outcome(false, "Safaricom refused the payment: " + after.getResultDesc());
+            return new Outcome(false, NotSent.wrote(after.getResultDesc()) ? NotSent.outcome(after.getResultDesc())
+                    : "Safaricom refused the payment: " + after.getResultDesc());
         }
         return new Outcome(true, after.isOutcomeUnknown() ? UNKNOWN_OUTCOME
                 : "Sent to Safaricom; the payment settles when the result arrives");

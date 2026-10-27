@@ -276,6 +276,27 @@ class DarajaProductsIntegrationTest {
     }
 
     @Test
+    void aTaxOrPochiPaymentThatNeverReachedSafaricomSaysSo() {
+        features.set(shortcode.getUuid(), DarajaFeature.TAX_REMITTANCE, true, "admin");
+        features.set(shortcode.getUuid(), DarajaFeature.BUSINESS_TO_POCHI, true, "admin");
+        ApprovalExecutor.Approved tax = approve(() -> payouts.requestTax(shortcode.getUuid(), tax("700")));
+        ApprovalExecutor.Approved pochi = approve(() -> payouts.requestPochi(shortcode.getUuid(), pochi("300")));
+        when(daraja.callProduct(any(), any(), any())).thenReturn(
+                MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", 401));
+
+        ApprovalExecutor.Outcome taxOutcome = taxExecutor.execute(tax);
+        ApprovalExecutor.Outcome pochiOutcome = pochiExecutor.execute(pochi);
+
+        assertThat(taxOutcome.sent()).isFalse();
+        assertThat(taxOutcome.message()).startsWith("Not sent: We could not authenticate with Daraja")
+                .contains("Tax Remittance payment").contains("Check the credentials");
+        assertThat(pochiOutcome.message()).startsWith("Not sent:").contains("Business to Pochi payment")
+                .doesNotContain("Safaricom refused");
+        assertThat(payoutRepository.findByApprovalRequestUuid(pochi.requestUuid()).orElseThrow().getStatus())
+                .isEqualTo(ProductPayoutStatus.FAILED);
+    }
+
+    @Test
     void aRunThatStoppedAfterSavingIsOutcomeUnknownOnResumeAndNeverResent() {
         features.set(shortcode.getUuid(), DarajaFeature.TAX_REMITTANCE, true, "admin");
         ApprovalExecutor.Approved approved = approve(() -> payouts.requestTax(shortcode.getUuid(), tax("900")));

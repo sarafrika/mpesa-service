@@ -16,6 +16,7 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentReposito
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.daraja.NotSent;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
@@ -99,6 +100,11 @@ public class MpesaPayoutService {
                         response.error() == null ? "empty reply" : response.error().errorCode());
                 saved.setOutcomeUnknown(true);
                 saved.setResultDesc(UNKNOWN_OUTCOME);
+            } else if (NotSent.is(response)) {
+                saved.setStatus(OutgoingPaymentStatus.FAILED);
+                String why = NotSent.outcome(NotSent.describe(response, "payout"));
+                saved.setResultDesc(why.length() <= 500 ? why : why.substring(0, 500));
+                saved.setProcessedAt(LocalDateTime.now());
             } else {
                 saved.setStatus(OutgoingPaymentStatus.FAILED);
                 saved.setResultDesc(response.error() != null ? response.error().errorMessage()
