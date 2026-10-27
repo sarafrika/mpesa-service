@@ -37,7 +37,7 @@ export function OverviewSection({ shortcode }: PaybillSectionProps) {
       },
     },
   });
-  const checks = healthChecks(shortcode.health, now);
+  const checks = healthChecks(shortcode, now);
   const incoming = collects(shortcode);
   const outgoing = paysOut(shortcode);
   const till = shortcode.shortcode_type === "TILL";

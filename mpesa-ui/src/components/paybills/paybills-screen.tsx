@@ -196,7 +196,7 @@ function PaybillTotals() {
           value={`${formatCount(data.c2b_registered)} of ${formatCount(data.c2b_applicable)}`}
           note={
             data.c2b_registered < data.c2b_applicable
-              ? "Some active shortcodes need registering"
+              ? "Some shortcodes still need their C2B URLs registered"
               : undefined
           }
           noteTone="warning"
@@ -419,7 +419,12 @@ function PaybillTable() {
                 <TableHead>Checks</TableHead>
                 <TableHead className="text-right">Today (KES)</TableHead>
                 <TableHead className="text-right">Float (KES)</TableHead>
-                <SortableHead field="created_at" sort={paging.sort} onSort={paging.setSort}>
+                <SortableHead
+                  field="created_at"
+                  sort={paging.sort}
+                  onSort={paging.setSort}
+                  className="hidden 2xl:table-cell"
+                >
                   Added
                 </SortableHead>
                 <TableHead>Status</TableHead>
@@ -445,7 +450,7 @@ function PaybillTable() {
                   <TableCell>
                     <TypeBadge type={row.shortcode_type} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-28 max-w-44 whitespace-normal">
                     {row.products.length === 0 ? (
                       <span className="text-muted-foreground">Unassigned</span>
                     ) : (
@@ -456,7 +461,7 @@ function PaybillTable() {
                     <EnvironmentBadge environment={row.environment} />
                   </TableCell>
                   <TableCell>
-                    <InlineHealthChecks health={row.health} now={now} />
+                    <InlineHealthChecks row={row} now={now} />
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {paysOut(row) && !collects(row) ? (
@@ -468,7 +473,7 @@ function PaybillTable() {
                   <TableCell className="text-right font-semibold">
                     <Money amount={row.health.float_utility} hideCode />
                   </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
+                  <TableCell className="hidden text-muted-foreground tabular-nums 2xl:table-cell">
                     {row.created_at
                       ? new Date(row.created_at).toLocaleDateString("en-KE", {
                           dateStyle: "medium",
@@ -504,7 +509,7 @@ function PaybillTable() {
             disabled={query.isPlaceholderData}
           />
           <span className="text-muted-foreground text-xs">
-            Checks: Daraja token · C2B URLs · last payment
+            Checks: Daraja token · C2B URLs · last payment or payout · callbacks
           </span>
         </div>
       )}

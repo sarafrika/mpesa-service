@@ -1,9 +1,10 @@
 import { Check, CircleHelp, Minus, TriangleAlert, X } from "lucide-react";
-import type { ShortcodeHealth, ShortcodeSummary } from "@/api/generated/model";
+import type { ShortcodeSummary } from "@/api/generated/model";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
+  type Checked,
   type CheckState,
   displayStatus,
   ENVIRONMENT_LABELS,
@@ -37,13 +38,9 @@ const CHECK_WORD: Record<CheckState, string> = {
   unknown: "Not checked",
 };
 
-export function PaybillStatusBadge({
-  row,
-  now,
-}: {
-  row: Pick<ShortcodeSummary, "status" | "health">;
-  now: number;
-}) {
+type HealthRow = Checked & Pick<ShortcodeSummary, "status">;
+
+export function PaybillStatusBadge({ row, now }: { row: HealthRow; now: number }) {
   const { label, tone } = displayStatus(row, now);
   return <StatusBadge status={label} tone={tone} />;
 }
@@ -57,11 +54,11 @@ export function EnvironmentBadge({ environment }: { environment: string }) {
   );
 }
 
-/** Token · C2B · last payment as three icon-and-word marks for a table cell. */
-export function InlineHealthChecks({ health, now }: { health: ShortcodeHealth; now: number }) {
+/** The checks as icons for a table cell; the short word shows only on wide screens (2xl). */
+export function InlineHealthChecks({ row, now }: { row: HealthRow; now: number }) {
   return (
-    <span className="flex gap-3">
-      {healthChecks(health, now).map((check) => {
+    <span className="flex gap-2.5 2xl:gap-3">
+      {healthChecks(row, now).map((check) => {
         const Icon = CHECK_ICON[check.state];
         return (
           <span
@@ -73,7 +70,9 @@ export function InlineHealthChecks({ health, now }: { health: ShortcodeHealth; n
             <span className="sr-only">
               {check.label}: {CHECK_WORD[check.state]}.
             </span>
-            <span aria-hidden>{check.short}</span>
+            <span aria-hidden className="hidden 2xl:inline">
+              {check.short}
+            </span>
           </span>
         );
       })}

@@ -39,8 +39,12 @@ export function shortAge(value: string | number | Date | null | undefined, now: 
   return `${Math.floor(seconds / 86_400)} d`;
 }
 
-/** The checks the console shows per shortcode: Daraja token, C2B URLs, recent payments, failed callbacks. */
-export function healthChecks(health: ShortcodeHealth, now: number): HealthCheck[] {
+export type Checked = { health: ShortcodeHealth; capabilities: readonly string[] };
+
+/** Token, C2B URLs (only with C2B_REGISTER), last payment or last payout, failed callbacks. */
+export function healthChecks(shortcode: Checked, now: number): HealthCheck[] {
+  const { health, capabilities } = shortcode;
+  const collects = capabilities.includes("C2B_REGISTER");
   const token: HealthCheck =
     health.token_ok === true
       ? {
@@ -78,7 +82,6 @@ export function healthChecks(health: ShortcodeHealth, now: number): HealthCheck[
       detail: "The last registration was refused. Re-register the URLs.",
     },
     NOT_REGISTERED: { short: "C2B", state: "warn", detail: "C2B URLs were never registered" },
-    NOT_APPLICABLE: { short: "n/a", state: "na", detail: "B2C shortcodes take no C2B payments" },
   };
   const c2b: HealthCheck = {
     key: "c2b",
@@ -86,21 +89,24 @@ export function healthChecks(health: ShortcodeHealth, now: number): HealthCheck[
     ...(c2bByState[health.c2b_state] ?? c2bByState.NOT_REGISTERED),
   };
 
-  const last = health.last_payment_at ? new Date(health.last_payment_at).getTime() : Number.NaN;
+  // A payout-only shortcode receives nothing, so its activity is its newest payout.
+  const word = collects ? "payment" : "payout";
+  const at = collects ? health.last_payment_at : health.last_payout_at;
+  const last = at ? new Date(at).getTime() : Number.NaN;
   const payments: HealthCheck = Number.isNaN(last)
     ? {
         key: "payments",
-        label: "Last payment",
+        label: `Last ${word}`,
         short: "None",
         state: "unknown",
-        detail: "No payments have arrived on this shortcode yet",
+        detail: `No ${word}s have ${collects ? "arrived on" : "been sent from"} this shortcode yet`,
       }
     : {
         key: "payments",
-        label: "Last payment",
+        label: `Last ${word}`,
         short: shortAge(last, now),
         state: now - last <= DAY ? "ok" : "warn",
-        detail: `Newest STK or C2B payment ${shortAge(last, now)} ago`,
+        detail: `Newest ${collects ? "STK or C2B payment" : "payout"} ${shortAge(last, now)} ago`,
       };
 
   const failures = health.callback_failures_24h ?? 0;
@@ -121,18 +127,18 @@ export function healthChecks(health: ShortcodeHealth, now: number): HealthCheck[
           detail: `${failures} callback${failures === 1 ? "" : "s"} failed in the last 24 hours; replay them from the callback inbox`,
         };
 
-  return [token, c2b, payments, callbacks];
+  return collects ? [token, c2b, payments, callbacks] : [token, payments, callbacks];
 }
 
 /** Status as a word and a tone: an active shortcode with a failing check reads "Attention". */
 export function displayStatus(
-  row: Pick<ShortcodeSummary, "status" | "health">,
+  row: Checked & Pick<ShortcodeSummary, "status">,
   now: number,
 ): { label: string; tone: Tone } {
   const status: ShortcodeStatus = row.status;
   if (status === "SUSPENDED") return { label: "Suspended", tone: "neutral" };
   if (status === "DRAFT") return { label: "Draft", tone: "info" };
-  const failing = healthChecks(row.health, now).some((check) => check.state === "fail");
+  const failing = healthChecks(row, now).some((check) => check.state === "fail");
   return failing ? { label: "Attention", tone: "danger" } : { label: "Active", tone: "success" };
 }
 

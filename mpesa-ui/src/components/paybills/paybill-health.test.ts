@@ -5,14 +5,18 @@ import { displayStatus, healthChecks, initials, shortAge } from "./paybill-healt
 
 const NOW = Date.parse("2026-10-27T09:00:00Z");
 
-function health(overrides: Partial<ShortcodeHealth> = {}): ShortcodeHealth {
-  return {
+const PAYBILL = ["C2B_REGISTER", "C2B_VALIDATION", "STK_PUSH"];
+const B2C = ["B2C_PAYOUT", "ACCOUNT_BALANCE"];
+
+function health(overrides: Partial<ShortcodeHealth> = {}, capabilities = PAYBILL) {
+  const value: ShortcodeHealth = {
     c2b_state: "REGISTERED",
     collected_today: 0,
     paid_out_today: 0,
     callback_failures_24h: 0,
     ...overrides,
   };
+  return { health: value, capabilities };
 }
 
 describe("shortAge", () => {
@@ -62,13 +66,27 @@ describe("healthChecks", () => {
     assert.equal(checks[0].detail, "Daraja refused these credentials (400 BAD_REQUEST)");
   });
 
-  it("marks unknowns and B2C shortcodes without failing them", () => {
-    const checks = healthChecks(health({ c2b_state: "NOT_APPLICABLE" }), NOW);
+  it("marks unknowns without failing them", () => {
+    const checks = healthChecks(health({ c2b_state: "NOT_REGISTERED" }), NOW);
     assert.deepEqual(
       checks.map((check) => check.state),
-      ["unknown", "na", "unknown", "ok"],
+      ["unknown", "warn", "unknown", "ok"],
     );
-    assert.equal(healthChecks(health({ c2b_state: "NOT_REGISTERED" }), NOW)[1].state, "warn");
+    assert.equal(checks[2].label, "Last payment");
+  });
+
+  it("leaves out C2B and reads the last payout on a shortcode without C2B_REGISTER", () => {
+    const checks = healthChecks(
+      health({ c2b_state: "NOT_APPLICABLE", last_payout_at: "2026-10-27T07:00:00Z" }, B2C),
+      NOW,
+    );
+    assert.deepEqual(
+      checks.map((check) => check.key),
+      ["token", "payments", "callbacks"],
+    );
+    assert.equal(checks[1].label, "Last payout");
+    assert.equal(checks[1].short, "2 h");
+    assert.equal(checks[1].state, "ok");
   });
 
   it("fails a shortcode whose callbacks failed in the last day", () => {
@@ -81,22 +99,19 @@ describe("healthChecks", () => {
 
 describe("displayStatus", () => {
   it("names suspended, draft, healthy and failing shortcodes", () => {
-    assert.deepEqual(displayStatus({ status: "SUSPENDED", health: health() }, NOW), {
+    assert.deepEqual(displayStatus({ status: "SUSPENDED", ...health() }, NOW), {
       label: "Suspended",
       tone: "neutral",
     });
-    assert.equal(displayStatus({ status: "DRAFT", health: health() }, NOW).label, "Draft");
+    assert.equal(displayStatus({ status: "DRAFT", ...health() }, NOW).label, "Draft");
     assert.equal(
-      displayStatus({ status: "ACTIVE", health: health({ token_ok: true }) }, NOW).label,
+      displayStatus({ status: "ACTIVE", ...health({ token_ok: true }) }, NOW).label,
       "Active",
     );
-    assert.deepEqual(
-      displayStatus({ status: "ACTIVE", health: health({ token_ok: false }) }, NOW),
-      {
-        label: "Attention",
-        tone: "danger",
-      },
-    );
+    assert.deepEqual(displayStatus({ status: "ACTIVE", ...health({ token_ok: false }) }, NOW), {
+      label: "Attention",
+      tone: "danger",
+    });
   });
 });
 
