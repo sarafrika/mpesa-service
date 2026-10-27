@@ -6,9 +6,10 @@ export const STATUS_OPTIONS = [
   { value: "RECEIVED", label: "Received" },
   { value: "PROCESSED", label: "Processed" },
   { value: "REPLAYED", label: "Replayed" },
+  { value: "REJECTED", label: "Rejected" },
 ] as const;
 
-// A status the service adds later (REJECTED, say) still filters from the URL; it is then shown as a chip.
+// A status the service adds later still filters from the URL; it is then shown as a chip.
 export type StatusFilter = string;
 
 // The service names a kind after its callback path; OTHER is any path it does not know.
