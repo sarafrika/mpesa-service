@@ -15,8 +15,17 @@ public record CallbackSummaryDto(
         @JsonProperty("received") long received,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("processed") long processed,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "Handled but not applied; rejected callbacks are not counted here")
         @JsonProperty("failed") long failed,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Failed, then succeeded on replay")
-        @JsonProperty("replayed") long replayed) {
+        @JsonProperty("replayed") long replayed,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "Refused before any handler ran (unknown callback URL); nothing to apply or replay")
+        @JsonProperty("rejected") long rejected) {
+
+    public CallbackSummaryDto(OffsetDateTime since, long total, long received, long processed, long failed,
+                              long replayed) {
+        this(since, total, received, processed, failed, replayed, 0);
+    }
 }

@@ -88,8 +88,8 @@ public class C2BConfirmationService {
             return new Confirmation(stored, true);
         }
 
-        Optional<MpesaShortCode> shortcode = Optional.ofNullable(callback.businessShortCode())
-                .map(String::trim).flatMap(shortCodeRepository::findByShortcode);
+        // A till may be named by its till number or its store/HO number.
+        Optional<MpesaShortCode> shortcode = shortCodeRepository.findByNumber(callback.businessShortCode());
         if (shortcode.isEmpty()) {
             log.warn("C2B confirmation {} for unknown shortcode {}; storing it unlinked", transId,
                     callback.businessShortCode());

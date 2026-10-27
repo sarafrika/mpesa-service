@@ -37,10 +37,12 @@ public record CreateShortcodeRequest(
         @NotBlank(message = "is required")
         @Size(max = 500, message = "must be at most 500 characters")
         @JsonProperty("consumer_secret") String consumerSecret,
-        @Schema(accessMode = Schema.AccessMode.WRITE_ONLY, description = "Lipa na M-Pesa passkey; needed for STK push")
+        @Schema(accessMode = Schema.AccessMode.WRITE_ONLY, description = "Lipa na M-Pesa passkey; needed for STK "
+                + "push, issued for a till's store/HO number. Rejected for B2C (B2C FAQ 15: no passkey)")
         @Size(max = 500, message = "must be at most 500 characters")
         @JsonProperty("passkey") String passkey,
-        @Schema(example = "elimika-api", description = "B2C initiator; required for B2C shortcodes")
+        @Schema(example = "elimika-api", description = "API initiator; needed before a B2C or One Account goes "
+                + "live, and for reversals, status, balance and B2B on the others")
         @Size(max = 100, message = "must be at most 100 characters")
         @JsonProperty("initiator_name") String initiatorName,
         @Schema(accessMode = Schema.AccessMode.WRITE_ONLY)
@@ -63,5 +65,19 @@ public record CreateShortcodeRequest(
         @JsonProperty("account_reference") String accountReference,
         @Schema(example = "Elimika fees")
         @Size(max = 255, message = "must be at most 255 characters")
-        @JsonProperty("transaction_desc") String transactionDesc) {
+        @JsonProperty("transaction_desc") String transactionDesc,
+        @Schema(example = "174300", description = "A till's store or Head Office number (the Go-Live shortcode "
+                + "its passkey belongs to); required for TILL and rejected for every other type")
+        @Pattern(regexp = "^[0-9]{5,10}$", message = "must be 5 to 10 digits")
+        @JsonProperty("store_number") String storeNumber) {
+
+    /** A request without a store number, for the types that have none. */
+    public CreateShortcodeRequest(String shortcode, ShortcodeType shortcodeType, String businessName,
+                                  Environment environment, String consumerKey, String consumerSecret, String passkey,
+                                  String initiatorName, String initiatorPassword, String securityCredential,
+                                  BigDecimal minAmount, BigDecimal maxAmount, String accountReference,
+                                  String transactionDesc) {
+        this(shortcode, shortcodeType, businessName, environment, consumerKey, consumerSecret, passkey, initiatorName,
+                initiatorPassword, securityCredential, minAmount, maxAmount, accountReference, transactionDesc, null);
+    }
 }

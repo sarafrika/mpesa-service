@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services.approvals.bulk;
 
 import com.sarafrika.apps.mpesaservice.dtos.B2CPayoutRequest;
+import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedException;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.models.PayoutBatch;
 import com.sarafrika.apps.mpesaservice.models.PayoutBatchItem;
@@ -120,7 +121,7 @@ public class BulkPayoutExecutor implements ResumableExecutor, ApprovalLifecycle 
                 message = sent.getStatus() == OutgoingPaymentStatus.FAILED || sent.isOutcomeUnknown()
                         ? sent.getResultDesc() : null;
             }
-        } catch (IllegalArgumentException | IllegalStateException ex) {
+        } catch (IllegalArgumentException | IllegalStateException | CapabilityNotSupportedException ex) {
             status = PayoutBatchItemStatus.REFUSED;
             message = ex.getMessage();
         } catch (RuntimeException ex) {

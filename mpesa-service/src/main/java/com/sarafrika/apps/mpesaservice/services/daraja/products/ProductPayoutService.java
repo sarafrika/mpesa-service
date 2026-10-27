@@ -31,6 +31,8 @@ import com.sarafrika.apps.mpesaservice.services.features.FeatureGate;
 import com.sarafrika.apps.mpesaservice.services.features.ShortcodeFeatures;
 import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
 import com.sarafrika.apps.mpesaservice.services.treasury.KnownFloat;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
@@ -191,6 +193,10 @@ public class ProductPayoutService {
     private MpesaShortCode ready(UUID shortcodeUuid, DarajaFeature feature, String label) {
         MpesaShortCode shortcode = shortcodes.findByUuid(shortcodeUuid)
                 .orElseThrow(() -> new NotFoundException("Shortcode not found"));
+        ShortcodeCapability needed = ShortcodeCapabilities.forFeature(feature);
+        if (needed != null) {
+            ShortcodeCapabilities.require(shortcode, needed);
+        }
         gate.require(shortcodeUuid, feature, label);
         if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
             throw new ConflictException("Shortcode " + shortcode.getShortcode() + " is not active; payments are refused");
@@ -242,6 +248,10 @@ public class ProductPayoutService {
                 : shortcodes.findByUuid(request.shortcodeUuid()).orElse(null);
         if (shortcode == null) {
             return new Outcome(false, "The shortcode no longer exists");
+        }
+        if (!ShortcodeCapabilities.allows(shortcode, product)) {
+            return new Outcome(false, ShortcodeCapabilities.refusal(shortcode, ShortcodeCapabilities.forFeature(product))
+                    + " Nothing was sent.");
         }
         if (!features.isEnabled(shortcode.getUuid(), product)) {
             return new Outcome(false, "The feature was switched off since the request was approved; nothing was sent");

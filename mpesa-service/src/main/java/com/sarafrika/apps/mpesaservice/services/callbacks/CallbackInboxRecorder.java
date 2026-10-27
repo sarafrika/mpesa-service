@@ -88,7 +88,8 @@ public class CallbackInboxRecorder {
         }
         try {
             repository.findByUuid(uuid).ifPresent(entry -> {
-                entry.setStatus(processing.ok() ? CallbackStatus.PROCESSED : CallbackStatus.FAILED);
+                entry.setStatus(processing.ok() ? CallbackStatus.PROCESSED
+                        : processing.rejected() ? CallbackStatus.REJECTED : CallbackStatus.FAILED);
                 entry.setError(processing.ok() ? null : processing.error());
                 link(entry);
                 repository.save(entry);

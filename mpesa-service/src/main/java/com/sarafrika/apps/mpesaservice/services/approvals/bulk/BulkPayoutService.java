@@ -22,6 +22,8 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalTypes;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.LocalDate;
@@ -82,6 +84,7 @@ public class BulkPayoutService {
         }
         MpesaShortCode shortcode = shortcodes.findByUuid(upload.shortcodeUuid())
                 .orElseThrow(() -> new NotFoundException("Shortcode not found"));
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.B2C_PAYOUT);
         if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
             throw new ConflictException("Paybill " + shortcode.getShortcode() + " is suspended; it cannot pay out.");
         }

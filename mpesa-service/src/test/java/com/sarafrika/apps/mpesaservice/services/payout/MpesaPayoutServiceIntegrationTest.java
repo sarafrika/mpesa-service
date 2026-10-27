@@ -116,7 +116,7 @@ class MpesaPayoutServiceIntegrationTest {
     void setUp() {
         MpesaShortCode code = new MpesaShortCode();
         code.setShortcode(String.valueOf(600000 + (int) (Math.random() * 399999)));
-        code.setShortcodeType(ShortcodeType.PAYBILL);
+        code.setShortcodeType(ShortcodeType.ONE_ACCOUNT);
         code.setBusinessName("Elimika payouts");
         code.setConsumerKey("key");
         code.setConsumerSecret("secret");

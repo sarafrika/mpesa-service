@@ -27,7 +27,10 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeRequest;
+import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedException;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
+import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
@@ -92,6 +95,8 @@ class ShortcodeAdminIntegrationTest {
     private ShortcodeC2bService c2b;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository repository;
 
     @MockitoBean
     private ShortcodeConnectionTester tester;
@@ -163,12 +168,81 @@ class ShortcodeAdminIntegrationTest {
         assertThatThrownBy(() -> service.create(request(number, ShortcodeType.TILL, Environment.SANDBOX)))
                 .isInstanceOf(ConflictException.class);
         assertThatThrownBy(() -> service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
+                Environment.SANDBOX, "k", "s", "a-passkey", null, null, null, null, null, null, null)))
+                .isInstanceOfSatisfying(InvalidRequestException.class, e -> assertThat(e.getField()).isEqualTo("passkey"));
+        assertThatThrownBy(() -> service.create(new CreateShortcodeRequest(next(), ShortcodeType.TILL, "Shop",
                 Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null)))
-                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("B2C");
+                .isInstanceOfSatisfying(InvalidRequestException.class,
+                        e -> assertThat(e.getField()).isEqualTo("store_number"));
+        assertThatThrownBy(() -> service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null, "174300")))
+                .isInstanceOfSatisfying(InvalidRequestException.class,
+                        e -> assertThat(e.getField()).isEqualTo("store_number"));
         assertThatThrownBy(() -> service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
                 Environment.SANDBOX, "k", "s", null, null, null, null, new BigDecimal("500"), new BigDecimal("10"),
                 null, null)))
                 .isInstanceOfSatisfying(InvalidRequestException.class, e -> assertThat(e.getField()).isEqualTo("max_amount"));
+    }
+
+    @Test
+    void eachTypeCarriesItsCapabilitiesAndATillItsStoreNumber() {
+        signIn("mpesa-operator");
+        ShortcodeDetailDto till = service.create(new CreateShortcodeRequest(next(), ShortcodeType.TILL, "Shop",
+                Environment.SANDBOX, "k", "s", "pk", null, null, null, null, null, null, null, "1" + next()));
+        ShortcodeDetailDto b2c = service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null));
+
+        assertThat(till.storeNumber()).startsWith("1");
+        assertThat(till.storeNumberConfirmed()).isTrue();
+        assertThat(till.capabilities()).contains(ShortcodeCapability.STK_PUSH, ShortcodeCapability.QR)
+                .doesNotContain(ShortcodeCapability.B2C_PAYOUT, ShortcodeCapability.B2B_EXPRESS_CHECKOUT);
+        assertThat(b2c.capabilities()).containsExactly(ShortcodeCapability.B2C_PAYOUT, ShortcodeCapability.POCHI,
+                ShortcodeCapability.TRANSACTION_STATUS, ShortcodeCapability.ACCOUNT_BALANCE);
+        assertThat(service.list(query(null, b2c.shortcode()), PageRequest.of(0, 25)).getContent().getFirst()
+                .capabilities()).contains(ShortcodeCapability.B2C_PAYOUT);
+        assertThatThrownBy(() -> c2b.register(b2c.uuid(), C2bResponseType.Completed))
+                .isInstanceOf(CapabilityNotSupportedException.class).hasMessageContaining("B2C disbursement");
+        assertThatThrownBy(() -> service.update(b2c.uuid(), new UpdateShortcodeRequest(null, null, null, null, null,
+                null, null, null, "174300"))).isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> service.updateCredentials(b2c.uuid(),
+                new UpdateShortcodeCredentialsRequest(null, null, "pk", null, null, null)))
+                .isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    void aMigratedTillsStoreNumberIsConfirmedByEditingIt() {
+        signIn("mpesa-operator");
+        String number = next();
+        ShortcodeDetailDto till = service.create(new CreateShortcodeRequest(number, ShortcodeType.TILL, "Shop",
+                Environment.SANDBOX, "k", "s", "pk", null, null, null, null, null, null, null, number));
+        jdbc.update("UPDATE mpesa_shortcodes SET store_number_confirmed_at = NULL WHERE uuid = ?", till.uuid());
+        assertThat(service.get(till.uuid()).storeNumberConfirmed()).isFalse();
+        assertThat(repository.findTillsWithUnconfirmedStoreNumber()).extracting(MpesaShortCode::getUuid)
+                .contains(till.uuid());
+
+        ShortcodeDetailDto confirmed = service.update(till.uuid(), new UpdateShortcodeRequest(null, null, null, null,
+                null, null, null, null, number));
+
+        assertThat(confirmed.storeNumberConfirmed()).isTrue();
+        assertThat(repository.findTillsWithUnconfirmedStoreNumber()).extracting(MpesaShortCode::getUuid)
+                .doesNotContain(till.uuid());
+        assertThat(repository.findByNumber(number)).map(MpesaShortCode::getUuid).contains(till.uuid());
+    }
+
+    @Test
+    void aB2cOrOneAccountGoesLiveOnlyWithItsInitiator() {
+        signIn("mpesa-admin");
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        ShortcodeDetailDto draft = service.create(new CreateShortcodeRequest(next(), ShortcodeType.ONE_ACCOUNT,
+                "Both", Environment.SANDBOX, "k", "s", "pk", null, null, null, null, null, null, null));
+        service.testConnection(draft.uuid());
+
+        assertThatThrownBy(() -> service.activate(draft.uuid())).isInstanceOf(ConflictException.class)
+                .hasMessageContaining("initiator");
+        service.updateCredentials(draft.uuid(), new UpdateShortcodeCredentialsRequest(null, null, null, "api", "pw",
+                null));
+
+        assertThat(service.activate(draft.uuid()).status()).isEqualTo(ShortcodeStatus.ACTIVE);
     }
 
     @Test
@@ -429,12 +503,16 @@ class ShortcodeAdminIntegrationTest {
     private static CreateShortcodeRequest request(String number, ShortcodeType type, Environment environment) {
         return new CreateShortcodeRequest(number, type, "Elimika Fees " + number, environment, "key-Qx7d",
                 "secret-9KfA", "passkey-b21c", null, null, null, new BigDecimal("10"), new BigDecimal("150000"),
-                "ELIMIKA", "Elimika fees");
+                "ELIMIKA", "Elimika fees", storeFor(type));
     }
 
     private static CreateShortcodeRequest named(String name, ShortcodeType type) {
         return new CreateShortcodeRequest(next(), type, name, Environment.SANDBOX, "key-Qx7d", "secret-9KfA",
-                "passkey-b21c", null, null, null, null, null, null, null);
+                "passkey-b21c", null, null, null, null, null, null, null, storeFor(type));
+    }
+
+    private static String storeFor(ShortcodeType type) {
+        return type == ShortcodeType.TILL ? "9" + next() : null;
     }
 
     private static ShortcodeAdminService.ShortcodeQuery query(ShortcodeStatus status, String q) {

@@ -3,6 +3,9 @@ package com.sarafrika.apps.mpesaservice.services.approvals.reversal;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
 import com.sarafrika.apps.mpesaservice.dtos.TransactionReversalResponse;
+import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedException;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.models.ReversalRequest;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
@@ -31,6 +34,10 @@ public class ReversalExecutor implements ResumableExecutor, ApprovalLifecycle {
     static final String UNKNOWN = "Safaricom did not confirm it received this reversal, so it may still happen. "
             + "Wait for the result or check the transaction status; do not raise it again.";
     static final String SENT = "Sent to Safaricom; waiting for its result.";
+    static final String AUTH_FAILED = "AUTH_FAILED";
+    static final String NOT_AUTHENTICATED = "We could not authenticate with Daraja (it issued no access token for "
+            + "this shortcode's consumer key and secret), so nothing reached Safaricom. Check the credentials and run "
+            + "the connection check, then raise the reversal again.";
 
     private final ReversalRequestRepository reversals;
     private final MpesaShortCodeRepository shortcodes;
@@ -86,9 +93,12 @@ public class ReversalExecutor implements ResumableExecutor, ApprovalLifecycle {
             refusal = "The payment was reversed in the meantime.";
         } else if (shortcode == null || !StringUtils.hasText(shortcode.getInitiatorName())) {
             refusal = "The paybill has no API initiator any more.";
+        } else if (!ShortcodeCapabilities.has(shortcode, ShortcodeCapability.REVERSAL)) {
+            refusal = ShortcodeCapabilities.refusal(shortcode, ShortcodeCapability.REVERSAL);
         }
         if (refusal != null) {
             reversal.setStatus(ReversalStatus.FAILED);
+            reversal.setResultCode(MpesaErrorResponse.NOT_SENT);
             reversal.setResultDesc(refusal);
             reversals.save(reversal);
             return new Step(reversal, null, new Outcome(false, refusal));
@@ -117,11 +127,17 @@ public class ReversalExecutor implements ResumableExecutor, ApprovalLifecycle {
             reversal.setResultDesc(UNKNOWN);
         } else {
             reversal.setStatus(ReversalStatus.FAILED);
-            if (data != null) {
+            String code = response.error() == null ? null : response.error().errorCode();
+            if (data == null && AUTH_FAILED.equals(code)) {
+                // No token, so nothing reached the Reversal API: our side failed, not Safaricom's answer.
+                reversal.setResultCode(AUTH_FAILED);
+                reversal.setResultDesc(NOT_AUTHENTICATED);
+            } else if (data != null) {
                 reversal.setResultCode(data.responseCode());
                 reversal.setResultDesc(data.responseDescription());
             } else if (response.error() != null) {
-                reversal.setResultCode(clip(response.error().errorCode(), 20));
+                reversal.setResultCode(CapabilityNotSupportedException.CODE.equals(code) ? MpesaErrorResponse.NOT_SENT
+                        : clip(code, 20));
                 reversal.setResultDesc(clip(response.error().errorMessage(), 500));
             }
             reversal.setCompletedAt(Instant.now());
@@ -149,10 +165,18 @@ public class ReversalExecutor implements ResumableExecutor, ApprovalLifecycle {
             case REVERSED -> new Outcome(true, "Safaricom reversed it"
                     + (reversal.getReversalTransactionId() == null ? "." : " (receipt "
                     + reversal.getReversalTransactionId() + ")."));
-            case FAILED -> new Outcome(false, "Safaricom refused the reversal"
+            case FAILED -> new Outcome(false, notSent(reversal)
+                    ? "Not sent" + (reversal.getResultDesc() == null ? "." : ": " + reversal.getResultDesc())
+                    : "Safaricom refused the reversal"
                     + (reversal.getResultDesc() == null ? "." : ": " + reversal.getResultDesc()));
             case CANCELLED, WAITING_APPROVAL -> new Outcome(false, "The reversal was not sent.");
         };
+    }
+
+    /** Failed on our side before anything reached Safaricom: no token, or the request could not be built. */
+    static boolean notSent(ReversalRequest reversal) {
+        String code = reversal.getResultCode();
+        return AUTH_FAILED.equals(code) || MpesaErrorResponse.NOT_SENT.equals(code);
     }
 
     @Override

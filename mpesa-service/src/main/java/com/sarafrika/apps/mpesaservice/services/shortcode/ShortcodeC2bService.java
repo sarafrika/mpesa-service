@@ -23,7 +23,7 @@ import com.sarafrika.apps.mpesaservice.repositories.ShortcodeAdminRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
-import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -73,9 +73,7 @@ public class ShortcodeC2bService {
     /** The outcome is saved either way; a refusal then answers 502, an unreachable Safaricom 503. */
     public C2bRegistrationDto register(UUID shortcodeUuid, C2bResponseType responseType) {
         MpesaShortCode code = transaction.execute(status -> shortcodes.find(shortcodeUuid));
-        if (code.getShortcodeType() == ShortcodeType.B2C) {
-            throw new ConflictException("A B2C shortcode takes no C2B payments, so it has no C2B URLs");
-        }
+        ShortcodeCapabilities.require(code, ShortcodeCapability.C2B_REGISTER);
         ShortcodeCallbackUrlsDto urls = callbackUrls.forShortcode(code);
         MpesaApiResponse<C2BRegistrationResponse> response = darajaService.registerC2BUrls(shortcodeUuid,
                 urls.c2bConfirmationUrl(), urls.c2bValidationUrl(), responseType.name());
@@ -117,9 +115,7 @@ public class ShortcodeC2bService {
         if (code.getEnvironment() != Environment.SANDBOX) {
             throw new ConflictException("C2B payments can only be simulated on a sandbox shortcode");
         }
-        if (code.getShortcodeType() == ShortcodeType.B2C) {
-            throw new ConflictException("A B2C shortcode takes no C2B payments");
-        }
+        ShortcodeCapabilities.require(code, ShortcodeCapability.C2B_REGISTER);
         MpesaApiResponse<C2BSimulationResponse> response = darajaService.simulateC2BPayment(shortcodeUuid,
                 request.phoneNumber(), request.amount(), request.billRefNumber());
         boolean ok = response != null && response.success() && response.data() != null;
@@ -140,9 +136,7 @@ public class ShortcodeC2bService {
     /** Calls Daraja directly, so the console needs no product grant; live shortcodes only, at most KES 10. */
     public TestStkResultDto testStk(UUID shortcodeUuid, TestStkRequest request) {
         MpesaShortCode code = transaction.execute(status -> shortcodes.find(shortcodeUuid));
-        if (code.getShortcodeType() == ShortcodeType.B2C) {
-            throw new ConflictException("A B2C shortcode cannot take STK push payments");
-        }
+        ShortcodeCapabilities.require(code, ShortcodeCapability.STK_PUSH);
         if (ShortcodeViews.status(code) != ShortcodeStatus.ACTIVE) {
             throw new ConflictException("Activate the shortcode before sending a test STK push");
         }

@@ -165,24 +165,30 @@ public class ShortcodeAdminService {
             throw new AccessDeniedException("Production shortcodes need mpesa-admin");
         }
         checkLimits(request.minAmount(), request.maxAmount());
-        if (request.shortcodeType() == ShortcodeType.B2C) {
-            if (!StringUtils.hasText(request.initiatorName())) {
-                throw new InvalidRequestException("initiator_name", "is required for a B2C shortcode");
-            }
-            if (!StringUtils.hasText(request.initiatorPassword()) && !StringUtils.hasText(request.securityCredential())) {
-                throw new InvalidRequestException("initiator_password",
-                        "or a security credential is required for a B2C shortcode");
-            }
-        }
+        ShortcodeType type = request.shortcodeType();
+        rejectPasskeyForB2c(type, request.passkey());
         String shortcode = request.shortcode().trim();
+        String storeNumber = blankToNull(request.storeNumber());
+        if (type == ShortcodeType.TILL && storeNumber == null) {
+            throw new InvalidRequestException("store_number", "is required for a till: enter the store or Head "
+                    + "Office number the till went live under");
+        }
+        if (type != ShortcodeType.TILL && storeNumber != null) {
+            throw new InvalidRequestException("store_number", "is only for tills");
+        }
         if (repository.exists((root, q, cb) -> cb.equal(root.get("shortcode"), shortcode))) {
             throw new ConflictException("Shortcode " + shortcode + " already exists");
+        }
+        if (storeNumber != null) {
+            checkStoreNumberFree(storeNumber, null);
         }
         String actor = CurrentActor.name();
         LocalDateTime now = LocalDateTime.now();
         MpesaShortCode code = new MpesaShortCode();
         code.setShortcode(shortcode);
-        code.setShortcodeType(request.shortcodeType());
+        code.setShortcodeType(type);
+        code.setStoreNumber(storeNumber);
+        code.setStoreNumberConfirmedAt(storeNumber == null ? null : now);
         code.setBusinessName(request.businessName().trim());
         code.setEnvironment(request.environment());
         code.setConsumerKey(request.consumerKey().trim());
@@ -240,10 +246,42 @@ public class ShortcodeAdminService {
         }
         apply(request.b2cResultUrl(), code::setB2cResultUrl);
         apply(request.b2cTimeoutUrl(), code::setB2cTimeoutUrl);
+        String storeNumber = blankToNull(request.storeNumber());
+        boolean storeChanged = false;
+        if (storeNumber != null) {
+            if (code.getShortcodeType() != ShortcodeType.TILL) {
+                throw new InvalidRequestException("store_number", "is only for tills");
+            }
+            checkStoreNumberFree(storeNumber, code.getId());
+            storeChanged = !storeNumber.equals(code.getStoreNumber());
+            code.setStoreNumber(storeNumber);
+            code.setStoreNumberConfirmedAt(LocalDateTime.now());
+        }
         code.setUpdatedBy(CurrentActor.name());
         code = repository.saveAndFlush(code);
+        if (storeChanged) {
+            // The passkey and token belong to the Go-Live number; let the next call fetch afresh.
+            darajaService.evictAccessToken(uuid);
+        }
         auditService.record("SHORTCODE_UPDATED", ENTITY, uuid.toString(), before, ShortcodeViews.profile(code));
         return detail(code);
+    }
+
+    private static void rejectPasskeyForB2c(ShortcodeType type, String passkey) {
+        // "Passkey is only required for M-PESA Express/STK Push" (B2C FAQ 15, SHORTCODE-TYPES.md).
+        if (type == ShortcodeType.B2C && StringUtils.hasText(passkey)) {
+            throw new InvalidRequestException("passkey", "is not used by a B2C shortcode: it is only for STK push");
+        }
+    }
+
+    // A store number must not be another shortcode's number, or another till's store number.
+    private void checkStoreNumberFree(String storeNumber, Long ownId) {
+        boolean taken = repository.exists((root, q, cb) -> cb.and(
+                ownId == null ? cb.conjunction() : cb.notEqual(root.get("id"), ownId),
+                cb.or(cb.equal(root.get("shortcode"), storeNumber), cb.equal(root.get("storeNumber"), storeNumber))));
+        if (taken) {
+            throw new ConflictException("Store number " + storeNumber + " is already used by another shortcode");
+        }
     }
 
     /** Stores credentials already changed at Safaricom (Daraja has no API to change them), then re-runs
@@ -252,6 +290,7 @@ public class ShortcodeAdminService {
         List<String> changed = new ArrayList<>();
         transaction.executeWithoutResult(status -> {
             MpesaShortCode code = find(uuid);
+            rejectPasskeyForB2c(code.getShortcodeType(), request.passkey());
             Map<String, Object> before = Map.of("credentials", ShortcodeViews.credentials(code));
             replace(request.consumerKey(), "consumer_key", code::setConsumerKey, changed);
             replace(request.consumerSecret(), "consumer_secret", code::setConsumerSecret, changed);
@@ -304,6 +343,7 @@ public class ShortcodeAdminService {
             throw new ConflictException("Run the connection check first: Daraja must issue a token for these "
                     + "credentials before the shortcode goes live");
         }
+        requireReadyToGoLive(code);
         LocalDateTime now = LocalDateTime.now();
         code.setIsActive(true);
         if (code.getActivatedAt() == null) {
@@ -335,6 +375,24 @@ public class ShortcodeAdminService {
         return detail(code);
     }
 
+    // B2C and One Account pay out, which needs the API initiator (B2C prerequisites 5-7, SHORTCODE-TYPES.md).
+    private static void requireReadyToGoLive(MpesaShortCode code) {
+        ShortcodeType type = code.getShortcodeType();
+        if (type == ShortcodeType.B2C || type == ShortcodeType.ONE_ACCOUNT) {
+            if (!StringUtils.hasText(code.getInitiatorName())) {
+                throw new ConflictException("Add the API initiator under Credentials first: a "
+                        + ShortcodeCapabilities.label(type) + " needs one to pay out");
+            }
+            if (!StringUtils.hasText(code.getInitiatorPassword()) && !StringUtils.hasText(code.getSecurityCredential())) {
+                throw new ConflictException("Add the initiator's password or security credential under Credentials "
+                        + "first: a " + ShortcodeCapabilities.label(type) + " needs one to pay out");
+            }
+        }
+        if (type == ShortcodeType.TILL && !StringUtils.hasText(code.getStoreNumber())) {
+            throw new ConflictException("Add the till's store or Head Office number first");
+        }
+    }
+
     MpesaShortCode find(UUID uuid) {
         return repository.findOne((root, q, cb) -> cb.equal(root.get("uuid"), uuid))
                 .orElseThrow(() -> new NotFoundException("Shortcode " + uuid + " not found"));
@@ -350,7 +408,8 @@ public class ShortcodeAdminService {
     private UpdateShortcodeRequest withoutEchoedUrls(MpesaShortCode code, UpdateShortcodeRequest r) {
         return new UpdateShortcodeRequest(r.businessName(), r.minAmount(), r.maxAmount(), r.accountReference(),
                 r.transactionDesc(), echoed(r.callbackUrl(), callbackUrls.stk(code)),
-                echoed(r.b2cResultUrl(), code.getB2cResultUrl()), echoed(r.b2cTimeoutUrl(), code.getB2cTimeoutUrl()));
+                echoed(r.b2cResultUrl(), code.getB2cResultUrl()), echoed(r.b2cTimeoutUrl(), code.getB2cTimeoutUrl()),
+                r.storeNumber());
     }
 
     private static String echoed(String requested, String current) {

@@ -6,6 +6,7 @@ import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.C2BValidationRuleRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.utils.enums.LookupFailurePolicy;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Optional;
@@ -44,9 +45,8 @@ public class C2BValidationService {
 
     @Transactional(readOnly = true)
     public ValidationDecision validate(C2BValidationRequest request) {
-        Optional<MpesaShortCode> shortcode = Optional.ofNullable(request.businessShortCode())
-                .map(String::trim)
-                .flatMap(shortCodeRepository::findByShortcode);
+        // A till may be named by its till number or its store/HO number.
+        Optional<MpesaShortCode> shortcode = shortCodeRepository.findByNumber(request.businessShortCode());
         if (shortcode.isEmpty()) {
             return ValidationDecision.reject(C2BResultCodes.INVALID_SHORTCODE,
                     "Shortcode " + request.businessShortCode() + " is not configured here");
@@ -55,9 +55,19 @@ public class C2BValidationService {
             return ValidationDecision.reject(C2BResultCodes.OTHER_ERROR,
                     "Shortcode " + shortcode.get().getShortcode() + " is not active here");
         }
-        RuleSet rules = ruleRepository.findByShortcodeUuid(shortcode.get().getUuid()).map(RuleSet::of).orElse(null);
+        RuleSet rules = ruleRepository.findByShortcodeUuid(shortcode.get().getUuid()).map(RuleSet::of)
+                .map(r -> forType(r, shortcode.get().getShortcodeType())).orElse(null);
         return evaluate(rules, shortcode.get().getShortcode(), request.billRefNumber(), request.transAmount(),
                 request.msisdn(), request.transId());
+    }
+
+    /** Buy Goods payments carry no account number (BillRefNumber is null, C2B doc), so a till ignores the pattern. */
+    public static RuleSet forType(RuleSet rules, ShortcodeType type) {
+        if (rules == null || type != ShortcodeType.TILL || rules.accountPattern() == null) {
+            return rules;
+        }
+        return new RuleSet(rules.active(), null, rules.minAmount(), rules.maxAmount(), rules.lookupUrl(),
+                rules.lookupTimeoutMs(), rules.onLookupFailure());
     }
 
     public ValidationDecision evaluate(RuleSet rules, String shortcode, String account, BigDecimal amount,

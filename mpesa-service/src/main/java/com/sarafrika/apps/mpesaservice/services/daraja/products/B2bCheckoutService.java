@@ -26,7 +26,8 @@ import com.sarafrika.apps.mpesaservice.utils.enums.B2bCheckoutStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
-import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -100,10 +101,7 @@ public class B2bCheckoutService {
         if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
             throw new ConflictException("Shortcode " + shortcode.getShortcode() + " is not active; pushes are refused");
         }
-        if (shortcode.getShortcodeType() != ShortcodeType.PAYBILL) {
-            throw new ConflictException("B2B Express Checkout pays into a paybill; this shortcode is a "
-                    + shortcode.getShortcodeType());
-        }
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.B2B_EXPRESS_CHECKOUT);
         BigDecimal amount = request.amount();
         if (amount.stripTrailingZeros().scale() > 0) {
             throw new InvalidRequestException("amount", "must be whole shillings");

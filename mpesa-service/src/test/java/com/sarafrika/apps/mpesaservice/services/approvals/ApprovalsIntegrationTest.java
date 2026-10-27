@@ -150,7 +150,7 @@ class ApprovalsIntegrationTest {
     void setUp() {
         MpesaShortCode code = new MpesaShortCode();
         code.setShortcode(String.valueOf(600000 + (int) (Math.random() * 399999)));
-        code.setShortcodeType(ShortcodeType.PAYBILL);
+        code.setShortcodeType(ShortcodeType.ONE_ACCOUNT);
         code.setBusinessName("Elimika Fees");
         code.setConsumerKey("key");
         code.setConsumerSecret("secret");
@@ -527,6 +527,22 @@ class ApprovalsIntegrationTest {
         runner.run(interrupted);
         verify(daraja, never()).reverseTransaction(any(MpesaShortCode.class), anyString(), any(), anyString());
         assertThat(approvals.get(interrupted).reversal().status()).isEqualTo("OUTCOME_UNKNOWN");
+    }
+
+    @Test
+    void aReversalWithoutADarajaTokenIsOurFailureNotSafaricomsRefusal() {
+        UUID request = reversalRequest(payment("700"));
+        when(daraja.reverseTransaction(any(MpesaShortCode.class), anyString(), any(), anyString()))
+                .thenReturn(MpesaApiResponse.error("AUTH_FAILED", "Failed to obtain access token", 401));
+        as("checker");
+        approvals.approve(request, null);
+        runner.run(request);
+
+        assertThat(approvals.get(request).status()).isEqualTo("FAILED");
+        assertThat(approvals.get(request).outcomeMessage()).startsWith("Not sent: We could not authenticate with "
+                + "Daraja").contains("Check the credentials").doesNotContain("Safaricom refused");
+        assertThat(approvals.get(request).reversal().resultCode()).isEqualTo("AUTH_FAILED");
+        assertThat(approvals.get(request).reversal().status()).isEqualTo("FAILED");
     }
 
     @Test

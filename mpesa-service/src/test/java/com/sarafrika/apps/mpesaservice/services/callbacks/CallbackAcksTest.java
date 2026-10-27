@@ -30,6 +30,17 @@ class CallbackAcksTest {
     }
 
     @Test
+    void aCallbackRefusedBeforeAnyHandlerIsRejectedNotFailed() {
+        for (int status : new int[] {401, 403, 404}) {
+            Processing refused = CallbackAcks.read(CallbackKind.STK_CALLBACK, status, null, null);
+            assertThat(refused.ok()).isFalse();
+            assertThat(refused.rejected()).isTrue();
+            assertThat(refused.error()).contains("HTTP " + status).contains("nothing was applied");
+        }
+        assertThat(CallbackAcks.read(CallbackKind.STK_CALLBACK, 500, null, null).rejected()).isFalse();
+    }
+
+    @Test
     void aValidationRejectionCodeIsADecisionOnlyForValidation() throws Exception {
         JsonNode reject = json("{\"ResultCode\":\"C2B00012\",\"ResultDesc\":\"Rejected\"}");
         assertThat(CallbackAcks.read(CallbackKind.C2B_VALIDATION, 200, reject, null).ok()).isTrue();

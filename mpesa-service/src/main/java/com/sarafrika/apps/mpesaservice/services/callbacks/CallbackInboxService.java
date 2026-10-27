@@ -93,7 +93,7 @@ public class CallbackInboxService {
         long total = counts.values().stream().mapToLong(Long::longValue).sum();
         return new CallbackSummaryDto(offset(since), total, counts.getOrDefault(CallbackStatus.RECEIVED, 0L),
                 counts.getOrDefault(CallbackStatus.PROCESSED, 0L), counts.getOrDefault(CallbackStatus.FAILED, 0L),
-                counts.getOrDefault(CallbackStatus.REPLAYED, 0L));
+                counts.getOrDefault(CallbackStatus.REPLAYED, 0L), counts.getOrDefault(CallbackStatus.REJECTED, 0L));
     }
 
     CallbackInboxEntry find(UUID uuid) {
@@ -114,6 +114,9 @@ public class CallbackInboxService {
         if (entry.isBodyTruncated() || entry.getBody() == null || !entry.getEndpoint().startsWith(CallbackKind.PREFIX)
                 || entry.getBody().contains("\"" + CallbackInboxRecorder.UNPARSED + "\"")) {
             return "The body was not stored as JSON, so there is nothing to replay.";
+        }
+        if (entry.getStatus() == CallbackStatus.REJECTED) {
+            return "It was refused before any handler ran (an unknown callback URL), so there is nothing to replay.";
         }
         if (entry.getStatus() == CallbackStatus.FAILED) {
             return null;

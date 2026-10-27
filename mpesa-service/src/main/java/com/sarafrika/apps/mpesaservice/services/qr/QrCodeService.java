@@ -16,6 +16,8 @@ import com.sarafrika.apps.mpesaservice.repositories.QrCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.QRTransactionType;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.time.ZoneId;
@@ -49,9 +51,7 @@ public class QrCodeService {
 
     public QrCodeDto create(UUID shortcodeUuid, CreateQrCodeRequest request) {
         MpesaShortCode shortcode = shortcode(shortcodeUuid);
-        if (shortcode.getShortcodeType() == ShortcodeType.B2C) {
-            throw new ConflictException("A B2C shortcode only pays out; QR codes are for paybills and tills");
-        }
+        ShortcodeCapabilities.require(shortcode, ShortcodeCapability.QR);
         if (!Boolean.TRUE.equals(shortcode.getIsActive())) {
             throw new ConflictException("Shortcode " + shortcode.getShortcode() + " is suspended; it takes no payments");
         }
@@ -131,7 +131,7 @@ public class QrCodeService {
         }
         QRTransactionType requested = QRTransactionType.fromCode(trxCode.trim());
         if (requested != expected) {
-            throw new InvalidRequestException("trx_code", "a " + shortcode.getShortcodeType().name().toLowerCase()
+            throw new InvalidRequestException("trx_code", "a " + ShortcodeCapabilities.label(shortcode.getShortcodeType())
                     + " takes " + expected.getCode());
         }
         return requested;
