@@ -62,6 +62,7 @@ jobs:
               # Shared with Keycloak and Elimika, which calls the service as http://mpesa-service:8080.
               sarafrika:
                 external: true
+                name: ${SARAFRIKA_NETWORK:?missing from .env}
               # Postgres is reachable from the service only.
               mpesa:
 
@@ -163,6 +164,20 @@ jobs:
                 echo "NEXTAUTH_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
               } > .env)
               echo "  issuer: $ISSUER"
+            fi
+
+            # The Docker network Elimika and Keycloak share, so Elimika reaches the service by name.
+            if ! grep -q '^SARAFRIKA_NETWORK=' .env; then
+              networks_of() { docker inspect "$1" -f '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' 2>/dev/null | grep -v '^$' | sort || true; }
+              KC_NAME=$(docker ps --format '{{.Names}} {{.Image}}' | awk 'tolower($2) ~ /keycloak/ {print $1; exit}')
+              NET=$(comm -12 <(networks_of elimika) <(networks_of "$KC_NAME") | head -1)
+              if [ -z "$NET" ]; then NET=$(networks_of elimika | head -1); fi
+              if [ -z "$NET" ]; then
+                echo "❌ Couldn't find Elimika's Docker network. Add SARAFRIKA_NETWORK=<network> to .env by hand."
+                exit 1
+              fi
+              echo "SARAFRIKA_NETWORK=$NET" >> .env
+              echo "🔗 Joining Docker network $NET"
             fi
 
             for name in mpesa-postgres mpesa-service mpesa-ui; do
