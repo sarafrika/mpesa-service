@@ -188,6 +188,23 @@ jobs:
               fi
             done
 
+            # Names only (entrypoints, resolvers, providers, router rules), never values that could be secrets.
+            echo "🔎 Traefik on this server:"
+            TRAEFIK=$(docker ps --format '{{.Names}} {{.Image}}' | awk 'tolower($2) ~ /traefik/ {print $1; exit}')
+            if [ -n "$TRAEFIK" ]; then
+              echo "  container: $TRAEFIK"
+              docker inspect "$TRAEFIK" -f '{{join .Args "\n"}}{{println}}{{join .Config.Cmd "\n"}}' 2>/dev/null \
+                | grep -oE -- '--(entrypoints\.[A-Za-z0-9_-]+\.address=[^ ]*|certificatesresolvers\.[A-Za-z0-9_-]+|providers\.[A-Za-z.]+(=(true|false|[A-Za-z0-9_./-]+))?|configfile=[^ ]*)' | sort -u | sed 's/^/  arg /' || true
+              docker inspect "$TRAEFIK" -f '{{range $k, $v := .NetworkSettings.Networks}}  network {{$k}}{{println}}{{end}}'
+              for name in elimika elimika-ui; do
+                docker inspect "$name" -f '{{range $k, $v := .Config.Labels}}{{println $k "=" $v}}{{end}}' 2>/dev/null \
+                  | grep -E '^traefik\.(enable|docker\.network|http\.routers\.[^.]+\.(rule|entrypoints|tls|tls\.certresolver|middlewares)|http\.services\.[^.]+\.loadbalancer\.server\.port) ' \
+                  | sed "s/^/  $name label /" || true
+              done
+            else
+              echo "  no running Traefik container"
+            fi
+
             echo "📥 Pulling images..."
             docker compose pull
 
