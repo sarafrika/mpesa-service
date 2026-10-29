@@ -104,14 +104,21 @@ jobs:
                   KEYCLOAK_AUDIENCE: mpesa-service
                   MPESA_ENCRYPTION_KEY: ${MPESA_ENCRYPTION_KEY:?missing from .env}
                   CALLBACK_BASE_URL: https://malipo.staging.sarafrika.com/api/v1/callbacks
-                  # Callbacks arrive through the host's reverse proxy on the Docker bridge.
-                  CALLBACK_TRUSTED_PROXIES: 172.16.0.0/12
+                  CALLBACK_TRUSTED_PROXIES: ${CALLBACK_TRUSTED_PROXIES:?set by the deploy}
                   CALLBACK_IP_WHITELIST_ENABLED: ${CALLBACK_IP_WHITELIST_ENABLED:-true}
                   MPESA_TREASURY_BALANCE_QUERY_INTERVAL: ${MPESA_TREASURY_BALANCE_QUERY_INTERVAL:-}
                   MPESA_SANDBOX_CERTIFICATE: ${MPESA_SANDBOX_CERTIFICATE:-}
                 ports:
                   - "127.0.0.1:30100:8080"
                 networks: [mpesa, sarafrika]
+                # Safaricom callbacks and product calls go to the service; the longer rule wins over the console's.
+                labels:
+                  traefik.enable: "true"
+                  traefik.docker.network: ${SARAFRIKA_NETWORK}
+                  traefik.http.routers.mpesa-api.rule: Host(`malipo.staging.sarafrika.com`) && (PathPrefix(`/api/v1/callbacks`) || PathPrefix(`/api/v1/mpesa`))
+                  traefik.http.routers.mpesa-api.entrypoints: websecure
+                  traefik.http.routers.mpesa-api.tls.certresolver: myresolver
+                  traefik.http.services.mpesa-api.loadbalancer.server.port: "8080"
 
               mpesa-ui:
                 image: sarafrika/mpesa-ui:latest
@@ -128,6 +135,12 @@ jobs:
                 ports:
                   - "127.0.0.1:30101:3000"
                 networks: [sarafrika]
+                labels:
+                  traefik.enable: "true"
+                  traefik.http.routers.mpesa-ui.rule: Host(`malipo.staging.sarafrika.com`)
+                  traefik.http.routers.mpesa-ui.entrypoints: websecure
+                  traefik.http.routers.mpesa-ui.tls.certresolver: myresolver
+                  traefik.http.services.mpesa-ui.loadbalancer.server.port: "3000"
             YAML
 
             # .env is written once: regenerating MPESA_ENCRYPTION_KEY would make every stored credential
@@ -188,22 +201,10 @@ jobs:
               fi
             done
 
-            # Names only (entrypoints, resolvers, providers, router rules), never values that could be secrets.
-            echo "🔎 Traefik on this server:"
-            TRAEFIK=$(docker ps --format '{{.Names}} {{.Image}}' | awk 'tolower($2) ~ /traefik/ {print $1; exit}')
-            if [ -n "$TRAEFIK" ]; then
-              echo "  container: $TRAEFIK"
-              docker inspect "$TRAEFIK" -f '{{join .Args "\n"}}{{println}}{{join .Config.Cmd "\n"}}' 2>/dev/null \
-                | grep -oE -- '--(entrypoints\.[A-Za-z0-9_-]+\.address=[^ ]*|certificatesresolvers\.[A-Za-z0-9_-]+|providers\.[A-Za-z.]+(=(true|false|[A-Za-z0-9_./-]+))?|configfile=[^ ]*)' | sort -u | sed 's/^/  arg /' || true
-              docker inspect "$TRAEFIK" -f '{{range $k, $v := .NetworkSettings.Networks}}  network {{$k}}{{println}}{{end}}'
-              for name in elimika elimika-ui; do
-                docker inspect "$name" -f '{{range $k, $v := .Config.Labels}}{{println $k "=" $v}}{{end}}' 2>/dev/null \
-                  | grep -E '^traefik\.(enable|docker\.network|http\.routers\.[^.]+\.(rule|entrypoints|tls|tls\.certresolver|middlewares)|http\.services\.[^.]+\.loadbalancer\.server\.port) ' \
-                  | sed "s/^/  $name label /" || true
-              done
-            else
-              echo "  no running Traefik container"
-            fi
+            # Callbacks reach the service through Traefik, so trust that network's addresses for X-Forwarded-For.
+            CALLBACK_TRUSTED_PROXIES=$(docker network inspect "$(sed -n 's/^SARAFRIKA_NETWORK=//p' .env)" -f '{{range .IPAM.Config}}{{.Subnet}},{{end}}' | sed 's/,$//')
+            export CALLBACK_TRUSTED_PROXIES
+            echo "🛡️  Trusting proxies in $CALLBACK_TRUSTED_PROXIES"
 
             echo "📥 Pulling images..."
             docker compose pull
@@ -245,4 +246,4 @@ jobs:
             docker image prune -f || true
             echo ""
             echo "✅ Deployed. Service on 127.0.0.1:30100, console on 127.0.0.1:30101."
-            echo "🌍 https://malipo.staging.sarafrika.com once nginx routes the host to these ports"
+            echo "🌍 https://malipo.staging.sarafrika.com"
