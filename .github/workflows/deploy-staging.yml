@@ -1,0 +1,151 @@
+name: Deploy to staging
+
+on:
+  # After either image is published from main
+  workflow_run:
+    workflows: ["mpesa-service", "mpesa-ui"]
+    types: [ completed ]
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      deployment_reason:
+        description: 'Reason for manual deployment (optional)'
+        required: false
+        default: 'Manual deployment'
+        type: string
+
+# Deploys recreate the same containers, so they run one at a time instead of racing on their names.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to the staging VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # PR runs of the build workflows publish nothing, so only a successful push or manual run deploys.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy the compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USERNAME }}
+          password: ${{ secrets.STAGING_SSH_PASSWORD }}
+          source: deploy/staging/compose.yaml,deploy/staging/nginx.conf
+          target: /opt/sarafrika/mpesa
+          strip_components: 2
+
+      - name: Run the deployment over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DEPLOYMENT_REASON: ${{ github.event.inputs.deployment_reason }}
+          WORKFLOW_RUN_NAME: ${{ github.event.workflow_run.name }}
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USERNAME }}
+          password: ${{ secrets.STAGING_SSH_PASSWORD }}
+          envs: EVENT_NAME,DEPLOYMENT_REASON,WORKFLOW_RUN_NAME
+          script: |
+            set -euo pipefail
+            cd /opt/sarafrika/mpesa
+
+            if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+              echo "🚀 Manual deployment: $DEPLOYMENT_REASON"
+            else
+              echo "🔄 Automatic deployment after $WORKFLOW_RUN_NAME published"
+            fi
+
+            # .env is written once: regenerating MPESA_ENCRYPTION_KEY would make every stored credential
+            # unreadable, and a new POSTGRES_PASSWORD would not match the existing database.
+            if [ ! -f .env ]; then
+              echo "🔑 First deployment: generating .env"
+              echo "🔎 Finding the Keycloak on this server..."
+              KC_ID=$(docker ps --format '{{.ID}} {{.Image}}' | awk 'tolower($2) ~ /keycloak/ {print $1; exit}')
+              if [ -z "$KC_ID" ]; then
+                echo "❌ No running Keycloak container found. Add KEYCLOAK_ISSUER=<base>/realms/sarafrika to .env by hand."
+                exit 1
+              fi
+              KC_HOST=$(docker inspect "$KC_ID" -f '{{range .Config.Env}}{{println .}}{{end}}' \
+                | sed -n -E 's/^KC_HOSTNAME(_URL)?=(.+)$/\2/p' | head -1)
+              if [ -z "$KC_HOST" ]; then
+                KC_HOST=$(docker inspect "$KC_ID" -f '{{join .Args " "}}' | grep -oE -- '--hostname(-url)?[= ][^ ]+' | head -1 | sed -E 's/--hostname(-url)?[= ]//')
+              fi
+              if [ -z "$KC_HOST" ]; then
+                echo "❌ Keycloak $(docker inspect "$KC_ID" -f '{{.Name}}') has no KC_HOSTNAME. Add KEYCLOAK_ISSUER=<base>/realms/sarafrika to .env by hand."
+                exit 1
+              fi
+              case "$KC_HOST" in http*) ;; *) KC_HOST="https://$KC_HOST" ;; esac
+              KC_HOST="${KC_HOST%/}"
+              ISSUER=$(curl -fsS "$KC_HOST/realms/sarafrika/.well-known/openid-configuration" \
+                | grep -oE '"issuer":"[^"]+"' | cut -d'"' -f4) || true
+              if [ -z "$ISSUER" ]; then
+                echo "❌ $KC_HOST has no sarafrika realm yet. Create it, then run this deployment again."
+                exit 1
+              fi
+              (umask 077 && {
+                echo "KEYCLOAK_ISSUER=$ISSUER"
+                echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+                echo "MPESA_ENCRYPTION_KEY=$(openssl rand -base64 32)"
+                echo "NEXTAUTH_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
+              } > .env)
+              echo "  issuer: $ISSUER"
+            fi
+
+            for name in mpesa-postgres mpesa-service mpesa-ui; do
+              project=$(docker inspect "$name" -f '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)
+              if [ -n "$project" ] && [ "$project" != "mpesa" ]; then
+                echo "❌ A container named $name already runs from compose project '$project'. Remove it first."
+                exit 1
+              fi
+            done
+
+            echo "📥 Pulling images..."
+            docker compose pull
+
+            echo "🚀 Recreating containers..."
+            docker compose up -d --remove-orphans
+
+            echo "🔍 Verifying the running containers use the images just pulled..."
+            for name in mpesa-service mpesa-ui; do
+              LATEST_ID=$(docker image inspect "sarafrika/$name:latest" -f '{{.Id}}')
+              RUNNING_ID=$(docker inspect "$name" -f '{{.Image}}')
+              if [ "$LATEST_ID" != "$RUNNING_ID" ]; then
+                echo "❌ $name is not running sarafrika/$name:latest"; exit 1
+              fi
+            done
+
+            echo "🩺 Waiting for mpesa-service to report healthy..."
+            STATUS=none
+            for i in $(seq 1 36); do
+              STATUS=$(docker inspect mpesa-service -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')
+              if [ "$STATUS" = "healthy" ]; then break; fi
+              if [ "$STATUS" = "unhealthy" ]; then break; fi
+              sleep 5
+            done
+            if [ "$STATUS" != "healthy" ]; then
+              echo "❌ mpesa-service is $STATUS"; docker logs mpesa-service --tail 80; exit 1
+            fi
+
+            echo "🩺 Checking the console answers..."
+            for i in $(seq 1 12); do
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:30101/sign-in || true)
+              if [ "$CODE" = "200" ]; then break; fi
+              sleep 5
+            done
+            if [ "$CODE" != "200" ]; then
+              echo "❌ mpesa-ui returned $CODE"; docker logs mpesa-ui --tail 60; exit 1
+            fi
+
+            docker image prune -f || true
+            echo ""
+            echo "✅ Deployed. Service on 127.0.0.1:30100, console on 127.0.0.1:30101."
+            echo "🌍 https://malipo.staging.sarafrika.com once nginx serves /opt/sarafrika/mpesa/nginx.conf"
