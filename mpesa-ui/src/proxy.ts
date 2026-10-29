@@ -6,8 +6,11 @@ export async function proxy(request: NextRequest) {
   const token = await getToken({ req: request });
   if (token && !token.error) return NextResponse.next();
 
-  const signIn = new URL("/sign-in", request.url);
-  signIn.searchParams.set("callbackUrl", request.nextUrl.href);
+  // Behind a proxy request.url is the container's own address (0.0.0.0:3000), so use the public one.
+  const origin = process.env.NEXTAUTH_URL ?? request.nextUrl.origin;
+  const here = request.nextUrl.pathname + request.nextUrl.search;
+  const signIn = new URL("/sign-in", origin);
+  signIn.searchParams.set("callbackUrl", new URL(here, origin).href);
   return NextResponse.redirect(signIn);
 }
 
