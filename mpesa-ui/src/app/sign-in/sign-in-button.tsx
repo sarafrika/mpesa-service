@@ -10,7 +10,7 @@ export function SignInButton() {
   return (
     <Button className="w-full" size="lg" onClick={() => signIn("keycloak", { callbackUrl })}>
       <LogIn />
-      Continue with Keycloak
+      Continue with Sarafrika
     </Button>
   );
 }
