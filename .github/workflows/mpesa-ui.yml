@@ -3,16 +3,25 @@ name: mpesa-ui
 on:
   pull_request:
     branches: [ main ]
-    types: [ opened, synchronize, reopened, closed ]
+    paths:
+      - 'mpesa-ui/**'
+      - '.github/workflows/mpesa-ui.yml'
+
+  # Every change to the console on main publishes sarafrika/mpesa-ui
+  push:
+    branches: [ main ]
     paths:
       - 'mpesa-ui/**'
       - '.github/workflows/mpesa-ui.yml'
 
   workflow_dispatch:
 
+concurrency:
+  group: mpesa-ui-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/mpesa-ui
+  IMAGE_NAME: sarafrika/mpesa-ui
 
 defaults:
   run:
@@ -22,7 +31,7 @@ jobs:
   check:
     name: Generate client, lint, test and build
     runs-on: ubuntu-latest
-    if: github.event.action != 'closed'
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -56,17 +65,21 @@ jobs:
       - name: Build
         run: pnpm build
 
-  build:
-    name: Build and Push Docker Image
+  publish:
+    name: Build and push the Docker image
+    needs: check
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Read the version
+        run: |
+          echo "APP_VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -74,23 +87,24 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      # Settings are read at runtime, so one image serves every environment.
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
           context: mpesa-ui
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=mpesa-ui
-          cache-to: type=gha,mode=max,scope=mpesa-ui
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ env.APP_VERSION }}
+            ${{ env.IMAGE_NAME }}:${{ env.SHORT_SHA }}
+
+      - name: Summary
+        working-directory: .
+        run: |
+          {
+            echo "### Published ${IMAGE_NAME}"
+            echo "- \`${IMAGE_NAME}:latest\`"
+            echo "- \`${IMAGE_NAME}:${APP_VERSION}\`"
+            echo "- \`${IMAGE_NAME}:${SHORT_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
