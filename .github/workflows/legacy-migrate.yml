@@ -35,17 +35,18 @@ jobs:
             old() { docker exec -i elimika-postgres sh -c 'psql -U "${POSTGRES_USER:-postgres}" -d daraja -v ON_ERROR_STOP=1 -tA "$@"' sh "$@"; }
 
             echo "📤 Reading the legacy paybills..."
-            old -c "copy (select merchant_number::text, organisation_name, consumer_key, consumer_secret, pass_key, created_at from merchant_config order by id) to stdout with (format csv)" > "$work/merchant.csv"
+            # Mpesa-Gateway stored the key, secret, passkey and URLs base64-encoded (PaybillConfigService), not encrypted.
+            old -c "copy (select merchant_number::text, organisation_name, convert_from(decode(consumer_key, 'base64'), 'UTF8'), convert_from(decode(consumer_secret, 'base64'), 'UTF8'), convert_from(decode(pass_key, 'base64'), 'UTF8'), created_at from merchant_config order by id) to stdout with (format csv)" > "$work/merchant.csv"
             echo "  $(wc -l < "$work/merchant.csv") paybill(s): $(old -c "select string_agg(merchant_number::text || ' ' || organisation_name || ' (old registration ' || registration_status || ')', '; ') from merchant_config")"
 
-            echo "🔎 Shape of the stored secrets (length and character set only):"
-            old -c "select merchant_number || ': key ' || length(consumer_key) || ' chars ' || case when consumer_key ~ '^[A-Za-z0-9]+$' then 'letters/digits' else 'other symbols' end || ', secret ' || length(consumer_secret) || ' chars ' || case when consumer_secret ~ '^[A-Za-z0-9]+$' then 'letters/digits' else 'other symbols' end || ', passkey ' || length(pass_key) || ' chars ' || case when pass_key ~ '^[a-f0-9]+$' then 'hex' else 'other' end from merchant_config" | sed 's/^/  /'
+            echo "🔎 After base64 decoding (lengths and URL hosts only):"
+            old -c "select merchant_number || ': key ' || length(convert_from(decode(consumer_key, 'base64'), 'UTF8')) || ', secret ' || length(convert_from(decode(consumer_secret, 'base64'), 'UTF8')) || ', passkey ' || length(convert_from(decode(pass_key, 'base64'), 'UTF8')) || case when convert_from(decode(pass_key, 'base64'), 'UTF8') ~ '^[a-f0-9]{64}$' then ' (hex)' else '' end || '; confirmation host ' || substring(convert_from(decode(confirmation_url, 'base64'), 'UTF8') from '^https?://[^/]+') || ', STK host ' || substring(convert_from(decode(stk_callback_url, 'base64'), 'UTF8') from '^https?://[^/]+') from merchant_config" | sed 's/^/  /'
 
             echo "🔑 Asking Safaricom which environment accepts each paybill's keys (status codes only)..."
             : > "$work/env.csv"
             for num in $(old -c "select merchant_number from merchant_config order by id"); do
-              key=$(old -c "select consumer_key from merchant_config where merchant_number = $num")
-              secret=$(old -c "select consumer_secret from merchant_config where merchant_number = $num")
+              key=$(old -c "select convert_from(decode(consumer_key, 'base64'), 'UTF8') from merchant_config where merchant_number = $num")
+              secret=$(old -c "select convert_from(decode(consumer_secret, 'base64'), 'UTF8') from merchant_config where merchant_number = $num")
               token() { printf 'user = "%s:%s"\n' "$key" "$secret" | curl -s -o /dev/null -w '%{http_code}' --max-time 20 -K - "$1/oauth/v1/generate?grant_type=client_credentials" || echo 000; }
               prod=$(token https://api.safaricom.co.ke)
               sand=$(token https://sandbox.safaricom.co.ke)
