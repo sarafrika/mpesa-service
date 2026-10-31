@@ -18,18 +18,23 @@ jobs:
           password: ${{ secrets.STAGING_SSH_PASSWORD }}
           script: |
             set -uo pipefail
-            echo "🔎 Volumes and compose folders that mention mpesa or daraja:"
-            docker volume ls --format '{{.Name}}' | grep -iE 'mpesa|daraja' || echo "  no volumes"
-            ls -d /opt/*/* /opt/* /root/* /home/*/* 2>/dev/null | grep -iE 'mpesa|daraja|ussd|payment' || echo "  no folders"
-            echo ""
-            echo "🔎 Setting NAMES (never values) about M-Pesa in env files under /opt:"
-            for f in $(find /opt /root /home -maxdepth 4 -name '*.env' -o -maxdepth 4 -name '.env' 2>/dev/null); do
-              names=$(grep -oiE '^[A-Z0-9_]*(MPESA|DARAJA|SHORTCODE|PASSKEY|CONSUMER|PAYBILL|STK|CALLBACK)[A-Z0-9_]*=' "$f" 2>/dev/null | tr -d '=' | tr '\n' ' ')
-              [ -n "$names" ] && echo "  $f: $names"
+            echo "🔎 The original gateway folder (/opt/sarafrika/daraja-gateway):"
+            ls -la /opt/sarafrika/daraja-gateway | awk '{print "  " $6, $7, $8, $9}'
+            grep -E '^(CALLBACK_BASE_URL|CALLBACK_IP_WHITELIST_ENABLED)=' /opt/sarafrika/daraja-gateway/.env | sed 's/^/  /'
+            for f in /opt/sarafrika/daraja-gateway/*compose*.y*ml; do
+              [ -f "$f" ] || continue
+              echo "  --- $f (images, names, ports, datasource host/db only)"
+              grep -E '^\s*(image|container_name|ports|- "?[0-9]+:[0-9]+|SPRING_DATASOURCE_URL)' "$f" | sed -E 's#(postgresql://)[^@/]*@#\1#; s/^/    /'
             done
             echo ""
-            echo "🔎 The original service's database (elimika-postgres/mpesa):"
-            docker exec elimika-postgres sh -c 'psql -U ${POSTGRES_USER:-postgres} -d mpesa -P pager=off -c "select max(version) as last_migration, count(*) as migrations from flyway_schema_history" -c "select (select count(*) from mpesa_incoming_payments) as incoming, (select count(*) from mpesa_outgoing_payments) as outgoing"' 2>&1 | head -12
+            echo "🔎 Paybill IDs Elimika points at (IDs only):"
+            grep -E '^MPESA_SERVICE_(PAYOUT_)?SHORTCODE_UUID=' /opt/sarafrika/elimika/.env | sed 's/^/  /'
+            echo ""
+            echo "🔎 Databases in each Postgres container:"
+            for c in $(docker ps --format '{{.Names}} {{.Image}}' | awk 'tolower($2) ~ /postgres/ {print $1}'); do
+              user=$(docker exec "$c" sh -c 'echo ${POSTGRES_USER:-postgres}')
+              echo "  $c: $(docker exec "$c" psql -U "$user" -d postgres -tAc "select string_agg(datname, ' ') from pg_database where not datistemplate" 2>/dev/null)"
+            done
             echo ""
             echo "🔎 Containers with mpesa in their name or image:"
             docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -i mpesa || echo "  none"
