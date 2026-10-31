@@ -18,14 +18,9 @@ jobs:
           password: ${{ secrets.STAGING_SSH_PASSWORD }}
           script: |
             set -uo pipefail
-            echo "🔎 Which database the original gateway used (host/db only):"
-            grep -hE '^SPRING_DATASOURCE_URL=' /opt/sarafrika/daraja-gateway/.env /opt/sarafrika/daraja-gateway/.env.bak* 2>/dev/null | sed -E 's#(postgresql://)[^@/]*@#\1#' | sort -u | sed 's/^/  /'
+            echo "🔎 Column names and types only (no values) in elimika-postgres/daraja:"
+            docker exec elimika-postgres sh -c 'psql -U ${POSTGRES_USER:-postgres} -d daraja -P pager=off -c "select table_name, column_name, data_type, is_nullable from information_schema.columns where table_schema = '"'"'public'"'"' and table_name in ('"'"'merchant_config'"'"', '"'"'mpesa_payment'"'"') order by table_name, ordinal_position"'
             echo ""
-            for db in daraja malipo_mpesa camp_ussd; do
-              echo "🔎 Tables in elimika-postgres/$db that look like paybill or M-Pesa config (name: rows):"
-              docker exec elimika-postgres sh -c "psql -U \${POSTGRES_USER:-postgres} -d $db -tA -F': ' -c \"select table_schema||'.'||table_name, (xpath('/row/c/text()', query_to_xml('select count(*) as c from '||quote_ident(table_schema)||'.'||quote_ident(table_name), false, true, '')))[1]::text from information_schema.tables where table_type='BASE TABLE' and table_schema not in ('pg_catalog','information_schema') and table_name ~* '(shortcode|short_code|paybill|mpesa|daraja|till|merchant|payment|config|setting|credential)' order by 1\"" 2>&1 | sed 's/^/  /' | head -25
-              echo ""
-            done
             echo "🔎 Containers with mpesa in their name or image:"
             docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -i mpesa || echo "  none"
             echo ""
