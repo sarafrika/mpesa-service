@@ -7,6 +7,8 @@ const issuer = process.env.KEYCLOAK_ISSUER ?? "";
 // Server-to-Keycloak calls use this when the browser's issuer URL is not reachable from here (docker).
 const backchannel = process.env.KEYCLOAK_INTERNAL_ISSUER || issuer;
 const clientId = process.env.KEYCLOAK_CLIENT_ID ?? "mpesa-ui";
+// The Sarafrika realm signs with EdDSA; the local realm keeps Keycloak's RS256 default.
+const idTokenAlg = process.env.KEYCLOAK_ID_TOKEN_ALG || "RS256";
 
 /** Realm roles granted to the user, read from the access token Keycloak issued. */
 function realmRoles(accessToken: string): string[] {
@@ -46,7 +48,7 @@ export const authOptions: NextAuthOptions = {
       clientId,
       // Public client: PKCE proves the code exchange instead of a client secret.
       clientSecret: "",
-      client: { token_endpoint_auth_method: "none" },
+      client: { token_endpoint_auth_method: "none", id_token_signed_response_alg: idTokenAlg },
       checks: ["pkce", "state"],
       issuer,
       wellKnown: `${backchannel}/.well-known/openid-configuration`,
