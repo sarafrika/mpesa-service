@@ -3,7 +3,13 @@ import type {
   ShortcodeDetailCapabilitiesItem,
   ShortcodeHealth,
 } from "../../api/generated/model/index.ts";
-import { initiatorUse, needsInitiator, needsPasskey, type Operation } from "./operations.ts";
+import {
+  INITIATOR_REQUIRED,
+  initiatorUse,
+  needsInitiator,
+  needsPasskey,
+  type Operation,
+} from "./operations.ts";
 
 // What a saved shortcode can do, read only from the `capabilities` the service sends (never a UI table).
 // No React or "@/" imports so `pnpm test` can load it.
@@ -111,7 +117,7 @@ export function activationBlockers(
     blockers.push("Run the token check: Daraja must issue a token for these credentials.");
   if (needsPasskey(operations) && !shortcode.credentials.passkey_masked)
     blockers.push("Add the Lipa na M-Pesa passkey under Credentials: STK push needs it.");
-  if (needsInitiator(operations) && !hasInitiator(shortcode.credentials))
+  if (INITIATOR_REQUIRED && needsInitiator(operations) && !hasInitiator(shortcode.credentials))
     blockers.push(
       `Add the API initiator and its password or security credential under Credentials. ${initiatorUse(operations)}`,
     );

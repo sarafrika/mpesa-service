@@ -109,6 +109,9 @@ export function toggled(
   return ordered(on ? [...operations, operation] : operations.filter((o) => o !== operation));
 }
 
+// Mirrors the service's mpesa.shortcodes.require-initiator, off for now: the initiator is asked for, never enforced.
+export const INITIATOR_REQUIRED = false;
+
 export const needsPasskey = (operations: readonly string[]) => operations.includes("STK_PUSH");
 
 export const needsInitiator = (operations: readonly string[]) =>
@@ -162,6 +165,7 @@ export function missingCredential(
   if (need === "passkey" && !credentials.passkey_masked) return "passkey";
   if (
     need === "initiator" &&
+    INITIATOR_REQUIRED &&
     !(
       credentials.initiator_name &&
       (credentials.initiator_password_set || credentials.security_credential_set)

@@ -79,7 +79,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect",
         "mpesa.callback.base-url=https://pay.example.test/api/v1/callbacks",
-        "mpesa.certificates.sandbox=test-sandbox-certificate"})
+        "mpesa.certificates.sandbox=test-sandbox-certificate",
+        "mpesa.shortcodes.require-initiator=true"})
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ShortcodeAdminService.class, ShortcodeC2bService.class, ShortcodeHealthReader.class, CallbackUrls.class,

@@ -68,6 +68,10 @@ mpesa:
     sandbox: ${MPESA_SANDBOX_CERTIFICATE:}
     production: ${MPESA_PRODUCTION_CERTIFICATE:}
 
+  # true makes go-live and turning on reversals, status, balance or payouts wait for the API initiator.
+  shortcodes:
+    require-initiator: ${MPESA_REQUIRE_INITIATOR:false}
+
   # Products (Keycloak clients) may use only the shortcodes and operations granted in the console.
   # Console users still read without grants. false switches every grant check off.
   grants:
