@@ -4,6 +4,13 @@ name: Migrate legacy paybills
 # service's database on the VPS. Secrets move container to container and are never printed; reruns skip what exists.
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment for paybills whose keys Safaricom no longer accepts'
+        required: false
+        default: stop
+        type: choice
+        options: [stop, PRODUCTION, SANDBOX]
 
 jobs:
   migrate:
@@ -12,11 +19,14 @@ jobs:
     steps:
       - name: Migrate over SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          LEGACY_ENVIRONMENT: ${{ github.event.inputs.environment }}
         with:
           host: ${{ secrets.STAGING_SSH_HOST }}
           username: ${{ secrets.STAGING_SSH_USERNAME }}
           password: ${{ secrets.STAGING_SSH_PASSWORD }}
           command_timeout: 10m
+          envs: LEGACY_ENVIRONMENT
           script: |
             set -euo pipefail
             umask 077
@@ -27,6 +37,9 @@ jobs:
             echo "📤 Reading the legacy paybills..."
             old -c "copy (select merchant_number::text, organisation_name, consumer_key, consumer_secret, pass_key, created_at from merchant_config order by id) to stdout with (format csv)" > "$work/merchant.csv"
             echo "  $(wc -l < "$work/merchant.csv") paybill(s): $(old -c "select string_agg(merchant_number::text || ' ' || organisation_name || ' (old registration ' || registration_status || ')', '; ') from merchant_config")"
+
+            echo "🔎 Shape of the stored secrets (length and character set only):"
+            old -c "select merchant_number || ': key ' || length(consumer_key) || ' chars ' || case when consumer_key ~ '^[A-Za-z0-9]+$' then 'letters/digits' else 'other symbols' end || ', secret ' || length(consumer_secret) || ' chars ' || case when consumer_secret ~ '^[A-Za-z0-9]+$' then 'letters/digits' else 'other symbols' end || ', passkey ' || length(pass_key) || ' chars ' || case when pass_key ~ '^[a-f0-9]+$' then 'hex' else 'other' end from merchant_config" | sed 's/^/  /'
 
             echo "🔑 Asking Safaricom which environment accepts each paybill's keys (status codes only)..."
             : > "$work/env.csv"
@@ -42,6 +55,12 @@ jobs:
               echo "$num,$env" >> "$work/env.csv"
             done
 
+            if grep -q ',UNKNOWN$' "$work/env.csv" && [ "${LEGACY_ENVIRONMENT:-stop}" = "stop" ]; then
+              echo "⏸️  Safaricom accepted none of the stored keys, so nothing was loaded."
+              exit 0
+            fi
+            sed -i "s/,UNKNOWN$/,${LEGACY_ENVIRONMENT:-UNKNOWN}/" "$work/env.csv"
+
             echo "📤 Reading the legacy C2B payments..."
             old -c "copy (select confirmation_payload::text, created_at from mpesa_payment where confirmation_payload is not null order by id) to stdout with (format csv)" > "$work/payments.csv"
             echo "  $(old -c "select count(*) from mpesa_payment") payment(s), $(wc -l < "$work/payments.csv") with a C2B confirmation"
@@ -50,6 +69,7 @@ jobs:
             docker cp "$work/merchant.csv" mpesa-postgres:/tmp/legacy-merchant.csv
             docker cp "$work/env.csv" mpesa-postgres:/tmp/legacy-env.csv
             docker cp "$work/payments.csv" mpesa-postgres:/tmp/legacy-payments.csv
+            docker exec -u root mpesa-postgres chown postgres /tmp/legacy-merchant.csv /tmp/legacy-env.csv /tmp/legacy-payments.csv
 
             echo "📥 Loading into the M-Pesa service's database..."
             docker exec -i mpesa-postgres psql -U mpesa -d mpesa -v ON_ERROR_STOP=1 -P pager=off <<'SQL'
