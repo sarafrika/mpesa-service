@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { applyFieldErrors } from "@/lib/api-errors";
+import { applyFieldErrors, isApiError } from "@/lib/api-errors";
 import { okData, toastApiError, useInvalidateShortcodes } from "./api";
 import { takesAccountNumbers } from "./capabilities";
 import { FormRootError, TextField } from "./form-fields";
@@ -87,17 +87,24 @@ export function RegisterC2bButton({
   initial?: C2bResponseType;
 }) {
   const [responseType, setResponseType] = useState<C2bResponseType>(initial);
+  const [refused, setRefused] = useState(false);
   const invalidate = useInvalidateShortcodes();
-  const register = useRegisterShortcodeC2bUrls({
-    mutation: { meta: { errorToast: false }, onError: (error) => toastApiError(error) },
-  });
+  const register = useRegisterShortcodeC2bUrls({ mutation: { meta: { errorToast: false } } });
+  const production = shortcode.environment === "PRODUCTION";
+  // Production registers once; the service answers 409 until replace_existing confirms the old URLs are gone.
+  const replace = production && (shortcode.health.c2b_state === "REGISTERED" || refused);
 
   return (
     <ConfirmDialog
-      title="Register the C2B URLs with Safaricom?"
-      description="Safaricom will send this shortcode's C2B validations and confirmations to this service. Every attempt is kept in the history."
-      confirmLabel="Register URLs"
+      title={replace ? "Replace the production C2B URLs?" : "Register the C2B URLs with Safaricom?"}
+      description={
+        replace
+          ? "Safaricom registers production C2B URLs once. Delete the current URLs on the M-PESA org portal first (Self Services > URL Management, approved by two Business Administrator or Business Manager operators), then register again here."
+          : "Safaricom will send this shortcode's C2B validations and confirmations to this service. Every attempt is kept in the history."
+      }
+      confirmLabel={replace ? "They're deleted: register again" : "Register URLs"}
       pending={register.isPending}
+      onOpenChange={(open) => !open && setRefused(false)}
       trigger={
         <Button variant="outline" size="sm">
           <RefreshCw />{" "}
@@ -105,7 +112,19 @@ export function RegisterC2bButton({
         </Button>
       }
       onConfirm={async () => {
-        await register.mutateAsync({ uuid: shortcode.uuid, data: { response_type: responseType } });
+        try {
+          await register.mutateAsync({
+            uuid: shortcode.uuid,
+            data: { response_type: responseType, replace_existing: replace || undefined },
+          });
+        } catch (error) {
+          if (production && !replace && isApiError(error) && error.status === 409) {
+            setRefused(true);
+            return false;
+          }
+          toastApiError(error);
+          return false;
+        }
         toast.success("Safaricom accepted the C2B URLs");
         await invalidate();
       }}

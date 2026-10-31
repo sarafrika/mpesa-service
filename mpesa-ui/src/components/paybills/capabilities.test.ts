@@ -11,6 +11,8 @@ import {
   verifyChecks,
   visibleTabs,
 } from "./capabilities.ts";
+import { type Operation, TYPE_OPERATIONS } from "./operations.ts";
+import type { ShortcodeType } from "./shortcode-types.ts";
 
 // What the service sends per type today (ShortcodeCapabilities); fixtures only, the UI never copies it.
 const CAPS: Record<string, Capability[]> = {
@@ -51,8 +53,13 @@ const CAPS: Record<string, Capability[]> = {
   ],
 };
 
-const code = (type: string) => ({ shortcode_type: type, capabilities: CAPS[type] });
-const tabs = (type: string) => visibleTabs(PAYBILL_TABS, code(type)).map((tab) => tab.id);
+// Backfilled rows have every operation their type allows.
+const code = (type: ShortcodeType, operations: readonly Operation[] = TYPE_OPERATIONS[type]) => ({
+  shortcode_type: type,
+  capabilities: CAPS[type],
+  operations,
+});
+const tabs = (type: ShortcodeType) => visibleTabs(PAYBILL_TABS, code(type)).map((tab) => tab.id);
 
 const CREDENTIALS: ShortcodeCredentials = {
   consumer_key_masked: "••••abcd",
@@ -72,6 +79,7 @@ describe("visibleTabs", () => {
   it("drops C2B and validation on a B2C shortcode but keeps its float", () => {
     assert.deepEqual(tabs("B2C"), [
       "overview",
+      "operations",
       "products",
       "credentials",
       "float",
@@ -104,10 +112,15 @@ describe("grantableOperations", () => {
 });
 
 describe("verifyChecks", () => {
-  it("runs the checks each type can pass", () => {
-    assert.deepEqual(verifyChecks(code("PAYBILL")), ["token", "c2b", "dry_run", "stk"]);
-    assert.deepEqual(verifyChecks(code("TILL")), ["token", "c2b", "dry_run", "stk"]);
-    assert.deepEqual(verifyChecks(code("B2C")), ["token", "balance"]);
+  it("checks only what was chosen, the token always", () => {
+    assert.deepEqual(verifyChecks(code("PAYBILL", ["C2B"])), ["token", "c2b", "dry_run"]);
+    assert.deepEqual(verifyChecks(code("PAYBILL", [])), ["token"]);
+    assert.deepEqual(verifyChecks(code("TILL", ["STK_PUSH"])), ["token", "stk"]);
+    assert.deepEqual(verifyChecks(code("B2C", ["B2C_PAYOUT", "ACCOUNT_BALANCE"])), [
+      "token",
+      "balance",
+    ]);
+    assert.deepEqual(verifyChecks(code("B2C", ["B2C_PAYOUT"])), ["token"]);
     assert.deepEqual(verifyChecks(code("ONE_ACCOUNT")), [
       "token",
       "c2b",
@@ -120,57 +133,74 @@ describe("verifyChecks", () => {
 
 describe("activationBlockers", () => {
   const ready = { token_ok: true, c2b_state: "REGISTERED" as const };
+  const withPasskey = { ...CREDENTIALS, passkey_masked: "••••b21c" };
+  const withInitiator = { ...withPasskey, initiator_name: "api-op", initiator_password_set: true };
 
-  it("needs an initiator before a B2C or One Account goes live", () => {
-    for (const type of ["B2C", "ONE_ACCOUNT"]) {
+  it("needs an initiator when an operation that uses it is on", () => {
+    for (const type of ["B2C", "ONE_ACCOUNT"] as const) {
       const blockers = activationBlockers({
         ...code(type),
         health: ready,
-        credentials: CREDENTIALS,
+        credentials: withPasskey,
       });
       assert.equal(blockers.length, 1);
       assert.match(blockers[0], /initiator/);
     }
-    const withInitiator = {
-      ...CREDENTIALS,
-      initiator_name: "api-op",
-      initiator_password_set: true,
-    };
     assert.deepEqual(
       activationBlockers({ ...code("B2C"), health: ready, credentials: withInitiator }),
       [],
     );
+    const reversals = code("PAYBILL", ["C2B", "REVERSAL"]);
+    const blockers = activationBlockers({ ...reversals, health: ready, credentials: CREDENTIALS });
+    assert.match(blockers[0], /initiator.*reversals/);
   });
 
-  it("does not ask a paybill for an initiator", () => {
+  it("asks a C2B-only paybill for nothing beyond the token", () => {
     assert.deepEqual(
-      activationBlockers({ ...code("PAYBILL"), health: ready, credentials: CREDENTIALS }),
+      activationBlockers({
+        ...code("PAYBILL", ["C2B"]),
+        health: ready,
+        credentials: CREDENTIALS,
+      }),
       [],
     );
   });
 
-  it("lists the token first and C2B only when the wizard asks", () => {
-    const health = { token_ok: undefined, c2b_state: "NOT_REGISTERED" as const };
-    const plain = activationBlockers({ ...code("PAYBILL"), health, credentials: CREDENTIALS });
-    assert.equal(plain.length, 1);
-    assert.match(plain[0], /token/);
-    const wizard = activationBlockers(
-      { ...code("PAYBILL"), health, credentials: CREDENTIALS },
-      { requireC2b: true },
-    );
-    assert.match(wizard[1], /C2B/);
-  });
-
-  it("needs a till's store number", () => {
-    const blockers = activationBlockers({
-      ...code("TILL"),
+  it("needs the passkey only when STK push is on", () => {
+    const stk = activationBlockers({
+      ...code("PAYBILL", ["C2B", "STK_PUSH"]),
       health: ready,
       credentials: CREDENTIALS,
     });
+    assert.equal(stk.length, 1);
+    assert.match(stk[0], /passkey/);
+  });
+
+  it("lists the token first and C2B only when the wizard asks", () => {
+    const health = { token_ok: undefined, c2b_state: "NOT_REGISTERED" as const };
+    const paybill = code("PAYBILL", ["C2B"]);
+    const plain = activationBlockers({ ...paybill, health, credentials: CREDENTIALS });
+    assert.equal(plain.length, 1);
+    assert.match(plain[0], /token/);
+    const wizard = activationBlockers(
+      { ...paybill, health, credentials: CREDENTIALS },
+      { requireC2b: true },
+    );
+    assert.match(wizard[1], /C2B/);
+    const noC2b = activationBlockers(
+      { ...code("PAYBILL", ["STK_PUSH"]), health, credentials: withPasskey },
+      { requireC2b: true },
+    );
+    assert.equal(noC2b.length, 1);
+  });
+
+  it("needs a till's store number", () => {
+    const till = code("TILL", ["C2B"]);
+    const blockers = activationBlockers({ ...till, health: ready, credentials: CREDENTIALS });
     assert.match(blockers[0], /store/);
     assert.deepEqual(
       activationBlockers({
-        ...code("TILL"),
+        ...till,
         store_number: "654321",
         health: ready,
         credentials: CREDENTIALS,

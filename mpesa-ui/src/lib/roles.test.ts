@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { effectiveRoles, hasRole } from "./roles.ts";
+import { effectiveRoles, hasConsoleAccess, hasRole } from "./roles.ts";
 
 describe("hasRole", () => {
   it("lets admin do everything", () => {
@@ -43,5 +43,14 @@ describe("hasRole", () => {
       "mpesa-operator",
       "mpesa-viewer",
     ]);
+  });
+});
+
+describe("hasConsoleAccess", () => {
+  it("needs at least one mpesa role", () => {
+    assert.equal(hasConsoleAccess([]), false);
+    assert.equal(hasConsoleAccess(undefined), false);
+    assert.equal(hasConsoleAccess(["offline_access", "elimika-admin"]), false);
+    assert.equal(hasConsoleAccess(["offline_access", "mpesa-viewer"]), true);
   });
 });
