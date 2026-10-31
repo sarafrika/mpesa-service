@@ -128,6 +128,8 @@ jobs:
                   KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER:?missing from .env}
                   KEYCLOAK_AUDIENCE: mpesa-service
                   MPESA_ENCRYPTION_KEY: ${MPESA_ENCRYPTION_KEY:?missing from .env}
+                  # Seals any secret still in plaintext (e.g. imported paybills) at startup; sealed ones are skipped.
+                  MPESA_REENCRYPT_LEGACY_SECRETS: "true"
                   CALLBACK_BASE_URL: https://malipo.sarafrika.com/api/v1/callbacks
                   CALLBACK_TRUSTED_PROXIES: ${CALLBACK_TRUSTED_PROXIES:?set by the deploy}
                   CALLBACK_IP_WHITELIST_ENABLED: ${CALLBACK_IP_WHITELIST_ENABLED:-true}
