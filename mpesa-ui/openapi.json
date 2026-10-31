@@ -951,6 +951,50 @@
         "required" : [ "currency", "name" ],
         "type" : "object"
       },
+      "BalanceReportDto" : {
+        "properties" : {
+          "amount" : {
+            "description" : "The payout's or payment's amount; null for balance queries",
+            "example" : 1500.0,
+            "type" : "number"
+          },
+          "kind" : {
+            "description" : "What carried the report",
+            "enum" : [ "BALANCE_QUERY", "PAYOUT", "C2B_PAYMENT" ],
+            "type" : "string"
+          },
+          "query_source" : {
+            "description" : "How the balance query was sent; null for other kinds",
+            "enum" : [ "MANUAL", "SCHEDULED" ],
+            "type" : "string"
+          },
+          "reference" : {
+            "description" : "The payout's or payment's M-Pesa receipt",
+            "example" : "UJ7T4AB1CD",
+            "type" : "string"
+          },
+          "reported_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requested_by" : {
+            "description" : "Who asked for the balance query; null for other kinds",
+            "type" : "string"
+          },
+          "utility_available" : {
+            "description" : "Utility account available balance",
+            "example" : 1640210.0,
+            "type" : "number"
+          },
+          "working_available" : {
+            "description" : "Working account available balance; C2B payments do not report it",
+            "example" : 0.0,
+            "type" : "number"
+          }
+        },
+        "required" : [ "kind", "reported_at" ],
+        "type" : "object"
+      },
       "BalanceSnapshotDto" : {
         "properties" : {
           "accounts" : {
@@ -4170,7 +4214,7 @@
             "type" : "string"
           },
           "utility_available" : {
-            "description" : "Utility balance from the newest report: a balance result or a settled B2C payout",
+            "description" : "Utility balance from the newest report: a balance result, a settled B2C payout or a C2B payment's OrgAccountBalance",
             "example" : 1640210.0,
             "type" : "number"
           },
@@ -4180,7 +4224,7 @@
           },
           "utility_source" : {
             "description" : "Where utility_available came from",
-            "enum" : [ "BALANCE_QUERY", "PAYOUT" ],
+            "enum" : [ "BALANCE_QUERY", "PAYOUT", "C2B_PAYMENT" ],
             "type" : "string"
           }
         },
@@ -10113,6 +10157,81 @@
           }
         },
         "summary" : "Completed balance results in a time range, oldest first",
+        "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/balance/reports" : {
+      "get" : {
+        "description" : "Completed Account Balance results, successful B2C payouts that reported the float and successful C2B payments that carried OrgAccountBalance, merged and cut to limit.",
+        "operationId" : "listShortcodeBalanceReports",
+        "parameters" : [ {
+          "description" : "Shortcode uuid",
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "description" : "How many reports to return",
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "default" : 10,
+            "format" : "int32",
+            "maximum" : 50,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/BalanceReportDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Balance reports, newest first"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode (or destination)"
+          }
+        },
+        "summary" : "Recent balance reports, newest first: balance results, settled payouts and C2B payments",
         "tags" : [ "Admin: Treasury" ]
       }
     },

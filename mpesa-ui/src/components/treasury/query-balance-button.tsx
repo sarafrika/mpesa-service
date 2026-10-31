@@ -16,6 +16,8 @@ type QueryBalanceButtonProps = {
   waiting: boolean;
   /** Called with the new query's uuid so the page can poll for its result. */
   onSent: (queryUuid: string) => void;
+  /** Shorter labels, for the balance band. */
+  compact?: boolean;
 };
 
 /** Sends an Account Balance query; Safaricom answers on the result URL a few seconds later. */
@@ -24,6 +26,7 @@ export function QueryBalanceButton({
   enabled,
   waiting,
   onSent,
+  compact = false,
 }: QueryBalanceButtonProps) {
   const query = useQueryShortcodeBalance({
     mutation: { meta: { errorToast: false }, onError: (error) => toastApiError(error) },
@@ -47,7 +50,13 @@ export function QueryBalanceButton({
       }}
     >
       {busy ? <Spinner /> : <RefreshCw />}
-      {waiting ? "Waiting for Safaricom…" : "Query balance now"}
+      {compact
+        ? busy
+          ? "Querying…"
+          : "Query now"
+        : waiting
+          ? "Waiting for Safaricom…"
+          : "Query balance now"}
     </Button>
   );
 }

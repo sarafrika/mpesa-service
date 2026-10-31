@@ -13,6 +13,8 @@ import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { DetailPanelSkeleton } from "@/components/skeletons";
 import { StaleNotice } from "@/components/stale-notice";
+import { BalanceBand, BandError } from "@/components/treasury/balance-band";
+import { BalanceWatchProvider } from "@/components/treasury/balance-watch";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isApiError } from "@/lib/api-errors";
@@ -60,12 +62,16 @@ export function PaybillDetail({ uuid, sections }: { uuid: string; sections: read
       </SectionCard>
     );
   }
+  const floatTab = visibleTabs(sections, shortcode).some((section) => section.id === "float");
   return (
-    <>
+    <BalanceWatchProvider shortcodeUuid={shortcode.uuid}>
       <StaleNotice query={query} />
       <DetailHeader shortcode={shortcode} />
+      <SectionBoundary fallback={({ error, reset }) => <BandError error={error} onRetry={reset} />}>
+        <BalanceBand shortcode={shortcode} floatTab={floatTab} />
+      </SectionBoundary>
       <DetailTabs shortcode={shortcode} sections={sections} />
-    </>
+    </BalanceWatchProvider>
   );
 }
 
