@@ -1615,7 +1615,7 @@
             "type" : "string"
           },
           "initiator_name" : {
-            "description" : "API initiator; needed before a B2C or One Account goes live, and for reversals, status, balance and B2B on the others",
+            "description" : "API initiator; needed before going live when reversals, Transaction Status, Account Balance, B2C payouts or Pochi are turned on",
             "example" : "elimika-api",
             "maxLength" : 100,
             "minLength" : 0,
@@ -1636,6 +1636,13 @@
             "example" : 1.0,
             "minimum" : 1,
             "type" : "number"
+          },
+          "operations" : {
+            "description" : "What the shortcode will do, within what its type allows. Omitted: C2B for a paybill or till, B2C payouts and Account Balance for B2C, all three for a One Account",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
           },
           "passkey" : {
             "description" : "Lipa na M-Pesa passkey; needed for STK push, issued for a till's store/HO number. Rejected for B2C (B2C FAQ 15: no passkey)",
@@ -3611,6 +3618,11 @@
       },
       "RegisterC2bUrlsRequest" : {
         "properties" : {
+          "replace_existing" : {
+            "default" : false,
+            "description" : "Production only: true once the current URLs were deleted on the M-PESA org portal, since Safaricom registers production C2B URLs once",
+            "type" : "boolean"
+          },
           "response_type" : {
             "$ref" : "#/components/schemas/C2bResponseType",
             "description" : "Cancelled rejects payments when validation is unreachable; Completed accepts them"
@@ -3941,6 +3953,13 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "available_operations" : {
+            "description" : "Operations this shortcode's type allows",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
+          },
           "b2c_result_url" : {
             "type" : "string"
           },
@@ -3956,7 +3975,7 @@
             "type" : "string"
           },
           "capabilities" : {
-            "description" : "What this shortcode's type can do; the console shows tabs, switches and actions from it",
+            "description" : "What this shortcode can do: its type's capabilities narrowed to the operations turned on; the console shows tabs, switches and actions from it",
             "items" : {
               "enum" : [ "C2B_REGISTER", "C2B_VALIDATION", "STK_PUSH", "QR", "PULL_TRANSACTIONS", "REVERSAL", "B2C_PAYOUT", "POCHI", "TRANSACTION_STATUS", "ACCOUNT_BALANCE", "B2B_EXPRESS_CHECKOUT" ],
               "type" : "string"
@@ -3984,6 +4003,11 @@
           "health" : {
             "$ref" : "#/components/schemas/ShortcodeHealth"
           },
+          "initiator_credential_expires_at" : {
+            "description" : "90 days after the initiator password or security credential was saved (Safaricom: \"Password is valid for 90 days\"); null without one",
+            "format" : "date-time",
+            "type" : "string"
+          },
           "is_active" : {
             "type" : "boolean"
           },
@@ -3992,6 +4016,13 @@
           },
           "min_amount" : {
             "type" : "number"
+          },
+          "operations" : {
+            "description" : "Operations turned on, in enum order",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
           },
           "products" : {
             "description" : "Sarafrika products with an active grant on this shortcode",
@@ -4042,7 +4073,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "capabilities", "credentials", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "store_number_confirmed", "uuid" ],
+        "required" : [ "available_operations", "business_name", "capabilities", "credentials", "environment", "health", "is_active", "operations", "products", "shortcode", "shortcode_type", "status", "store_number_confirmed", "uuid" ],
         "type" : "object"
       },
       "ShortcodeFeatureDto" : {
@@ -4226,6 +4257,10 @@
         "required" : [ "c2b_state", "callback_failures_24h", "collected_today", "paid_out_today" ],
         "type" : "object"
       },
+      "ShortcodeOperation" : {
+        "enum" : [ "C2B", "STK_PUSH", "REVERSAL", "TRANSACTION_STATUS", "ACCOUNT_BALANCE", "B2C_PAYOUT", "POCHI" ],
+        "type" : "string"
+      },
       "ShortcodeProductRef" : {
         "properties" : {
           "client_id" : {
@@ -4251,7 +4286,7 @@
             "type" : "string"
           },
           "capabilities" : {
-            "description" : "What this shortcode's type can do",
+            "description" : "What this shortcode can do: its type's capabilities narrowed to its operations",
             "items" : {
               "enum" : [ "C2B_REGISTER", "C2B_VALIDATION", "STK_PUSH", "QR", "PULL_TRANSACTIONS", "REVERSAL", "B2C_PAYOUT", "POCHI", "TRANSACTION_STATUS", "ACCOUNT_BALANCE", "B2B_EXPRESS_CHECKOUT" ],
               "type" : "string"
@@ -4276,6 +4311,13 @@
           },
           "is_active" : {
             "type" : "boolean"
+          },
+          "operations" : {
+            "description" : "Operations turned on, in enum order",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
           },
           "products" : {
             "description" : "Sarafrika products with an active grant on this shortcode",
@@ -4305,7 +4347,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "capabilities", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "uuid" ],
+        "required" : [ "business_name", "capabilities", "environment", "health", "is_active", "operations", "products", "shortcode", "shortcode_type", "status", "uuid" ],
         "type" : "object"
       },
       "ShortcodeTotals" : {
@@ -5123,6 +5165,19 @@
           }
         },
         "required" : [ "enabled" ],
+        "type" : "object"
+      },
+      "UpdateShortcodeOperationsRequest" : {
+        "properties" : {
+          "operations" : {
+            "description" : "Must be within available_operations",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "operations" ],
         "type" : "object"
       },
       "UpdateShortcodeRequest" : {
@@ -10204,7 +10259,7 @@
                 }
               }
             },
-            "description" : "A B2C shortcode has no C2B URLs"
+            "description" : "C2B is not on for this shortcode, or production URLs are already registered and replace_existing is false"
           },
           "502" : {
             "content" : {
@@ -10516,6 +10571,85 @@
         },
         "summary" : "Set the shortcode's low-float threshold; null goes back to the service default",
         "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/operations" : {
+      "put" : {
+        "description" : "Replaces the operations. A live shortcode cannot turn one on before its credential is stored: the passkey for STK_PUSH, the API initiator for the others except C2B.",
+        "operationId" : "updateShortcodeOperations",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateShortcodeOperationsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The shortcode with its new operations and capabilities"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "A live shortcode lacks the credential an operation needs"
+          }
+        },
+        "summary" : "Choose what a shortcode does; credentials are asked for per operation",
+        "tags" : [ "Admin: Shortcodes" ]
       }
     },
     "/api/v1/admin/shortcodes/{uuid}/pochi-payouts" : {
