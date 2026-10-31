@@ -18,24 +18,14 @@ jobs:
           password: ${{ secrets.STAGING_SSH_PASSWORD }}
           script: |
             set -uo pipefail
-            echo "🔎 The original gateway folder (/opt/sarafrika/daraja-gateway):"
-            ls -la /opt/sarafrika/daraja-gateway | awk '{print "  " $6, $7, $8, $9}'
-            grep -E '^(CALLBACK_BASE_URL|CALLBACK_IP_WHITELIST_ENABLED)=' /opt/sarafrika/daraja-gateway/.env | sed 's/^/  /'
-            for f in /opt/sarafrika/daraja-gateway/*compose*.y*ml; do
-              [ -f "$f" ] || continue
-              echo "  --- $f (images, names, ports, datasource host/db only)"
-              grep -E '^\s*(image|container_name|ports|- "?[0-9]+:[0-9]+|SPRING_DATASOURCE_URL)' "$f" | sed -E 's#(postgresql://)[^@/]*@#\1#; s/^/    /'
+            echo "🔎 Which database the original gateway used (host/db only):"
+            grep -hE '^SPRING_DATASOURCE_URL=' /opt/sarafrika/daraja-gateway/.env /opt/sarafrika/daraja-gateway/.env.bak* 2>/dev/null | sed -E 's#(postgresql://)[^@/]*@#\1#' | sort -u | sed 's/^/  /'
+            echo ""
+            for db in daraja malipo_mpesa camp_ussd; do
+              echo "🔎 Tables in elimika-postgres/$db that look like paybill or M-Pesa config (name: rows):"
+              docker exec elimika-postgres sh -c "psql -U \${POSTGRES_USER:-postgres} -d $db -tA -F': ' -c \"select table_schema||'.'||table_name, (xpath('/row/c/text()', query_to_xml('select count(*) as c from '||quote_ident(table_schema)||'.'||quote_ident(table_name), false, true, '')))[1]::text from information_schema.tables where table_type='BASE TABLE' and table_schema not in ('pg_catalog','information_schema') and table_name ~* '(shortcode|short_code|paybill|mpesa|daraja|till|merchant|payment|config|setting|credential)' order by 1\"" 2>&1 | sed 's/^/  /' | head -25
+              echo ""
             done
-            echo ""
-            echo "🔎 Paybill IDs Elimika points at (IDs only):"
-            grep -E '^MPESA_SERVICE_(PAYOUT_)?SHORTCODE_UUID=' /opt/sarafrika/elimika/.env | sed 's/^/  /'
-            echo ""
-            echo "🔎 Databases in each Postgres container:"
-            for c in $(docker ps --format '{{.Names}} {{.Image}}' | awk 'tolower($2) ~ /postgres/ {print $1}'); do
-              user=$(docker exec "$c" sh -c 'echo ${POSTGRES_USER:-postgres}')
-              echo "  $c: $(docker exec "$c" psql -U "$user" -d postgres -tAc "select string_agg(datname, ' ') from pg_database where not datistemplate" 2>/dev/null)"
-            done
-            echo ""
             echo "🔎 Containers with mpesa in their name or image:"
             docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -i mpesa || echo "  none"
             echo ""
