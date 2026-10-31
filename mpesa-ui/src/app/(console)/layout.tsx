@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { OfflineBanner, ServiceStatusPill } from "@/components/connection-status";
+import { ConsoleAccessGate } from "@/components/console-access-gate";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
@@ -19,7 +20,9 @@ export default function ConsoleLayout({ children }: LayoutProps<"/">) {
             <UserMenu />
           </div>
         </header>
-        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-8">{children}</main>
+        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-8">
+          <ConsoleAccessGate>{children}</ConsoleAccessGate>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );

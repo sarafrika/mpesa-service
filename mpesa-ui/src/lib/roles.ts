@@ -40,3 +40,8 @@ export function hasRole(
   const wanted: readonly ConsoleRole[] = typeof required === "string" ? [required] : required;
   return wanted.some((role) => roles.has(role));
 }
+
+/** True when the realm roles include any console role; without one every screen would only show 403s. */
+export function hasConsoleAccess(granted: readonly string[] | null | undefined): boolean {
+  return effectiveRoles(granted).size > 0;
+}
