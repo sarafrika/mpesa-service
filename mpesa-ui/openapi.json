@@ -353,7 +353,7 @@
             "type" : "string"
           },
           "kind" : {
-            "description" : "What kind of item this is, e.g. LOW_FLOAT, STK_PENDING, PAYBILL_STALE, PAYBILL_FAILING",
+            "description" : "What kind of item this is, e.g. LOW_FLOAT, STK_PENDING, PAYBILL_STALE, PAYBILL_FAILING, INITIATOR_PASSWORD_EXPIRING, EXTERNAL_VALIDATION_NOT_SEEN",
             "example" : "LOW_FLOAT",
             "type" : "string"
           },
@@ -1636,6 +1636,13 @@
             "example" : 1.0,
             "minimum" : 1,
             "type" : "number"
+          },
+          "operations" : {
+            "description" : "What it will do, within what its type allows; omitted means the type's defaults (PAYBILL and TILL: C2B; B2C: B2C_PAYOUT, ACCOUNT_BALANCE; ONE_ACCOUNT: C2B, B2C_PAYOUT, ACCOUNT_BALANCE)",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
           },
           "passkey" : {
             "description" : "Lipa na M-Pesa passkey; needed for STK push, issued for a till's store/HO number. Rejected for B2C (B2C FAQ 15: no passkey)",
@@ -3611,6 +3618,11 @@
       },
       "RegisterC2bUrlsRequest" : {
         "properties" : {
+          "replace_existing" : {
+            "default" : false,
+            "description" : "Production only: confirms the current URLs were deleted on the M-PESA org portal, so they can be registered again",
+            "type" : "boolean"
+          },
           "response_type" : {
             "$ref" : "#/components/schemas/C2bResponseType",
             "description" : "Cancelled rejects payments when validation is unreachable; Completed accepts them"
@@ -3941,6 +3953,13 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "available_operations" : {
+            "description" : "What its type allows",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
+          },
           "b2c_result_url" : {
             "type" : "string"
           },
@@ -3984,6 +4003,11 @@
           "health" : {
             "$ref" : "#/components/schemas/ShortcodeHealth"
           },
+          "initiator_credential_expires_at" : {
+            "description" : "When the initiator password expires (90 days after it was saved); null without one",
+            "format" : "date-time",
+            "type" : "string"
+          },
           "is_active" : {
             "type" : "boolean"
           },
@@ -3992,6 +4016,13 @@
           },
           "min_amount" : {
             "type" : "number"
+          },
+          "operations" : {
+            "description" : "What it is set up to do, in enum order",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
           },
           "products" : {
             "description" : "Sarafrika products with an active grant on this shortcode",
@@ -4042,7 +4073,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "capabilities", "credentials", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "store_number_confirmed", "uuid" ],
+        "required" : [ "available_operations", "business_name", "capabilities", "credentials", "environment", "health", "is_active", "operations", "products", "shortcode", "shortcode_type", "status", "store_number_confirmed", "uuid" ],
         "type" : "object"
       },
       "ShortcodeFeatureDto" : {
@@ -4226,6 +4257,11 @@
         "required" : [ "c2b_state", "callback_failures_24h", "collected_today", "paid_out_today" ],
         "type" : "object"
       },
+      "ShortcodeOperation" : {
+        "description" : "Something a shortcode is set up to do; decides which credentials it needs",
+        "enum" : [ "C2B", "STK_PUSH", "REVERSAL", "TRANSACTION_STATUS", "ACCOUNT_BALANCE", "B2C_PAYOUT", "POCHI" ],
+        "type" : "string"
+      },
       "ShortcodeProductRef" : {
         "properties" : {
           "client_id" : {
@@ -4277,6 +4313,13 @@
           "is_active" : {
             "type" : "boolean"
           },
+          "operations" : {
+            "description" : "What it is set up to do, in enum order",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
+          },
           "products" : {
             "description" : "Sarafrika products with an active grant on this shortcode",
             "items" : {
@@ -4305,7 +4348,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "business_name", "capabilities", "environment", "health", "is_active", "products", "shortcode", "shortcode_type", "status", "uuid" ],
+        "required" : [ "business_name", "capabilities", "environment", "health", "is_active", "operations", "products", "shortcode", "shortcode_type", "status", "uuid" ],
         "type" : "object"
       },
       "ShortcodeTotals" : {
@@ -5123,6 +5166,19 @@
           }
         },
         "required" : [ "enabled" ],
+        "type" : "object"
+      },
+      "UpdateShortcodeOperationsRequest" : {
+        "properties" : {
+          "operations" : {
+            "description" : "The full set to turn on; anything left out is turned off",
+            "items" : {
+              "$ref" : "#/components/schemas/ShortcodeOperation"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "operations" ],
         "type" : "object"
       },
       "UpdateShortcodeRequest" : {
@@ -10204,7 +10260,7 @@
                 }
               }
             },
-            "description" : "A B2C shortcode has no C2B URLs"
+            "description" : "A B2C shortcode has no C2B URLs, or a production shortcode already registered and replace_existing is false"
           },
           "502" : {
             "content" : {
@@ -10516,6 +10572,85 @@
         },
         "summary" : "Set the shortcode's low-float threshold; null goes back to the service default",
         "tags" : [ "Admin: Treasury" ]
+      }
+    },
+    "/api/v1/admin/shortcodes/{uuid}/operations" : {
+      "put" : {
+        "description" : "Turns operations on or off within available_operations. On an active shortcode, turning one on whose credential is missing answers 409; drafts accept anything.",
+        "operationId" : "updateShortcodeOperations",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "uuid",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateShortcodeOperationsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShortcodeDetail"
+                }
+              }
+            },
+            "description" : "The shortcode with its new operations and capabilities"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Invalid parameters or body"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Missing the role the operation needs"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "No such shortcode"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "The shortcode is active and an operation turned on needs a credential it lacks"
+          }
+        },
+        "summary" : "Choose what a shortcode will do",
+        "tags" : [ "Admin: Shortcodes" ]
       }
     },
     "/api/v1/admin/shortcodes/{uuid}/pochi-payouts" : {
