@@ -16,6 +16,7 @@ import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedExceptio
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -25,11 +26,15 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.util.StringUtils;
 
-/** The one table of what each shortcode type can do (SHORTCODE-TYPES.md, matrix 1a). Entry points check it
- * before calling Daraja; the console reads it from a shortcode's capabilities, never from its own copy. */
+/** The one table of what each shortcode type can do (SHORTCODE-TYPES.md, matrix 1a), narrowed per shortcode by
+ * the operations turned on for it. Entry points check the result before calling Daraja; the console reads it
+ * from a shortcode's capabilities, never from its own copy. */
 public final class ShortcodeCapabilities {
 
     private static final Map<ShortcodeType, Set<ShortcodeCapability>> TABLE = new EnumMap<>(ShortcodeType.class);
+    private static final Map<ShortcodeType, Set<ShortcodeOperation>> DEFAULTS = new EnumMap<>(ShortcodeType.class);
+    /** Not operations: on whenever the type allows them (Pull and B2B still need their Features switch). */
+    private static final Set<ShortcodeCapability> ALWAYS_ON = EnumSet.of(QR, PULL_TRANSACTIONS, B2B_EXPRESS_CHECKOUT);
 
     static {
         TABLE.put(ShortcodeType.PAYBILL, EnumSet.of(C2B_REGISTER, C2B_VALIDATION, STK_PUSH, QR, PULL_TRANSACTIONS,
@@ -40,6 +45,11 @@ public final class ShortcodeCapabilities {
         // B2C reversals are manual on the portal (Reversal FAQ); STK/C2B on a B2C shortcode is undocumented.
         TABLE.put(ShortcodeType.B2C, EnumSet.of(B2C_PAYOUT, POCHI, TRANSACTION_STATUS, ACCOUNT_BALANCE));
         TABLE.put(ShortcodeType.ONE_ACCOUNT, EnumSet.allOf(ShortcodeCapability.class));
+        DEFAULTS.put(ShortcodeType.PAYBILL, EnumSet.of(ShortcodeOperation.C2B));
+        DEFAULTS.put(ShortcodeType.TILL, EnumSet.of(ShortcodeOperation.C2B));
+        DEFAULTS.put(ShortcodeType.B2C, EnumSet.of(ShortcodeOperation.B2C_PAYOUT, ShortcodeOperation.ACCOUNT_BALANCE));
+        DEFAULTS.put(ShortcodeType.ONE_ACCOUNT, EnumSet.of(ShortcodeOperation.C2B, ShortcodeOperation.B2C_PAYOUT,
+                ShortcodeOperation.ACCOUNT_BALANCE));
     }
 
     private ShortcodeCapabilities() {
@@ -55,11 +65,51 @@ public final class ShortcodeCapabilities {
         return List.copyOf(EnumSet.copyOf(of(type)));
     }
 
-    public static boolean has(MpesaShortCode code, ShortcodeCapability capability) {
-        return code != null && of(code.getShortcodeType()).contains(capability);
+    /** The operations a type allows: those whose capabilities the type has. */
+    public static Set<ShortcodeOperation> availableOperations(ShortcodeType type) {
+        Set<ShortcodeCapability> allowed = of(type);
+        EnumSet<ShortcodeOperation> available = EnumSet.noneOf(ShortcodeOperation.class);
+        for (ShortcodeOperation operation : ShortcodeOperation.values()) {
+            if (allowed.containsAll(operation.capabilities())) {
+                available.add(operation);
+            }
+        }
+        return available;
     }
 
-    /** Throws a 409 naming the shortcode's type when it cannot do this. */
+    /** What a new shortcode of this type does when the request names no operations. */
+    public static Set<ShortcodeOperation> defaultOperations(ShortcodeType type) {
+        return EnumSet.copyOf(DEFAULTS.get(type == null ? ShortcodeType.PAYBILL : type));
+    }
+
+    /** The shortcode's operations within what its type allows; an unsaved one without any has them all. */
+    public static Set<ShortcodeOperation> operations(MpesaShortCode code) {
+        Set<ShortcodeOperation> available = availableOperations(code.getShortcodeType());
+        if (code.getOperations() == null) {
+            return available;
+        }
+        available.retainAll(code.getOperations());
+        return available;
+    }
+
+    /** Type capabilities ∩ (capabilities of the enabled operations ∪ QR, Pull and B2B Express Checkout). */
+    public static Set<ShortcodeCapability> effective(MpesaShortCode code) {
+        EnumSet<ShortcodeCapability> on = EnumSet.copyOf(ALWAYS_ON);
+        operations(code).forEach(operation -> on.addAll(operation.capabilities()));
+        on.retainAll(of(code.getShortcodeType()));
+        return on;
+    }
+
+    /** In declaration order, as the API returns them. */
+    public static List<ShortcodeCapability> effectiveList(MpesaShortCode code) {
+        return List.copyOf(effective(code));
+    }
+
+    public static boolean has(MpesaShortCode code, ShortcodeCapability capability) {
+        return code != null && effective(code).contains(capability);
+    }
+
+    /** Throws a 409 naming the shortcode's type, or the operation to turn on, when it cannot do this. */
     public static void require(MpesaShortCode code, ShortcodeCapability capability) {
         if (!has(code, capability)) {
             throw new CapabilityNotSupportedException(capability, refusal(code, capability));
@@ -71,9 +121,17 @@ public final class ShortcodeCapabilities {
         if (has(code, capability)) {
             return null;
         }
+        ShortcodeType type = code == null ? null : code.getShortcodeType();
+        ShortcodeOperation operation = ShortcodeOperation.forCapability(capability);
+        if (code != null && operation != null && of(type).contains(capability)) {
+            String label = Character.toUpperCase(operation.label().charAt(0)) + operation.label().substring(1);
+            String which = code.getShortcode() == null ? "this shortcode" : "shortcode " + code.getShortcode();
+            return label + " " + operation.verb() + " not turned on for " + which
+                    + ". Turn " + ("are".equals(operation.verb()) ? "them" : "it")
+                    + " on under the shortcode's Operations.";
+        }
         String number = code == null || code.getShortcode() == null ? "This shortcode"
                 : "Shortcode " + code.getShortcode();
-        ShortcodeType type = code == null ? null : code.getShortcodeType();
         String hint = type == ShortcodeType.B2C && capability == REVERSAL
                 ? " Safaricom does B2C reversals by hand on the M-PESA org portal." : "";
         return number + " is a " + label(type) + ", so it cannot do " + label(capability) + "." + hint;

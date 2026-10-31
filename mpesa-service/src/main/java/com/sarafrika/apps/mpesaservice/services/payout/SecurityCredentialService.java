@@ -34,6 +34,11 @@ public class SecurityCredentialService {
         this.productionCertificate = productionCertificate;
     }
 
+    /** False when mpesa.certificates.<environment> is blank, so an initiator password cannot be encrypted. */
+    public boolean hasCertificate(Environment environment) {
+        return StringUtils.hasText(environment == Environment.PRODUCTION ? productionCertificate : sandboxCertificate);
+    }
+
     public String credentialFor(MpesaShortCode shortcode) {
         if (StringUtils.hasText(shortcode.getSecurityCredential())) {
             return shortcode.getSecurityCredential().trim();

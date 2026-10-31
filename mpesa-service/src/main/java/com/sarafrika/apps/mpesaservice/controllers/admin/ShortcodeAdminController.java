@@ -10,6 +10,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResult
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.CreateShortcodeRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.RegisterC2bUrlsRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeCredentialsRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeOperationsRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeCallbackUrlsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
@@ -194,6 +195,22 @@ public class ShortcodeAdminController {
         return shortcodes.updateCredentials(uuid, request);
     }
 
+    @PutMapping("/{uuid}/operations")
+    @PreAuthorize("hasRole('mpesa-admin')")
+    @Operation(operationId = "updateShortcodeOperations",
+            summary = "Choose what a shortcode does; credentials are asked for per operation",
+            description = "Replaces the operations. A live shortcode cannot turn one on before its credential is "
+                    + "stored: the passkey for STK_PUSH, the API initiator for the others except C2B.")
+    @ApiResponse(responseCode = "200", description = "The shortcode with its new operations and capabilities")
+    @ApiResponse(responseCode = "404", description = "No such shortcode",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "409", description = "A live shortcode lacks the credential an operation needs",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    public ShortcodeDetailDto updateShortcodeOperations(@PathVariable UUID uuid,
+                                                        @Valid @RequestBody UpdateShortcodeOperationsRequest request) {
+        return shortcodes.updateOperations(uuid, request);
+    }
+
     @PostMapping("/{uuid}/test-connection")
     @PreAuthorize("hasRole('mpesa-operator')")
     @Operation(operationId = "testShortcodeConnection",
@@ -253,7 +270,8 @@ public class ShortcodeAdminController {
     @Operation(operationId = "registerShortcodeC2bUrls", summary = "Register the C2B URLs with Safaricom",
             description = "The attempt is kept either way; a refusal answers 502 and an unreachable Safaricom 503.")
     @ApiResponse(responseCode = "201", description = "Safaricom accepted the URLs")
-    @ApiResponse(responseCode = "409", description = "A B2C shortcode has no C2B URLs",
+    @ApiResponse(responseCode = "409", description = "C2B is not on for this shortcode, or production URLs are "
+            + "already registered and replace_existing is false",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "502", description = "Safaricom refused the registration",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -261,7 +279,7 @@ public class ShortcodeAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public C2bRegistrationDto registerShortcodeC2bUrls(@PathVariable UUID uuid,
                                                        @Valid @RequestBody RegisterC2bUrlsRequest request) {
-        return c2b.register(uuid, request.responseType());
+        return c2b.register(uuid, request.responseType(), request.replacing());
     }
 
     @PostMapping("/{uuid}/simulate-c2b")

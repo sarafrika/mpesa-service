@@ -36,6 +36,9 @@ import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeOperationsRequest;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
@@ -75,12 +78,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         "spring.flyway.locations=classpath:db/migrations",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect",
-        "mpesa.callback.base-url=https://pay.example.test/api/v1/callbacks"})
+        "mpesa.callback.base-url=https://pay.example.test/api/v1/callbacks",
+        "mpesa.certificates.sandbox=test-sandbox-certificate"})
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ShortcodeAdminService.class, ShortcodeC2bService.class, ShortcodeHealthReader.class, CallbackUrls.class,
         com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts.class,
-        AuditService.class, SecretCipher.class, ShortcodeAdminIntegrationTest.Beans.class})
+        AuditService.class, SecretCipher.class, SecurityCredentialService.class,
+        ShortcodeAdminIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ShortcodeAdminIntegrationTest {
 
@@ -195,10 +200,13 @@ class ShortcodeAdminIntegrationTest {
 
         assertThat(till.storeNumber()).startsWith("1");
         assertThat(till.storeNumberConfirmed()).isTrue();
-        assertThat(till.capabilities()).contains(ShortcodeCapability.STK_PUSH, ShortcodeCapability.QR)
-                .doesNotContain(ShortcodeCapability.B2C_PAYOUT, ShortcodeCapability.B2B_EXPRESS_CHECKOUT);
-        assertThat(b2c.capabilities()).containsExactly(ShortcodeCapability.B2C_PAYOUT, ShortcodeCapability.POCHI,
-                ShortcodeCapability.TRANSACTION_STATUS, ShortcodeCapability.ACCOUNT_BALANCE);
+        assertThat(till.capabilities()).contains(ShortcodeCapability.C2B_REGISTER, ShortcodeCapability.QR)
+                .doesNotContain(ShortcodeCapability.STK_PUSH, ShortcodeCapability.B2C_PAYOUT,
+                        ShortcodeCapability.B2B_EXPRESS_CHECKOUT);
+        assertThat(b2c.capabilities()).containsExactly(ShortcodeCapability.B2C_PAYOUT,
+                ShortcodeCapability.ACCOUNT_BALANCE);
+        assertThat(b2c.availableOperations()).containsExactly(ShortcodeOperation.TRANSACTION_STATUS,
+                ShortcodeOperation.ACCOUNT_BALANCE, ShortcodeOperation.B2C_PAYOUT, ShortcodeOperation.POCHI);
         assertThat(service.list(query(null, b2c.shortcode()), PageRequest.of(0, 25)).getContent().getFirst()
                 .capabilities()).contains(ShortcodeCapability.B2C_PAYOUT);
         assertThatThrownBy(() -> c2b.register(b2c.uuid(), C2bResponseType.Completed))
@@ -250,7 +258,7 @@ class ShortcodeAdminIntegrationTest {
     }
 
     @Test
-    void aB2cOrOneAccountGoesLiveOnlyWithItsInitiator() {
+    void anOperationNeedingTheInitiatorGoesLiveOnlyWithIt() {
         signIn("mpesa-admin");
         when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
         ShortcodeDetailDto draft = service.create(new CreateShortcodeRequest(next(), ShortcodeType.ONE_ACCOUNT,
@@ -258,7 +266,7 @@ class ShortcodeAdminIntegrationTest {
         service.testConnection(draft.uuid());
 
         assertThatThrownBy(() -> service.activate(draft.uuid())).isInstanceOf(ConflictException.class)
-                .hasMessageContaining("initiator");
+                .hasMessage("Add the API initiator under Credentials first: Account Balance queries need it");
         service.updateCredentials(draft.uuid(), new UpdateShortcodeCredentialsRequest(null, null, null, "api", "pw",
                 null));
 
@@ -443,6 +451,7 @@ class ShortcodeAdminIntegrationTest {
         assertThatThrownBy(() -> c2b.testStk(code.uuid(), oneShilling)).isInstanceOf(ConflictException.class);
 
         when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 200, null, LocalDateTime.now()));
+        service.updateOperations(code.uuid(), operations(ShortcodeOperation.C2B, ShortcodeOperation.STK_PUSH));
         service.testConnection(code.uuid());
         service.activate(code.uuid());
         when(daraja.initiateSTKPush(eq(code.uuid()), eq("254708374149"), eq(BigDecimal.ONE), eq("ELIMIKA"),
@@ -511,6 +520,155 @@ class ShortcodeAdminIntegrationTest {
         signIn("mpesa-admin");
         assertThat(service.update(live.uuid(), new UpdateShortcodeRequest(null, null, null, null, null,
                 "https://pay.example.test/other", null, null)).callbackUrl()).isEqualTo("https://pay.example.test/other");
+    }
+
+    @Test
+    void eachTypeStartsWithItsDefaultOperationsAndACollectOnlyPaybillGoesLiveOnItsKeysAlone() {
+        signIn("mpesa-admin");
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        ShortcodeDetailDto paybill = service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
+                Environment.PRODUCTION, "k", "s", null, null, null, null, null, null, null, null));
+        ShortcodeDetailDto till = service.create(named("Shop", ShortcodeType.TILL));
+        ShortcodeDetailDto b2c = service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null));
+        ShortcodeDetailDto both = service.create(named("Both", ShortcodeType.ONE_ACCOUNT));
+
+        assertThat(paybill.operations()).containsExactly(ShortcodeOperation.C2B);
+        assertThat(till.operations()).containsExactly(ShortcodeOperation.C2B);
+        assertThat(b2c.operations()).containsExactly(ShortcodeOperation.ACCOUNT_BALANCE, ShortcodeOperation.B2C_PAYOUT);
+        assertThat(both.operations()).containsExactly(ShortcodeOperation.C2B, ShortcodeOperation.ACCOUNT_BALANCE,
+                ShortcodeOperation.B2C_PAYOUT);
+        assertThat(service.list(query(null, paybill.shortcode()), PageRequest.of(0, 25)).getContent().getFirst()
+                .operations()).containsExactly(ShortcodeOperation.C2B);
+        service.testConnection(paybill.uuid());
+        assertThat(service.activate(paybill.uuid()).status()).isEqualTo(ShortcodeStatus.ACTIVE);
+        assertThatThrownBy(() -> service.create(new CreateShortcodeRequest(next(), ShortcodeType.TILL, "Shop",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null, "1" + next(),
+                List.of(ShortcodeOperation.B2C_PAYOUT))))
+                .isInstanceOfSatisfying(InvalidRequestException.class,
+                        e -> assertThat(e.getField()).isEqualTo("operations"));
+        ShortcodeDetailDto chosen = service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
+                Environment.SANDBOX, "k", "s", "pk", null, null, null, null, null, null, null, null,
+                List.of(ShortcodeOperation.STK_PUSH)));
+        assertThat(chosen.operations()).containsExactly(ShortcodeOperation.STK_PUSH);
+        assertThat(chosen.capabilities()).contains(ShortcodeCapability.STK_PUSH)
+                .doesNotContain(ShortcodeCapability.C2B_REGISTER);
+    }
+
+    @Test
+    void goingLiveAsksForThePasskeyWhenStkPushIsOn() {
+        signIn("mpesa-admin");
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        ShortcodeDetailDto draft = service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null, null,
+                List.of(ShortcodeOperation.C2B, ShortcodeOperation.STK_PUSH)));
+        service.testConnection(draft.uuid());
+
+        assertThatThrownBy(() -> service.activate(draft.uuid())).isInstanceOf(ConflictException.class)
+                .hasMessage("Add the passkey under Credentials first: STK push needs it");
+        service.updateOperations(draft.uuid(), operations(ShortcodeOperation.C2B));
+        assertThat(service.activate(draft.uuid()).status()).isEqualTo(ShortcodeStatus.ACTIVE);
+    }
+
+    @Test
+    void operationsStayWithinTheTypeAndALiveShortcodeNeedsTheCredentialFirst() {
+        signIn("mpesa-admin");
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        ShortcodeDetailDto code = service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null));
+
+        assertThatThrownBy(() -> service.updateOperations(code.uuid(), operations(ShortcodeOperation.POCHI)))
+                .isInstanceOfSatisfying(InvalidRequestException.class,
+                        e -> assertThat(e.getField()).isEqualTo("operations"));
+        ShortcodeDetailDto draft = service.updateOperations(code.uuid(),
+                operations(ShortcodeOperation.C2B, ShortcodeOperation.REVERSAL));
+        assertThat(draft.operations()).containsExactly(ShortcodeOperation.C2B, ShortcodeOperation.REVERSAL);
+        service.updateOperations(code.uuid(), operations(ShortcodeOperation.C2B));
+        service.testConnection(code.uuid());
+        service.activate(code.uuid());
+
+        assertThatThrownBy(() -> service.updateOperations(code.uuid(),
+                operations(ShortcodeOperation.C2B, ShortcodeOperation.STK_PUSH)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("Add the passkey under Credentials first: STK push needs it");
+        assertThatThrownBy(() -> service.updateOperations(code.uuid(), operations(ShortcodeOperation.REVERSAL)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("Add the API initiator under Credentials first: reversals need it");
+        assertThatThrownBy(() -> c2b.testStk(code.uuid(), new TestStkRequest("254708374149", null)))
+                .isInstanceOf(CapabilityNotSupportedException.class)
+                .hasMessageContaining("STK push is not turned on for shortcode " + code.shortcode());
+        service.updateCredentials(code.uuid(), new UpdateShortcodeCredentialsRequest(null, null, "pk-1234", null,
+                null, null));
+        ShortcodeDetailDto stk = service.updateOperations(code.uuid(), operations(ShortcodeOperation.STK_PUSH));
+
+        assertThat(stk.operations()).containsExactly(ShortcodeOperation.STK_PUSH);
+        assertThat(stk.capabilities()).contains(ShortcodeCapability.STK_PUSH)
+                .doesNotContain(ShortcodeCapability.C2B_REGISTER);
+        assertThat(stk.health().c2bState()).isEqualTo(C2bRegistrationState.NOT_APPLICABLE);
+        assertThat(jdbc.queryForObject("SELECT operations FROM mpesa_shortcodes WHERE uuid = ?", String.class,
+                code.uuid())).isEqualTo("STK_PUSH");
+        assertThat(jdbc.queryForList("SELECT action FROM audit_events WHERE entity_id = ? "
+                + "AND action = 'SHORTCODE_OPERATIONS_UPDATED'", String.class, code.uuid().toString())).hasSize(3);
+    }
+
+    @Test
+    void anInitiatorPasswordNeedsTheServersCertificateAndStartsTheNinetyDayClock() {
+        signIn("mpesa-admin");
+        assertThatThrownBy(() -> service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
+                Environment.PRODUCTION, "k", "s", null, "api", "pw", null, null, null, null, null)))
+                .isInstanceOfSatisfying(InvalidRequestException.class, e -> {
+                    assertThat(e.getField()).isEqualTo("initiator_password");
+                    assertThat(e.getMessage()).isEqualTo("This server has no Safaricom production certificate, so "
+                            + "paste the security credential from the Daraja portal instead");
+                });
+        ShortcodeDetailDto live = service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
+                Environment.PRODUCTION, "k", "s", null, "api", null, "CRED==", null, null, null, null));
+        ShortcodeDetailDto sandbox = service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
+                Environment.SANDBOX, "k", "s", null, "api", "pw", null, null, null, null, null));
+        ShortcodeDetailDto bare = service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
+                Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null));
+
+        LocalDateTime setAt = jdbc.queryForObject("SELECT initiator_credential_set_at FROM mpesa_shortcodes "
+                + "WHERE uuid = ?", LocalDateTime.class, live.uuid());
+        assertThat(service.get(live.uuid()).initiatorCredentialExpiresAt()).isEqualTo(setAt.plusDays(90));
+        assertThat(sandbox.initiatorCredentialExpiresAt()).isNotNull();
+        assertThat(bare.initiatorCredentialExpiresAt()).isNull();
+        assertThatThrownBy(() -> service.updateCredentials(live.uuid(),
+                new UpdateShortcodeCredentialsRequest(null, null, null, null, "new-pw", null)))
+                .isInstanceOfSatisfying(InvalidRequestException.class,
+                        e -> assertThat(e.getField()).isEqualTo("initiator_password"));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        jdbc.update("UPDATE mpesa_shortcodes SET initiator_credential_set_at = NOW() - INTERVAL '60 days' "
+                + "WHERE uuid = ?", bare.uuid());
+        assertThat(service.get(bare.uuid()).initiatorCredentialExpiresAt()).isNull();
+        ShortcodeDetailDto renewed = service.updateCredentials(bare.uuid(),
+                new UpdateShortcodeCredentialsRequest(null, null, null, "api", null, "CRED2=="));
+        assertThat(renewed.initiatorCredentialExpiresAt()).isAfter(LocalDateTime.now().plusDays(89));
+    }
+
+    @Test
+    void productionC2bUrlsRegisterOnceUnlessTheOldOnesWereReplaced() {
+        signIn("mpesa-admin");
+        ShortcodeDetailDto code = service.create(request(next(), ShortcodeType.PAYBILL, Environment.PRODUCTION));
+        when(daraja.registerC2BUrls(eq(code.uuid()), anyString(), anyString(), anyString()))
+                .thenReturn(MpesaApiResponse.success(new C2BRegistrationResponse(null, "orig", "Success"), 200));
+        c2b.register(code.uuid(), C2bResponseType.Completed);
+
+        assertThatThrownBy(() -> c2b.register(code.uuid(), C2bResponseType.Completed))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("Safaricom registers production C2B URLs once. Delete the current URLs on the M-PESA org "
+                        + "portal (Self Services > URL Management, approved by two operators), then register again.");
+        assertThat(c2b.register(code.uuid(), C2bResponseType.Completed, true).successful()).isTrue();
+        verify(daraja, times(2)).registerC2BUrls(eq(code.uuid()), anyString(), anyString(), anyString());
+        ShortcodeDetailDto sandbox = service.create(request(next(), ShortcodeType.PAYBILL, Environment.SANDBOX));
+        when(daraja.registerC2BUrls(eq(sandbox.uuid()), anyString(), anyString(), anyString()))
+                .thenReturn(MpesaApiResponse.success(new C2BRegistrationResponse(null, "orig", "Success"), 200));
+        c2b.register(sandbox.uuid(), C2bResponseType.Completed);
+        assertThat(c2b.register(sandbox.uuid(), C2bResponseType.Completed).successful()).isTrue();
+    }
+
+    private static UpdateShortcodeOperationsRequest operations(ShortcodeOperation... operations) {
+        return new UpdateShortcodeOperationsRequest(List.of(operations));
     }
 
     private void grant(String clientId, String name, UUID shortcode, boolean active) {

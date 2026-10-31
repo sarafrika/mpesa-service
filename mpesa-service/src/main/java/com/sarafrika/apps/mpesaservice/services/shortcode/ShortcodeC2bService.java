@@ -40,6 +40,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class ShortcodeC2bService {
 
+    static final String PRODUCTION_REGISTERED_ONCE = "Safaricom registers production C2B URLs once. Delete the "
+            + "current URLs on the M-PESA org portal (Self Services > URL Management, approved by two operators), "
+            + "then register again.";
+
     private final ShortcodeAdminService shortcodes;
     private final C2bRegistrationRepository registrations;
     private final ShortcodeAdminRepository shortcodeRepository;
@@ -70,10 +74,20 @@ public class ShortcodeC2bService {
         });
     }
 
-    /** The outcome is saved either way; a refusal then answers 502, an unreachable Safaricom 503. */
     public C2bRegistrationDto register(UUID shortcodeUuid, C2bResponseType responseType) {
+        return register(shortcodeUuid, responseType, false);
+    }
+
+    /** The outcome is saved either way; a refusal then answers 502, an unreachable Safaricom 503. Production
+     * URLs register once, so a second registration needs replaceExisting after the old ones were deleted. */
+    public C2bRegistrationDto register(UUID shortcodeUuid, C2bResponseType responseType, boolean replaceExisting) {
         MpesaShortCode code = transaction.execute(status -> shortcodes.find(shortcodeUuid));
         ShortcodeCapabilities.require(code, ShortcodeCapability.C2B_REGISTER);
+        if (code.getEnvironment() == Environment.PRODUCTION && !replaceExisting
+                && Boolean.TRUE.equals(transaction.execute(
+                        status -> registrations.existsByShortcodeUuidAndSuccessfulTrue(shortcodeUuid)))) {
+            throw new ConflictException(PRODUCTION_REGISTERED_ONCE);
+        }
         ShortcodeCallbackUrlsDto urls = callbackUrls.forShortcode(code);
         MpesaApiResponse<C2BRegistrationResponse> response = darajaService.registerC2BUrls(shortcodeUuid,
                 urls.c2bConfirmationUrl(), urls.c2bValidationUrl(), responseType.name());

@@ -19,6 +19,8 @@ public interface C2bRegistrationRepository extends JpaRepository<C2bRegistration
 
     Optional<C2bRegistration> findFirstByShortcodeUuidOrderByCreatedAtDescIdDesc(UUID shortcodeUuid);
 
+    boolean existsByShortcodeUuidAndSuccessfulTrue(UUID shortcodeUuid);
+
     /** The newest attempt of each of these shortcodes. */
     @Query("""
             SELECT r FROM C2bRegistration r WHERE r.id IN (

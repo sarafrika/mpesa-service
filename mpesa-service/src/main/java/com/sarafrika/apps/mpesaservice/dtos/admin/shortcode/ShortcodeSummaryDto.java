@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
@@ -37,15 +38,19 @@ public record ShortcodeSummaryDto(
         @JsonProperty("products") List<ProductRef> products,
         @Schema(example = "174300", description = "A till's store/HO number (the Go-Live shortcode); null otherwise")
         @JsonProperty("store_number") String storeNumber,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "What this shortcode's type can do")
-        @JsonProperty("capabilities") List<ShortcodeCapability> capabilities) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                description = "What this shortcode can do: its type's capabilities narrowed to its operations")
+        @JsonProperty("capabilities") List<ShortcodeCapability> capabilities,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Operations turned on, in enum order")
+        @JsonProperty("operations") List<ShortcodeOperation> operations) {
 
     public ShortcodeSummaryDto(UUID uuid, String shortcode, String businessName, ShortcodeType shortcodeType,
                                Environment environment, ShortcodeStatus status, boolean active,
                                LocalDateTime credentialsUpdatedAt, LocalDateTime createdAt, ShortcodeHealthDto health,
                                List<ProductRef> products) {
         this(uuid, shortcode, businessName, shortcodeType, environment, status, active, credentialsUpdatedAt,
-                createdAt, health, products, null, ShortcodeCapabilities.list(shortcodeType));
+                createdAt, health, products, null, ShortcodeCapabilities.list(shortcodeType),
+                List.copyOf(ShortcodeCapabilities.availableOperations(shortcodeType)));
     }
 
     /** A product (Keycloak client) using this shortcode. */

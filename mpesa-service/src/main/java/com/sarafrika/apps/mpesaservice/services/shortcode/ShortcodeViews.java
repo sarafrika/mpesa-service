@@ -6,6 +6,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeHealthDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,7 +51,7 @@ final class ShortcodeViews {
         return new ShortcodeSummaryDto(code.getUuid(), code.getShortcode(), code.getBusinessName(),
                 code.getShortcodeType(), code.getEnvironment(), status(code), Boolean.TRUE.equals(code.getIsActive()),
                 credentialsUpdatedAt(code), code.getCreatedAt(), health, products, code.getStoreNumber(),
-                ShortcodeCapabilities.list(code.getShortcodeType()));
+                ShortcodeCapabilities.effectiveList(code), operations(code));
     }
 
     /** False only for a till whose store number is still the till number and was never confirmed. */
@@ -71,7 +72,13 @@ final class ShortcodeViews {
                 CallbackUrls.masked(code.getB2cTimeoutUrl()), code.getActivatedAt(), code.getSuspendedAt(), code.getCreatedAt(),
                 code.getUpdatedAt(), code.getCreatedBy(), code.getUpdatedBy(),
                 credentials(code), health, products, code.getStoreNumber(), storeNumberConfirmed(code),
-                ShortcodeCapabilities.list(code.getShortcodeType()));
+                ShortcodeCapabilities.effectiveList(code), operations(code),
+                List.copyOf(ShortcodeCapabilities.availableOperations(code.getShortcodeType())),
+                code.initiatorCredentialExpiresAt());
+    }
+
+    static List<ShortcodeOperation> operations(MpesaShortCode code) {
+        return List.copyOf(ShortcodeCapabilities.operations(code));
     }
 
     /** The non-secret fields an audit entry shows before and after a change. */
@@ -91,6 +98,7 @@ final class ShortcodeViews {
         profile.put("b2c_result_url", code.getB2cResultUrl());
         profile.put("b2c_timeout_url", code.getB2cTimeoutUrl());
         profile.put("initiator_name", code.getInitiatorName());
+        profile.put("operations", operations(code));
         return profile;
     }
 }

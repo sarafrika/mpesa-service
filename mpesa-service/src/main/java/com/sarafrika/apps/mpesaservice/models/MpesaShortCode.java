@@ -2,10 +2,13 @@ package com.sarafrika.apps.mpesaservice.models;
 
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
+import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.utils.converters.EncryptedSecretConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.EnvironmentConverter;
+import com.sarafrika.apps.mpesaservice.utils.converters.ShortcodeOperationsConverter;
 import com.sarafrika.apps.mpesaservice.utils.converters.ShortcodeTypeConverter;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -19,6 +22,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.util.HexFormat;
+import java.util.Set;
 import java.time.LocalDateTime;
 
 @Entity
@@ -45,6 +49,11 @@ public class MpesaShortCode extends BaseEntity {
     /** When someone last confirmed the store number; null on tills migrated with store number = till number. */
     @Column(name = "store_number_confirmed_at")
     private LocalDateTime storeNumberConfirmedAt;
+
+    /** What this shortcode is set up to do; null on an unsaved entity means everything its type allows. */
+    @Convert(converter = ShortcodeOperationsConverter.class)
+    @Column(name = "operations")
+    private Set<ShortcodeOperation> operations;
 
     @Column(name = "business_name")
     private String businessName;
@@ -103,6 +112,10 @@ public class MpesaShortCode extends BaseEntity {
     @Column(name = "security_credential")
     private String securityCredential;
 
+    /** When the initiator password or security credential was last saved; Safaricom expires it after 90 days. */
+    @Column(name = "initiator_credential_set_at")
+    private LocalDateTime initiatorCredentialSetAt;
+
     /** Where Safaricom posts B2C results and timeouts; defaults to this service's callback base URL. */
     @Column(name = "b2c_result_url")
     private String b2cResultUrl;
@@ -143,6 +156,17 @@ public class MpesaShortCode extends BaseEntity {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /** Safaricom: "Password is valid for 90 days" (Account Balance FAQ). */
+    public static final int INITIATOR_CREDENTIAL_DAYS = 90;
+
+    /** When the stored initiator password or security credential lapses; null when neither is stored. */
+    public LocalDateTime initiatorCredentialExpiresAt() {
+        boolean stored = initiatorPassword != null && !initiatorPassword.isBlank()
+                || securityCredential != null && !securityCredential.isBlank();
+        return stored && initiatorCredentialSetAt != null ? initiatorCredentialSetAt.plusDays(INITIATOR_CREDENTIAL_DAYS)
+                : null;
+    }
+
     public static String newCallbackToken() {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
@@ -153,6 +177,9 @@ public class MpesaShortCode extends BaseEntity {
     void ensureCallbackToken() {
         if (callbackToken == null) {
             callbackToken = newCallbackToken();
+        }
+        if (operations == null) {
+            operations = ShortcodeCapabilities.availableOperations(shortcodeType);
         }
     }
 }

@@ -5,6 +5,7 @@ import com.sarafrika.apps.mpesaservice.services.collections.TransactionFeedServi
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.exports.CsvExports;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -33,7 +34,10 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeTotalsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.SimulateC2bResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.TestStkResultDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeOperationsRequest;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
+import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeAdminService;
@@ -165,7 +169,55 @@ class ShortcodeAdminControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.credentials.consumer_key_masked").value("••••Qx7d"))
                 .andExpect(jsonPath("$.credentials.consumer_key").doesNotExist())
-                .andExpect(jsonPath("$.credentials.initiator_password_set").value(false));
+                .andExpect(jsonPath("$.credentials.initiator_password_set").value(false))
+                .andExpect(jsonPath("$.operations[0]").value("C2B"))
+                .andExpect(jsonPath("$.available_operations.length()").value(5))
+                .andExpect(jsonPath("$.initiator_credential_expires_at").value(nullValue()));
+    }
+
+    // ---- operations (admin)
+
+    @Test
+    @WithMockUser(roles = "mpesa-admin")
+    void anAdminReplacesTheOperations() throws Exception {
+        when(shortcodes.updateOperations(eq(ID), any())).thenReturn(detail());
+
+        mockMvc.perform(json(put(BASE + "/" + ID + "/operations"), "{\"operations\":[\"C2B\",\"STK_PUSH\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uuid").value(ID.toString()));
+        ArgumentCaptor<UpdateShortcodeOperationsRequest> request =
+                ArgumentCaptor.forClass(UpdateShortcodeOperationsRequest.class);
+        verify(shortcodes).updateOperations(eq(ID), request.capture());
+        assertThat(request.getValue().operations()).containsExactly(ShortcodeOperation.C2B,
+                ShortcodeOperation.STK_PUSH);
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-admin")
+    void operationsOutsideTheTypeAre400AndAMissingCredentialIs409() throws Exception {
+        when(shortcodes.updateOperations(eq(ID), any()))
+                .thenThrow(new InvalidRequestException("operations", "must be among [C2B] for a paybill"))
+                .thenThrow(new ConflictException("Add the passkey under Credentials first: STK push needs it"));
+
+        mockMvc.perform(json(put(BASE + "/" + ID + "/operations"), "{\"operations\":[\"POCHI\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field_errors[0].field").value("operations"));
+        mockMvc.perform(json(put(BASE + "/" + ID + "/operations"), "{\"operations\":[\"STK_PUSH\"]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Add the passkey under Credentials first: STK push needs it"));
+        mockMvc.perform(json(put(BASE + "/" + ID + "/operations"), "{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field_errors[0].field").value("operations"));
+        mockMvc.perform(json(put(BASE + "/" + ID + "/operations"), "{\"operations\":[\"QR\"]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "mpesa-operator")
+    void operationsNeedAdmin() throws Exception {
+        mockMvc.perform(json(put(BASE + "/" + ID + "/operations"), "{\"operations\":[\"C2B\"]}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(shortcodes);
     }
 
     @Test
@@ -306,14 +358,15 @@ class ShortcodeAdminControllerTest {
     @Test
     @WithMockUser(roles = "mpesa-operator")
     void registeringC2bUrlsAnswers201OrTheUpstreamFailure() throws Exception {
-        when(c2b.register(ID, C2bResponseType.Cancelled)).thenReturn(new C2bRegistrationDto(UUID.randomUUID(),
+        when(c2b.register(ID, C2bResponseType.Cancelled, true)).thenReturn(new C2bRegistrationDto(UUID.randomUUID(),
                 C2bResponseType.Cancelled, "https://x/c", "https://x/v", true, "0", "Success", "jane.doe",
                 LocalDateTime.now()));
-        when(c2b.register(ID, C2bResponseType.Completed))
+        when(c2b.register(ID, C2bResponseType.Completed, false))
                 .thenThrow(UpstreamException.badGateway("Safaricom refused to register the C2B URLs"))
                 .thenThrow(UpstreamException.unavailable("Safaricom could not be reached"));
 
-        mockMvc.perform(json(post(BASE + "/" + ID + "/c2b-registrations"), "{\"response_type\":\"Cancelled\"}"))
+        mockMvc.perform(json(post(BASE + "/" + ID + "/c2b-registrations"),
+                        "{\"response_type\":\"Cancelled\",\"replace_existing\":true}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.response_type").value("Cancelled"));
         mockMvc.perform(json(post(BASE + "/" + ID + "/c2b-registrations"), "{\"response_type\":\"Completed\"}"))

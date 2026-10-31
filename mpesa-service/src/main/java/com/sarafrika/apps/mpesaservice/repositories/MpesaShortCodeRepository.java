@@ -54,6 +54,8 @@ public interface MpesaShortCodeRepository extends JpaRepository<MpesaShortCode, 
      */
     Page<MpesaShortCode> findByIsActiveTrue(Pageable pageable);
 
+    List<MpesaShortCode> findByIsActiveTrue();
+
     /**
      * Check if shortcode exists
      */

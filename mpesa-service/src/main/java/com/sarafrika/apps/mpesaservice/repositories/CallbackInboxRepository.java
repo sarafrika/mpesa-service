@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.repositories;
 
 import com.sarafrika.apps.mpesaservice.models.CallbackInboxEntry;
+import com.sarafrika.apps.mpesaservice.utils.enums.CallbackKind;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackStatus;
 import java.time.Instant;
 import java.util.List;
@@ -21,6 +22,11 @@ public interface CallbackInboxRepository extends JpaRepository<CallbackInboxEntr
     Optional<CallbackInboxEntry> findByUuid(UUID uuid);
 
     long countByStatusAndReceivedAtGreaterThanEqual(CallbackStatus status, Instant since);
+
+    /** The shortcodes that received a callback of this kind since then (within the inbox's retention). */
+    @Query("SELECT DISTINCT e.shortcodeUuid FROM CallbackInboxEntry e WHERE e.kind = :kind "
+            + "AND e.receivedAt >= :since AND e.shortcodeUuid IS NOT NULL")
+    List<UUID> shortcodesReceiving(@Param("kind") CallbackKind kind, @Param("since") Instant since);
 
     @Query("SELECT e.status, COUNT(e) FROM CallbackInboxEntry e WHERE e.receivedAt >= :since GROUP BY e.status")
     List<Object[]> countByStatusSince(@Param("since") Instant since);

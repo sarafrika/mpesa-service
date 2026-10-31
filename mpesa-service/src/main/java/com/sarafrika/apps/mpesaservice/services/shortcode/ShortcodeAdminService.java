@@ -5,6 +5,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationState
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResultDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.CreateShortcodeRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeCredentialsRequest;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeOperationsRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeCallbackUrlsDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeHealthDto;
@@ -22,7 +23,9 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentReposito
 import com.sarafrika.apps.mpesaservice.repositories.ShortcodeAdminRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
+import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -30,12 +33,15 @@ import jakarta.persistence.criteria.Subquery;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -63,12 +69,14 @@ public class ShortcodeAdminService {
     private final CallbackUrls callbackUrls;
     private final ClientShortcodeGrantRepository grants;
     private final MpesaOutgoingPaymentRepository payouts;
+    private final SecurityCredentialService certificates;
     private final TransactionTemplate transaction;
 
     public ShortcodeAdminService(ShortcodeAdminRepository repository, ShortcodeHealthReader healthReader,
                                  ShortcodeConnectionTester connectionTester, MpesaDarajaService darajaService,
                                  AuditService auditService, CallbackUrls callbackUrls,
                                  ClientShortcodeGrantRepository grants, MpesaOutgoingPaymentRepository payouts,
+                                 SecurityCredentialService certificates,
                                  PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.healthReader = healthReader;
@@ -78,6 +86,7 @@ public class ShortcodeAdminService {
         this.callbackUrls = callbackUrls;
         this.grants = grants;
         this.payouts = payouts;
+        this.certificates = certificates;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -168,6 +177,9 @@ public class ShortcodeAdminService {
         checkLimits(request.minAmount(), request.maxAmount());
         ShortcodeType type = request.shortcodeType();
         rejectPasskeyForB2c(type, request.passkey());
+        Set<ShortcodeOperation> operations = request.operations() == null
+                ? ShortcodeCapabilities.defaultOperations(type) : allowedOperations(type, request.operations());
+        requireCertificateFor(request.environment(), request.initiatorPassword());
         String shortcode = request.shortcode().trim();
         String storeNumber = blankToNull(request.storeNumber());
         if (type == ShortcodeType.TILL && storeNumber == null) {
@@ -188,6 +200,7 @@ public class ShortcodeAdminService {
         MpesaShortCode code = new MpesaShortCode();
         code.setShortcode(shortcode);
         code.setShortcodeType(type);
+        code.setOperations(operations);
         code.setStoreNumber(storeNumber);
         code.setStoreNumberConfirmedAt(storeNumber == null ? null : now);
         code.setBusinessName(request.businessName().trim());
@@ -198,6 +211,9 @@ public class ShortcodeAdminService {
         code.setInitiatorName(blankToNull(request.initiatorName()));
         code.setInitiatorPassword(blankToNull(request.initiatorPassword()));
         code.setSecurityCredential(blankToNull(request.securityCredential()));
+        if (code.getInitiatorPassword() != null || code.getSecurityCredential() != null) {
+            code.setInitiatorCredentialSetAt(now);
+        }
         if (request.minAmount() != null) {
             code.setMinAmount(request.minAmount());
         }
@@ -268,6 +284,67 @@ public class ShortcodeAdminService {
         return detail(code);
     }
 
+    /** Replaces the operations; on a live shortcode each one turned on must already have its credential. */
+    @Transactional
+    public ShortcodeDetailDto updateOperations(UUID uuid, UpdateShortcodeOperationsRequest request) {
+        MpesaShortCode code = find(uuid);
+        Set<ShortcodeOperation> wanted = allowedOperations(code.getShortcodeType(), request.operations());
+        Set<ShortcodeOperation> current = ShortcodeCapabilities.operations(code);
+        if (ShortcodeViews.status(code) == ShortcodeStatus.ACTIVE) {
+            for (ShortcodeOperation operation : wanted) {
+                String missing = current.contains(operation) ? null : missingCredential(code, operation);
+                if (missing != null) {
+                    throw new ConflictException(missing);
+                }
+            }
+        }
+        code.setOperations(wanted);
+        code.setUpdatedBy(CurrentActor.name());
+        code = repository.saveAndFlush(code);
+        auditService.record("SHORTCODE_OPERATIONS_UPDATED", ENTITY, uuid.toString(),
+                Map.of("operations", List.copyOf(current)), Map.of("operations", List.copyOf(wanted)));
+        return detail(code);
+    }
+
+    // A 400 on operations for anything the type does not allow.
+    private static Set<ShortcodeOperation> allowedOperations(ShortcodeType type,
+                                                             Collection<ShortcodeOperation> requested) {
+        Set<ShortcodeOperation> available = ShortcodeCapabilities.availableOperations(type);
+        EnumSet<ShortcodeOperation> wanted = EnumSet.noneOf(ShortcodeOperation.class);
+        for (ShortcodeOperation operation : requested) {
+            if (operation == null || !available.contains(operation)) {
+                throw new InvalidRequestException("operations", "must be among " + available + " for a "
+                        + ShortcodeCapabilities.label(type));
+            }
+            wanted.add(operation);
+        }
+        return wanted;
+    }
+
+    /** The sentence asking for an operation's missing credential, or null when it has what it needs. */
+    static String missingCredential(MpesaShortCode code, ShortcodeOperation operation) {
+        return switch (operation.needs()) {
+            case NOTHING -> null;
+            case PASSKEY -> StringUtils.hasText(code.getPasskey()) ? null
+                    : "Add the passkey under Credentials first: " + operation.label() + " " + operation.needVerb()
+                            + " it";
+            case INITIATOR -> StringUtils.hasText(code.getInitiatorName())
+                    && (StringUtils.hasText(code.getInitiatorPassword())
+                    || StringUtils.hasText(code.getSecurityCredential())) ? null
+                    : "Add the API initiator under Credentials first: " + operation.label() + " "
+                            + operation.needVerb() + " it";
+        };
+    }
+
+    // The password is encrypted with Safaricom's certificate for the environment, which this server must hold.
+    private void requireCertificateFor(Environment environment, String initiatorPassword) {
+        if (StringUtils.hasText(initiatorPassword) && !certificates.hasCertificate(environment)) {
+            throw new InvalidRequestException("initiator_password", "This server has no Safaricom "
+                    + environment.name().toLowerCase(Locale.ROOT) + " certificate, so paste the security credential "
+                    + "from the Daraja portal instead");
+        }
+    }
+
     private static void rejectPasskeyForB2c(ShortcodeType type, String passkey) {
         // "Passkey is only required for M-PESA Express/STK Push" (B2C FAQ 15, SHORTCODE-TYPES.md).
         if (type == ShortcodeType.B2C && StringUtils.hasText(passkey)) {
@@ -292,6 +369,7 @@ public class ShortcodeAdminService {
         transaction.executeWithoutResult(status -> {
             MpesaShortCode code = find(uuid);
             rejectPasskeyForB2c(code.getShortcodeType(), request.passkey());
+            requireCertificateFor(code.getEnvironment(), request.initiatorPassword());
             Map<String, Object> before = Map.of("credentials", ShortcodeViews.credentials(code));
             replace(request.consumerKey(), "consumer_key", code::setConsumerKey, changed);
             replace(request.consumerSecret(), "consumer_secret", code::setConsumerSecret, changed);
@@ -302,7 +380,11 @@ public class ShortcodeAdminService {
             if (changed.isEmpty()) {
                 throw new InvalidRequestException("credentials", "Enter at least one new credential");
             }
-            code.setCredentialsUpdatedAt(LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now();
+            code.setCredentialsUpdatedAt(now);
+            if (changed.contains("initiator_password") || changed.contains("security_credential")) {
+                code.setInitiatorCredentialSetAt(now);
+            }
             code.setLastConnectionOk(null);
             code.setLastConnectionError(null);
             code.setUpdatedBy(CurrentActor.name());
@@ -376,20 +458,15 @@ public class ShortcodeAdminService {
         return detail(code);
     }
 
-    // B2C and One Account pay out, which needs the API initiator (B2C prerequisites 5-7, SHORTCODE-TYPES.md).
+    // Credentials follow the operations turned on: the passkey for STK push, the initiator for the rest.
     private static void requireReadyToGoLive(MpesaShortCode code) {
-        ShortcodeType type = code.getShortcodeType();
-        if (type == ShortcodeType.B2C || type == ShortcodeType.ONE_ACCOUNT) {
-            if (!StringUtils.hasText(code.getInitiatorName())) {
-                throw new ConflictException("Add the API initiator under Credentials first: a "
-                        + ShortcodeCapabilities.label(type) + " needs one to pay out");
-            }
-            if (!StringUtils.hasText(code.getInitiatorPassword()) && !StringUtils.hasText(code.getSecurityCredential())) {
-                throw new ConflictException("Add the initiator's password or security credential under Credentials "
-                        + "first: a " + ShortcodeCapabilities.label(type) + " needs one to pay out");
+        for (ShortcodeOperation operation : ShortcodeCapabilities.operations(code)) {
+            String missing = missingCredential(code, operation);
+            if (missing != null) {
+                throw new ConflictException(missing);
             }
         }
-        if (type == ShortcodeType.TILL && !StringUtils.hasText(code.getStoreNumber())) {
+        if (code.getShortcodeType() == ShortcodeType.TILL && !StringUtils.hasText(code.getStoreNumber())) {
             throw new ConflictException("Add the till's store or Head Office number first");
         }
     }
