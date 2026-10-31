@@ -13,6 +13,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import javax.crypto.Cipher;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -65,11 +66,12 @@ public class SecurityCredentialService {
         }
     }
 
-    /** Accepts an X.509 certificate or a public key, as PEM text or a path to a PEM/DER file. */
+    /** Accepts an X.509 certificate or a public key, as PEM text, a classpath: resource or a file path. */
     static PublicKey publicKey(String configured) {
         try {
             String value = configured.trim();
             byte[] bytes = value.startsWith("-----") ? value.getBytes(StandardCharsets.US_ASCII)
+                    : value.startsWith("classpath:") ? new ClassPathResource(value.substring(10)).getContentAsByteArray()
                     : Files.readAllBytes(Path.of(value));
             String text = new String(bytes, StandardCharsets.US_ASCII);
             if (text.contains("BEGIN PUBLIC KEY")) {

@@ -61,12 +61,11 @@ mpesa:
     # leave on: already sealed values are skipped). Only counts are logged and audited, never values.
     reencrypt-legacy-secrets: ${MPESA_REENCRYPT_LEGACY_SECRETS:false}
 
-  # Safaricom's public certificates (PEM text or a file path) used to encrypt a shortcode's B2C
-  # initiator password into its SecurityCredential. Not needed for a shortcode whose
-  # security_credential was generated on the Daraja portal.
+  # Safaricom's public certificates (PEM text, classpath: or a file path) that encrypt a shortcode's
+  # initiator password into its SecurityCredential. The bundled ones are those the Daraja portal issues.
   certificates:
-    sandbox: ${MPESA_SANDBOX_CERTIFICATE:}
-    production: ${MPESA_PRODUCTION_CERTIFICATE:}
+    sandbox: ${MPESA_SANDBOX_CERTIFICATE:classpath:certificates/sandbox.cer}
+    production: ${MPESA_PRODUCTION_CERTIFICATE:classpath:certificates/production.cer}
 
   # Products (Keycloak clients) may use only the shortcodes and operations granted in the console.
   # Console users still read without grants. false switches every grant check off.

@@ -59,6 +59,17 @@ class SecurityCredentialServiceTest {
                 .hasMessageContaining("mpesa.certificates.production");
     }
 
+    @Test
+    void theBundledSafaricomCertificatesEncryptBothEnvironments() {
+        SecurityCredentialService service = new SecurityCredentialService(
+                "classpath:certificates/sandbox.cer", "classpath:certificates/production.cer");
+        for (Environment environment : Environment.values()) {
+            MpesaShortCode shortcode = shortcode(environment);
+            shortcode.setInitiatorPassword("Safaricom999!*!");
+            assertThat(Base64.getDecoder().decode(service.credentialFor(shortcode))).hasSize(256);
+        }
+    }
+
     private static MpesaShortCode shortcode(Environment environment) {
         MpesaShortCode shortcode = new MpesaShortCode();
         shortcode.setShortcode("600000");

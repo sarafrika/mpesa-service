@@ -136,8 +136,6 @@ jobs:
                   # Production: ask Safaricom for every float every 30 minutes and reconcile yesterday at 02:30.
                   MPESA_TREASURY_BALANCE_QUERY_INTERVAL: ${MPESA_TREASURY_BALANCE_QUERY_INTERVAL:-30m}
                   MPESA_RECONCILIATION_NIGHTLY_ENABLED: ${MPESA_RECONCILIATION_NIGHTLY_ENABLED:-true}
-                  MPESA_SANDBOX_CERTIFICATE: ${MPESA_SANDBOX_CERTIFICATE:-}
-                  MPESA_PRODUCTION_CERTIFICATE: ${MPESA_PRODUCTION_CERTIFICATE:-}
                 ports:
                   - "127.0.0.1:30100:8080"
                 networks: [mpesa, sarafrika]
