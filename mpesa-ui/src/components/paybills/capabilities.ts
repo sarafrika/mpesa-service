@@ -3,6 +3,7 @@ import type {
   ShortcodeDetailCapabilitiesItem,
   ShortcodeHealth,
 } from "../../api/generated/model/index.ts";
+import { initiatorUse, needsInitiator, needsPasskey, type Operation } from "./operations.ts";
 
 // What a saved shortcode can do, read only from the `capabilities` the service sends (never a UI table).
 // No React or "@/" imports so `pnpm test` can load it.
@@ -10,6 +11,7 @@ import type {
 export type Capability = ShortcodeDetailCapabilitiesItem;
 
 type WithCapabilities = { capabilities: readonly string[] };
+type WithOperations = { operations: readonly Operation[] };
 type WithType = WithCapabilities & { shortcode_type: string };
 
 export function can(shortcode: WithCapabilities | undefined, capability: Capability): boolean {
@@ -36,6 +38,7 @@ export type TabRule = {
 /** The paybill page's tabs in display order; the route file pairs each id with its component. */
 export const PAYBILL_TABS = [
   { id: "overview", label: "Overview" },
+  { id: "operations", label: "Operations" },
   { id: "c2b", label: "C2B", needs: ["C2B_REGISTER"] },
   { id: "validation", label: "Validation rules", needs: ["C2B_VALIDATION"] },
   { id: "products", label: "Product access" },
@@ -73,13 +76,13 @@ export function grantableOperations(shortcode: WithCapabilities): GrantOperation
 
 export type VerifyCheck = "token" | "c2b" | "dry_run" | "balance" | "stk";
 
-/** Step 4's checks: the token for all, C2B and a dry run when it collects, a balance query when it pays out. */
-export function verifyChecks(shortcode: WithCapabilities): VerifyCheck[] {
+/** The Verify step's checks for what it will do: the token always, then one per chosen operation. */
+export function verifyChecks(shortcode: WithOperations): VerifyCheck[] {
+  const on = (operation: Operation) => shortcode.operations.includes(operation);
   const checks: VerifyCheck[] = ["token"];
-  if (can(shortcode, "C2B_REGISTER")) checks.push("c2b");
-  if (can(shortcode, "C2B_VALIDATION")) checks.push("dry_run");
-  if (paysOut(shortcode) && can(shortcode, "ACCOUNT_BALANCE")) checks.push("balance");
-  if (can(shortcode, "STK_PUSH")) checks.push("stk");
+  if (on("C2B")) checks.push("c2b", "dry_run");
+  if (on("ACCOUNT_BALANCE")) checks.push("balance");
+  if (on("STK_PUSH")) checks.push("stk");
   return checks;
 }
 
@@ -90,11 +93,12 @@ export function hasInitiator(credentials: ShortcodeCredentials): boolean {
   );
 }
 
-type Activatable = WithType & {
-  health: Pick<ShortcodeHealth, "token_ok" | "c2b_state">;
-  credentials: ShortcodeCredentials;
-  store_number?: string | null;
-};
+type Activatable = WithType &
+  WithOperations & {
+    health: Pick<ShortcodeHealth, "token_ok" | "c2b_state">;
+    credentials: ShortcodeCredentials;
+    store_number?: string | null;
+  };
 
 /** Why it cannot go live yet, in the order to fix them; `requireC2b` adds the wizard's C2B check. */
 export function activationBlockers(
@@ -102,15 +106,18 @@ export function activationBlockers(
   { requireC2b = false }: { requireC2b?: boolean } = {},
 ): string[] {
   const blockers: string[] = [];
+  const operations = shortcode.operations;
   if (shortcode.health.token_ok !== true)
     blockers.push("Run the token check: Daraja must issue a token for these credentials.");
-  if (paysOut(shortcode) && !hasInitiator(shortcode.credentials))
+  if (needsPasskey(operations) && !shortcode.credentials.passkey_masked)
+    blockers.push("Add the Lipa na M-Pesa passkey under Credentials: STK push needs it.");
+  if (needsInitiator(operations) && !hasInitiator(shortcode.credentials))
     blockers.push(
-      "Add the API initiator and its password or security credential under Credentials: payouts need it.",
+      `Add the API initiator and its password or security credential under Credentials. ${initiatorUse(operations)}`,
     );
   if (shortcode.shortcode_type === "TILL" && !shortcode.store_number)
     blockers.push("Add the till's store or Head Office number.");
-  if (requireC2b && collects(shortcode) && shortcode.health.c2b_state !== "REGISTERED")
+  if (requireC2b && operations.includes("C2B") && shortcode.health.c2b_state !== "REGISTERED")
     blockers.push("Register the C2B URLs with Safaricom.");
   return blockers;
 }

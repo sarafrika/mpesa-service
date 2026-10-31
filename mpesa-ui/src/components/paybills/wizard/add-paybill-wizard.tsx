@@ -30,6 +30,7 @@ import { SectionCard } from "@/components/section-card";
 import { FormSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
   FieldContent,
@@ -57,9 +58,21 @@ import { ResponseTypeSelect } from "../c2b-actions";
 import { grantableOperations, takesAccountNumbers } from "../capabilities";
 import { amountText, FormRootError, TextField, toAmount } from "../form-fields";
 import {
+  DEFAULT_OPERATIONS,
+  initiatorRoles,
+  initiatorUse,
+  needsInitiator,
+  needsText,
+  OPERATION_INFO,
+  OPERATIONS,
+  TYPE_OPERATIONS,
+  toggled,
+} from "../operations";
+import {
   CREDENTIAL_HINTS,
   createFields,
-  initiatorPurpose,
+  isShortcodeType,
+  SANDBOX_TEST_VALUES,
   SHORTCODE_TYPES,
   TYPE_CARDS,
   typeNoun,
@@ -95,8 +108,23 @@ const schema = CreateShortcodeBody.omit({ min_amount: true, max_amount: true })
       ),
     response_type: z.enum(["Completed", "Cancelled"]),
     product: z.string(),
+    operations: z.array(z.enum(OPERATIONS)).min(1, "Choose at least one thing it will do"),
   })
   .superRefine((values, ctx) => {
+    if (needsInitiator(values.operations)) {
+      if (!values.initiator_name?.trim())
+        ctx.addIssue({
+          code: "custom",
+          path: ["initiator_name"],
+          message: "Enter the API initiator's name",
+        });
+      if (!values.initiator_password?.trim() && !values.security_credential?.trim())
+        ctx.addIssue({
+          code: "custom",
+          path: ["initiator_password"],
+          message: "Enter the initiator password, or paste the security credential below",
+        });
+    }
     if (values.shortcode_type === "TILL" && !/^[0-9]{5,10}$/.test(values.store_number))
       ctx.addIssue({
         code: "custom",
@@ -127,6 +155,7 @@ const STEP_FIELDS: Record<WizardStepKey, FormField[]> = {
     "environment",
     "product",
   ],
+  operations: ["operations"],
   credentials: [
     "consumer_key",
     "consumer_secret",
@@ -161,6 +190,7 @@ const DEFAULTS: WizardValues = {
   transaction_desc: "",
   response_type: "Cancelled",
   product: LATER,
+  operations: [...DEFAULT_OPERATIONS.PAYBILL],
 };
 
 const blank = (value: string | undefined) => (value?.trim() ? value.trim() : undefined);
@@ -213,8 +243,14 @@ function Wizard() {
   }, [step]);
   const { errors } = form.formState;
   const kind = form.watch("shortcode_type");
-  const fields = createFields(kind);
-  const steps = wizardSteps(kind);
+  const operations = form.watch("operations");
+  const environment = form.watch("environment");
+  const fields = createFields(kind, operations);
+  const steps = wizardSteps(kind, operations);
+  const roles = initiatorRoles(operations);
+  // 174379 is a paybill-style test shortcode for STK push, so tills and B2C don't get the shortcut.
+  const offerSandboxValues =
+    environment === "SANDBOX" && kind !== "TILL" && TYPE_OPERATIONS[kind].includes("STK_PUSH");
   const stepKey = steps[step].key;
   const noun = typeNoun(kind);
   const busy = create.isPending || update.isPending || threshold.isPending;
@@ -266,10 +302,11 @@ function Wizard() {
         environment: values.environment,
         consumer_key: values.consumer_key.trim(),
         consumer_secret: values.consumer_secret.trim(),
+        operations: values.operations,
         passkey: fields.passkey ? blank(values.passkey) : undefined,
-        initiator_name: blank(values.initiator_name),
-        initiator_password: blank(values.initiator_password),
-        security_credential: blank(values.security_credential),
+        initiator_name: fields.initiator ? blank(values.initiator_name) : undefined,
+        initiator_password: fields.initiator ? blank(values.initiator_password) : undefined,
+        security_credential: fields.initiator ? blank(values.security_credential) : undefined,
       },
     });
     const draft = okData(response);
@@ -335,7 +372,7 @@ function Wizard() {
       <PageHeader
         breadcrumbs={[{ label: "Paybills & tills", href: "/paybills" }, { label: "Add shortcode" }]}
         title="Add a shortcode"
-        description="A paybill, till, B2C or One Account shortcode. Nothing goes live until the checks in step 4 pass, and secrets are encrypted the moment you save them."
+        description="A paybill, till, B2C or One Account shortcode. Nothing goes live until the checks in the last step pass, and secrets are encrypted the moment you save them."
       />
       <div className="flex flex-wrap items-start gap-6">
         <Card className="max-w-full flex-[1_1_240px] px-5 py-4">
@@ -380,7 +417,7 @@ function Wizard() {
             }}
             className="flex flex-col gap-6"
           >
-            {locked && step < 2 && (
+            {locked && step < 3 && (
               <p className="rounded-md bg-info-soft px-3 py-2 text-info text-sm">
                 Saved as a draft. Change these details from the {noun}'s page.
               </p>
@@ -401,7 +438,11 @@ function Wizard() {
                       </legend>
                       <RadioGroup
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onValueChange={(next) => {
+                          field.onChange(next);
+                          if (isShortcodeType(next))
+                            form.setValue("operations", [...DEFAULT_OPERATIONS[next]]);
+                        }}
                         disabled={locked}
                         className="grid gap-3 sm:grid-cols-2"
                       >
@@ -487,6 +528,32 @@ function Wizard() {
                     </Field>
                   )}
                 />
+                {offerSandboxValues && (
+                  <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 p-3.5">
+                    <p className="min-w-0 flex-[1_1_18rem] text-muted-foreground text-sm">
+                      Fills Safaricom's test shortcode {SANDBOX_TEST_VALUES.shortcode} and its
+                      published passkey, and turns on STK push. The consumer key and secret still
+                      come from your own sandbox app on the Daraja portal.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        form.setValue("shortcode", SANDBOX_TEST_VALUES.shortcode, {
+                          shouldValidate: true,
+                        });
+                        form.setValue("passkey", SANDBOX_TEST_VALUES.passkey);
+                        form.setValue(
+                          "operations",
+                          toggled(form.getValues("operations"), "STK_PUSH", true),
+                        );
+                      }}
+                    >
+                      Use Safaricom's sandbox test values
+                    </Button>
+                  </div>
+                )}
                 {isAdmin && (
                   <Controller
                     control={form.control}
@@ -523,6 +590,57 @@ function Wizard() {
               </fieldset>
             )}
 
+            {stepKey === "operations" && (
+              <fieldset disabled={locked} className="flex flex-col gap-5">
+                <h2 tabIndex={-1} className="font-semibold text-xl outline-none">
+                  What will it do?
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  Pick only what you will use: the next step asks for just the credentials these
+                  need. You can change this later on the {noun}'s Operations tab.
+                </p>
+                <Controller
+                  control={form.control}
+                  name="operations"
+                  render={({ field, fieldState }) => (
+                    <fieldset className="flex flex-col gap-3">
+                      <legend className="sr-only">Operations</legend>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {TYPE_OPERATIONS[kind].map((operation) => {
+                          const info = OPERATION_INFO[operation];
+                          const id = `operation-${operation}`;
+                          return (
+                            <FieldLabel key={operation} htmlFor={id}>
+                              <Field orientation="horizontal">
+                                <Checkbox
+                                  id={id}
+                                  checked={field.value.includes(operation)}
+                                  disabled={locked}
+                                  onCheckedChange={(checked) =>
+                                    field.onChange(
+                                      toggled(field.value, operation, checked === true),
+                                    )
+                                  }
+                                />
+                                <FieldContent>
+                                  <FieldTitle>{info.label}</FieldTitle>
+                                  <FieldDescription>{info.does}</FieldDescription>
+                                  <FieldDescription className="text-xs">
+                                    {needsText(operation)}
+                                  </FieldDescription>
+                                </FieldContent>
+                              </Field>
+                            </FieldLabel>
+                          );
+                        })}
+                      </div>
+                      <FieldError errors={[fieldState.error]} />
+                    </fieldset>
+                  )}
+                />
+              </fieldset>
+            )}
+
             {stepKey === "credentials" && (
               <fieldset disabled={locked} className="flex flex-col gap-5">
                 <h2 tabIndex={-1} className="font-semibold text-xl outline-none">
@@ -530,9 +648,9 @@ function Wizard() {
                 </h2>
                 <p className="text-muted-foreground text-sm">
                   They are write-only: after saving, only the last four characters are shown.
-                  {fields.passkey
-                    ? ""
-                    : " A B2C shortcode has no passkey: it does not take STK push."}
+                  {!fields.passkey &&
+                    !fields.initiator &&
+                    " Nothing you chose needs a passkey or an API initiator."}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField
@@ -540,7 +658,11 @@ function Wizard() {
                     type="password"
                     autoComplete="off"
                     inputClassName="font-mono"
-                    description={CREDENTIAL_HINTS.consumer}
+                    description={
+                      environment === "SANDBOX"
+                        ? "From your own sandbox app on the Daraja portal (developer.safaricom.co.ke)."
+                        : CREDENTIAL_HINTS.consumer
+                    }
                     error={errors.consumer_key}
                     {...form.register("consumer_key")}
                   />
@@ -562,59 +684,64 @@ function Wizard() {
                       inputClassName="font-mono"
                       description={`${
                         fields.storeNumber ? CREDENTIAL_HINTS.tillPasskey : CREDENTIAL_HINTS.passkey
-                      } You can add it later.`}
+                      } STK push needs it; you can add it later, before going live.`}
                       error={errors.passkey}
                       {...form.register("passkey")}
                     />
                   )}
                 </div>
-                <div className="flex flex-col gap-4 rounded-lg border p-4">
-                  <div className="flex flex-col gap-1">
-                    <h3 className="font-semibold text-sm">
-                      API initiator{fields.initiatorRequiredToGoLive ? "" : " (optional)"}
-                    </h3>
-                    <p
-                      className={cn(
-                        "text-sm",
-                        fields.initiatorRequiredToGoLive ? "text-warning" : "text-muted-foreground",
-                      )}
-                    >
-                      {initiatorPurpose(fields.initiatorRequiredToGoLive)} You can save the draft
-                      without it.
-                    </p>
+                {fields.initiator && (
+                  <div className="flex flex-col gap-4 rounded-lg border p-4">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="font-semibold text-sm">API initiator</h3>
+                      <p className="text-muted-foreground text-sm">
+                        {initiatorUse(operations)} On the M-PESA org portal, the API user needs{" "}
+                        {roles.length === 1 ? "this role" : "these roles"}:
+                      </p>
+                      <ul className="list-disc pl-5 font-medium text-sm">
+                        {roles.map((role) => (
+                          <li key={role}>{role}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <TextField
+                        label="Initiator name"
+                        autoComplete="off"
+                        description={CREDENTIAL_HINTS.initiatorName}
+                        error={errors.initiator_name}
+                        {...form.register("initiator_name")}
+                      />
+                      <TextField
+                        label="Initiator password"
+                        type="password"
+                        autoComplete="off"
+                        description={
+                          environment === "PRODUCTION"
+                            ? `${CREDENTIAL_HINTS.initiatorPassword} ${CREDENTIAL_HINTS.productionCertificate}`
+                            : CREDENTIAL_HINTS.initiatorPassword
+                        }
+                        error={errors.initiator_password}
+                        {...form.register("initiator_password")}
+                      />
+                    </div>
+                    <Field data-invalid={errors.security_credential ? true : undefined}>
+                      <FieldLabel htmlFor="security-credential">
+                        Security credential (instead of the password)
+                      </FieldLabel>
+                      <Textarea
+                        id="security-credential"
+                        rows={3}
+                        autoComplete="off"
+                        className="font-mono text-xs placeholder:font-sans"
+                        placeholder={CREDENTIAL_HINTS.securityCredential}
+                        aria-invalid={errors.security_credential ? true : undefined}
+                        {...form.register("security_credential")}
+                      />
+                      <FieldError errors={[errors.security_credential]} />
+                    </Field>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <TextField
-                      label="Initiator name"
-                      autoComplete="off"
-                      description={CREDENTIAL_HINTS.initiatorName}
-                      error={errors.initiator_name}
-                      {...form.register("initiator_name")}
-                    />
-                    <TextField
-                      label="Initiator password"
-                      type="password"
-                      autoComplete="off"
-                      description={CREDENTIAL_HINTS.initiatorPassword}
-                      error={errors.initiator_password}
-                      {...form.register("initiator_password")}
-                    />
-                  </div>
-                  <Field>
-                    <FieldLabel htmlFor="security-credential">
-                      Security credential (optional)
-                    </FieldLabel>
-                    <Textarea
-                      id="security-credential"
-                      rows={3}
-                      autoComplete="off"
-                      className="font-mono text-xs placeholder:font-sans"
-                      placeholder={CREDENTIAL_HINTS.securityCredential}
-                      {...form.register("security_credential")}
-                    />
-                    <FieldError errors={[errors.security_credential]} />
-                  </Field>
-                </div>
+                )}
               </fieldset>
             )}
 
@@ -625,13 +752,15 @@ function Wizard() {
                 </h2>
                 <CallbackUrlsPanel shortcode={created} />
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Controller
-                    control={form.control}
-                    name="response_type"
-                    render={({ field }) => (
-                      <ResponseTypeSelect value={field.value} onChange={field.onChange} />
-                    )}
-                  />
+                  {created.operations.includes("C2B") && (
+                    <Controller
+                      control={form.control}
+                      name="response_type"
+                      render={({ field }) => (
+                        <ResponseTypeSelect value={field.value} onChange={field.onChange} />
+                      )}
+                    />
+                  )}
                   {takesAccountNumbers(created) && (
                     <TextField
                       label="Default account reference"
@@ -651,10 +780,12 @@ function Wizard() {
                   Payouts
                 </h2>
                 <CallbackUrlsPanel shortcode={created} />
-                <p className="text-muted-foreground text-sm">
-                  Safaricom posts each payout's result to the B2C result URL above, the service
-                  default for every B2C shortcode. Nothing to register: each payout names it.
-                </p>
+                {fields.paysOut && (
+                  <p className="text-muted-foreground text-sm">
+                    Safaricom posts each payout's result to the B2C result URL above, the service
+                    default for every B2C shortcode. Nothing to register: each payout names it.
+                  </p>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField
                     label="Low-float alert below (KES)"
@@ -684,7 +815,9 @@ function Wizard() {
           </form>
 
           {/* The rules editor is its own form, so it sits outside the wizard's form. */}
-          {stepKey === "callbacks" && created && <ValidationRulesSlot shortcode={created} />}
+          {stepKey === "callbacks" && created?.operations.includes("C2B") && (
+            <ValidationRulesSlot shortcode={created} />
+          )}
 
           <div className="flex flex-wrap justify-between gap-3 border-t pt-5">
             <Button

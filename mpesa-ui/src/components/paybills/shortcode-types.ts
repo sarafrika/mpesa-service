@@ -2,6 +2,8 @@
 // Once saved, screens read what a shortcode can do from its `capabilities` (capabilities.ts).
 // Facts: SHORTCODE-TYPES.md (Daraja docs); no React or "@/" imports so `pnpm test` can load it.
 
+import { credentialFields } from "./operations.ts";
+
 export const SHORTCODE_TYPES = ["PAYBILL", "TILL", "B2C", "ONE_ACCOUNT"] as const;
 export type ShortcodeType = (typeof SHORTCODE_TYPES)[number];
 
@@ -66,7 +68,7 @@ export const TYPE_CARDS: Record<ShortcodeType, TypeCard> = {
   PAYBILL: {
     title: "Paybill",
     does: "Collects payments with an account number, by C2B and STK push.",
-    needs: "Daraja consumer key and secret; the passkey for STK push.",
+    needs: "Daraja consumer key and secret; more only for what you turn on next.",
   },
   TILL: {
     title: "Till (Buy Goods)",
@@ -81,76 +83,94 @@ export const TYPE_CARDS: Record<ShortcodeType, TypeCard> = {
   ONE_ACCOUNT: {
     title: "One Account (Paybill + B2C)",
     does: "Collects like a paybill and pays out from the same shortcode.",
-    needs: "Consumer key and secret, the passkey for STK and an API initiator.",
+    needs: "Consumer key and secret, an API initiator for payouts, and the passkey for STK push.",
   },
 };
 
-/** What the create step asks for, per type (SHORTCODE-DESIGN.md, credentials table). */
+/** What the create steps ask for, from the type and the operations chosen for it. */
 export type CreateFields = {
   storeNumber: boolean;
   passkey: boolean;
-  /** B2C and One Account cannot go live without one; the others use it for optional extras. */
-  initiatorRequiredToGoLive: boolean;
+  /** Required whenever an operation that needs it is chosen. */
+  initiator: boolean;
   collects: boolean;
   paysOut: boolean;
 };
 
-export function createFields(type: ShortcodeType): CreateFields {
+export function createFields(type: ShortcodeType, operations: readonly string[]): CreateFields {
   return {
     storeNumber: type === "TILL",
-    passkey: type !== "B2C",
-    initiatorRequiredToGoLive: type === "B2C" || type === "ONE_ACCOUNT",
-    collects: type !== "B2C",
-    paysOut: type === "B2C" || type === "ONE_ACCOUNT",
+    ...credentialFields(operations),
+    collects: operations.includes("C2B") || operations.includes("STK_PUSH"),
+    paysOut: operations.includes("B2C_PAYOUT") || operations.includes("POCHI"),
   };
 }
 
-/** Where each credential comes from (SHORTCODE-TYPES.md 1b and cross-cutting notes). */
+/** Where each credential comes from (CREDENTIALS-BY-API.md notes 6, 8 and 9). */
 export const CREDENTIAL_HINTS = {
   consumer:
     "From the app on the Daraja portal (developer.safaricom.co.ke) that has this shortcode's APIs enabled.",
-  passkey: "Safaricom emails the Lipa na M-PESA passkey after Go-Live. STK push needs it.",
+  passkey:
+    'Safaricom emails the Lipa na M-PESA passkey after Go-Live, or use "Generate Passkey" on the production app in Daraja My Apps.',
   tillPasskey:
-    "Safaricom emails the Lipa na M-PESA passkey after Go-Live. It belongs to the store/HO number, not the till number.",
+    'Safaricom emails the Lipa na M-PESA passkey after Go-Live, or use "Generate Passkey" on the production app in Daraja My Apps. It belongs to the store/HO number, not the till number.',
   initiatorName:
     "The API operator your Business Administrator created on the M-PESA org portal, with access channel API.",
   initiatorPassword:
     "Set by a Business Manager on the org portal. Encrypted with Safaricom's certificate when a request is sent.",
   securityCredential:
     "The initiator password already encrypted with Safaricom's certificate; used instead of the password",
+  productionCertificate:
+    "If this server has no Safaricom production certificate it will say so: then paste the security credential from the Daraja portal instead of the password.",
 };
 
-/** What the initiator is for: required to go live when it pays out, otherwise optional extras. */
-export function initiatorPurpose(requiredToGoLive: boolean): string {
-  return requiredToGoLive
-    ? "Required to go live: payouts need it, with the ORG B2C API Initiator role."
-    : "Optional. Needed for reversals, Transaction Status, Account Balance and B2B.";
-}
+/** Safaricom's published sandbox test values (CREDENTIALS-BY-API.md note 9): STK push only. */
+export const SANDBOX_TEST_VALUES = {
+  shortcode: "174379",
+  passkey: "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919",
+} as const;
 
-export type WizardStepKey = "business" | "credentials" | "callbacks" | "payouts" | "verify";
+export type WizardStepKey =
+  | "business"
+  | "operations"
+  | "credentials"
+  | "callbacks"
+  | "payouts"
+  | "verify";
 export type WizardStep = { key: WizardStepKey; title: string; sub: string };
 
-/** The four wizard steps for a type: step 3 is "Callbacks & rules" for collecting types, "Payouts" for B2C. */
-export function wizardSteps(type: ShortcodeType): WizardStep[] {
-  const fields = createFields(type);
+/** The five wizard steps: step 4 is "Callbacks & rules" when it collects, "Payouts" otherwise. */
+export function wizardSteps(type: ShortcodeType, operations: readonly string[]): WizardStep[] {
+  const fields = createFields(type, operations);
+  const extras = [fields.passkey && "passkey", fields.initiator && "initiator"].filter(Boolean);
+  const c2b = operations.includes("C2B");
   return [
     { key: "business", title: "Business", sub: "Name, type, numbers, product" },
+    { key: "operations", title: "What it will do", sub: "Collect, pay out, look up" },
     {
       key: "credentials",
       title: "Credentials",
-      sub: fields.passkey ? "Daraja keys, passkey, initiator" : "Daraja keys and initiator",
+      sub: extras.length > 0 ? `Daraja keys, ${extras.join(", ")}` : "Daraja keys",
     },
     fields.collects
       ? {
           key: "callbacks",
           title: "Callbacks & rules",
-          sub: type === "TILL" ? "C2B URLs, amount limits" : "C2B URLs, limits, validation",
+          sub: !c2b
+            ? "Callback URLs, amount limits"
+            : type === "TILL"
+              ? "C2B URLs, amount limits"
+              : "C2B URLs, limits, validation",
         }
       : { key: "payouts", title: "Payouts", sub: "Result URL, low-float alert" },
     {
       key: "verify",
       title: "Verify",
-      sub: fields.collects ? "Token, C2B URLs, go live" : "Token, balance, go live",
+      sub: c2b
+        ? "Token, C2B URLs, go live"
+        : operations.includes("ACCOUNT_BALANCE")
+          ? "Token, balance, go live"
+          : "Token, go live",
     },
   ];
 }

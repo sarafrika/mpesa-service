@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -27,8 +27,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { isApiError } from "@/lib/api-errors";
 import { formatKes } from "@/lib/format";
 import { okData, toastApiError, upstreamMessage, useInvalidateShortcodes } from "../api";
-import { activationBlockers, hasInitiator, type VerifyCheck, verifyChecks } from "../capabilities";
+import {
+  activationBlockers,
+  hasInitiator,
+  paysOut,
+  type VerifyCheck,
+  verifyChecks,
+} from "../capabilities";
 import { SendTestStkDialog } from "../lifecycle-actions";
+import { darajaProducts } from "../operations";
 import { typeNoun } from "../shortcode-types";
 
 type Row = {
@@ -43,7 +50,7 @@ type Row = {
 const POLL_MS = 3_000;
 const GIVE_UP_MS = 30_000;
 
-/** Step 4: the checks this shortcode's capabilities call for, then (admins) go live. */
+/** The last step: the checks its chosen operations call for, then (admins) go live. */
 export function VerifyStep({
   uuid,
   responseType,
@@ -122,6 +129,9 @@ function Checks({
   const initiator = hasInitiator(shortcode.credentials);
   const blockers = activationBlockers(shortcode, { requireC2b: true });
   const noun = typeNoun(shortcode.shortcode_type);
+  const products = darajaProducts(shortcode.operations);
+  const registeredOnce =
+    shortcode.environment === "PRODUCTION" && health.c2b_state === "REGISTERED";
 
   // No account or amount: the service builds a sample the saved rules accept and says what it tried.
   const runDryRun = () => dryRun.mutateAsync({ uuid, data: {} }).catch(() => undefined);
@@ -216,8 +226,14 @@ function Checks({
         <Button
           variant="outline"
           size="sm"
-          disabled={register.isPending || !tokenOk}
-          title={tokenOk ? undefined : "Pass the token check first"}
+          disabled={register.isPending || !tokenOk || registeredOnce}
+          title={
+            registeredOnce
+              ? "Production URLs register once: replace them from the C2B tab"
+              : tokenOk
+                ? undefined
+                : "Pass the token check first"
+          }
           onClick={() => {
             setC2bError(undefined);
             register.mutate({ uuid, data: { response_type: responseType } });
@@ -275,7 +291,7 @@ function Checks({
         ? {
             state: "Waiting",
             tone: "warning" as const,
-            detail: "Add the API initiator under Credentials first: the query and payouts need it",
+            detail: "Add the API initiator under Credentials first: the query needs it",
           }
         : waiting
           ? {
@@ -391,6 +407,22 @@ function Checks({
           </li>
         ))}
       </ul>
+      {!live && products.length > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3.5 text-sm">
+          <span className="font-medium">On the Daraja portal, add to this {noun}'s app</span>
+          <ul className="flex flex-col gap-1">
+            {products.map((product) => (
+              <li key={product} className="flex items-center gap-2 text-muted-foreground">
+                <ListChecks className="size-4 shrink-0" aria-hidden />
+                {product}
+              </li>
+            ))}
+          </ul>
+          <span className="text-muted-foreground text-xs">
+            Under My Apps, use "Add API Products" on the production app.
+          </span>
+        </div>
+      )}
       {!live && wants("stk") && (
         <p className="text-muted-foreground text-sm">
           A test STK push is offered here once the {noun} is live: this service refuses pushes on a
@@ -403,7 +435,9 @@ function Checks({
           <span className="flex-1">
             {wants("stk")
               ? "Live. Send a KES 1 STK push to see a payment land end to end."
-              : "Live. Products with B2C access can send payouts from it now."}
+              : paysOut(shortcode)
+                ? "Live. Products with B2C access can send payouts from it now."
+                : "Live. Products with access can use it now."}
           </span>
           {wants("stk") && shortcode.credentials.passkey_masked && (
             <SendTestStkDialog shortcode={shortcode} />

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { DEFAULT_OPERATIONS } from "./operations.ts";
 import {
   createFields,
+  SANDBOX_TEST_VALUES,
   SHORTCODE_TYPES,
   shortcodeNumbers,
   TYPE_CARDS,
@@ -44,39 +46,77 @@ describe("type names", () => {
 
 describe("createFields", () => {
   it("asks a till for its store number and nobody else", () => {
-    assert.equal(createFields("TILL").storeNumber, true);
-    assert.equal(createFields("PAYBILL").storeNumber, false);
-    assert.equal(createFields("ONE_ACCOUNT").storeNumber, false);
+    assert.equal(createFields("TILL", ["C2B"]).storeNumber, true);
+    assert.equal(createFields("PAYBILL", ["C2B"]).storeNumber, false);
+    assert.equal(createFields("ONE_ACCOUNT", ["C2B"]).storeNumber, false);
   });
 
-  it("gives B2C no passkey and needs an initiator for B2C and One Account", () => {
-    assert.equal(createFields("B2C").passkey, false);
-    assert.equal(createFields("ONE_ACCOUNT").passkey, true);
-    assert.equal(createFields("B2C").initiatorRequiredToGoLive, true);
-    assert.equal(createFields("ONE_ACCOUNT").initiatorRequiredToGoLive, true);
-    assert.equal(createFields("PAYBILL").initiatorRequiredToGoLive, false);
-    assert.equal(createFields("TILL").initiatorRequiredToGoLive, false);
+  it("asks a C2B-only paybill for the consumer key and secret only", () => {
+    const fields = createFields("PAYBILL", DEFAULT_OPERATIONS.PAYBILL);
+    assert.equal(fields.passkey, false);
+    assert.equal(fields.initiator, false);
+  });
+
+  it("follows the operations, not the type", () => {
+    assert.equal(createFields("TILL", ["C2B", "STK_PUSH"]).passkey, true);
+    assert.equal(createFields("PAYBILL", ["C2B", "REVERSAL"]).initiator, true);
+    assert.equal(createFields("B2C", DEFAULT_OPERATIONS.B2C).initiator, true);
+    assert.equal(createFields("B2C", DEFAULT_OPERATIONS.B2C).passkey, false);
+    assert.equal(createFields("ONE_ACCOUNT", ["C2B"]).initiator, false);
   });
 });
 
 describe("wizardSteps", () => {
-  const keys = (type: (typeof SHORTCODE_TYPES)[number]) => wizardSteps(type).map((s) => s.key);
+  const keys = (type: (typeof SHORTCODE_TYPES)[number]) =>
+    wizardSteps(type, DEFAULT_OPERATIONS[type]).map((s) => s.key);
 
-  it("gives collecting types Callbacks & rules and B2C Payouts", () => {
-    assert.deepEqual(keys("PAYBILL"), ["business", "credentials", "callbacks", "verify"]);
-    assert.deepEqual(keys("TILL"), ["business", "credentials", "callbacks", "verify"]);
-    assert.deepEqual(keys("ONE_ACCOUNT"), ["business", "credentials", "callbacks", "verify"]);
-    assert.deepEqual(keys("B2C"), ["business", "credentials", "payouts", "verify"]);
+  it("asks what it will do before the credentials", () => {
+    assert.deepEqual(keys("PAYBILL"), [
+      "business",
+      "operations",
+      "credentials",
+      "callbacks",
+      "verify",
+    ]);
+    assert.deepEqual(keys("TILL"), [
+      "business",
+      "operations",
+      "credentials",
+      "callbacks",
+      "verify",
+    ]);
+    assert.deepEqual(keys("ONE_ACCOUNT"), [
+      "business",
+      "operations",
+      "credentials",
+      "callbacks",
+      "verify",
+    ]);
+    assert.deepEqual(keys("B2C"), ["business", "operations", "credentials", "payouts", "verify"]);
   });
 
   it("does not promise account-number validation on a till", () => {
-    const callbacks = wizardSteps("TILL")[2];
+    const callbacks = wizardSteps("TILL", ["C2B"])[3];
     assert.doesNotMatch(callbacks.sub, /validation/);
-    assert.match(wizardSteps("PAYBILL")[2].sub, /validation/);
+    assert.match(wizardSteps("PAYBILL", ["C2B"])[3].sub, /validation/);
   });
 
-  it("mentions the passkey only for types that have one", () => {
-    assert.doesNotMatch(wizardSteps("B2C")[1].sub, /passkey/);
-    assert.match(wizardSteps("TILL")[1].sub, /passkey/);
+  it("mentions the passkey and initiator only when chosen operations need them", () => {
+    assert.equal(wizardSteps("PAYBILL", ["C2B"])[2].sub, "Daraja keys");
+    assert.match(wizardSteps("TILL", ["STK_PUSH"])[2].sub, /passkey/);
+    assert.doesNotMatch(wizardSteps("B2C", ["B2C_PAYOUT"])[2].sub, /passkey/);
+    assert.match(wizardSteps("B2C", ["B2C_PAYOUT"])[2].sub, /initiator/);
+  });
+
+  it("names a balance check only when Account Balance is chosen", () => {
+    assert.match(wizardSteps("B2C", ["B2C_PAYOUT", "ACCOUNT_BALANCE"])[4].sub, /balance/);
+    assert.doesNotMatch(wizardSteps("B2C", ["B2C_PAYOUT"])[4].sub, /balance/);
+  });
+});
+
+describe("sandbox test values", () => {
+  it("are Safaricom's published STK test shortcode and passkey", () => {
+    assert.equal(SANDBOX_TEST_VALUES.shortcode, "174379");
+    assert.match(SANDBOX_TEST_VALUES.passkey, /^[0-9a-f]{64}$/);
   });
 });

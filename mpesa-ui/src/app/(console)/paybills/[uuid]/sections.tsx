@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { ExternalValidationNotice } from "@/components/collections/external-validation-notice";
 import { ValidationRulesEditor } from "@/components/collections/validation-rules-editor";
 import { FeaturesSection } from "@/components/daraja-products/features-section";
 import {
@@ -11,6 +12,7 @@ import {
 import { C2bSection } from "@/components/paybills/sections/c2b-section";
 import { CredentialsSection } from "@/components/paybills/sections/credentials-section";
 import { FloatSection } from "@/components/paybills/sections/float-section";
+import { OperationsSection } from "@/components/paybills/sections/operations-section";
 import { OverviewSection } from "@/components/paybills/sections/overview-section";
 import type { PaybillSectionProps } from "@/components/paybills/sections/types";
 import { ProductAccess } from "@/components/products/product-access";
@@ -28,10 +30,13 @@ export type PaybillSection = TabRule & {
 
 function ValidationRulesSection({ shortcode }: PaybillSectionProps) {
   return (
-    <ValidationRulesEditor
-      shortcodeUuid={shortcode.uuid}
-      accountNumbers={takesAccountNumbers(shortcode)}
-    />
+    <div className="grid gap-4">
+      <ExternalValidationNotice shortcodeUuid={shortcode.uuid} />
+      <ValidationRulesEditor
+        shortcodeUuid={shortcode.uuid}
+        accountNumbers={takesAccountNumbers(shortcode)}
+      />
+    </div>
   );
 }
 
@@ -47,6 +52,7 @@ function ProductAccessSection({ shortcode }: PaybillSectionProps) {
 
 const COMPONENTS: Record<PaybillTabId, ComponentType<PaybillSectionProps>> = {
   overview: OverviewSection,
+  operations: OperationsSection,
   c2b: C2bSection,
   validation: ValidationRulesSection,
   products: ProductAccessSection,
