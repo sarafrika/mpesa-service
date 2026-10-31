@@ -118,8 +118,8 @@ public class MetricsQueries {
                 rs.getTimestamp("bucket").toLocalDateTime(), rs.getLong("n"), rs.getBigDecimal("total")));
     }
 
-    /** Each active shortcode's newest reported utility balance: an Account Balance result or a settled B2C
-     * payout's report, whichever is newer (a tie goes to the balance result). */
+    /** Each active shortcode's newest reported utility balance: an Account Balance result, a settled B2C payout
+     * or a C2B payment's OrgAccountBalance, whichever is newest (a tie goes to that order). */
     public List<LatestFloat> latestFloats(Filter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         String reports = "SELECT b.shortcode_uuid, b.utility_available AS amount, b.received_at AS reported_at, "
@@ -127,7 +127,10 @@ public class MetricsQueries {
                 + "AND b.status = 'COMPLETED' AND b.utility_available IS NOT NULL AND b.received_at IS NOT NULL "
                 + "UNION ALL SELECT o.shortcode_uuid, o.utility_account_available_funds, "
                 + "COALESCE(o.processed_at, o.updated_at), 1, o.id FROM mpesa_outgoing_payments o "
-                + "WHERE o.deleted_at IS NULL AND o.utility_account_available_funds IS NOT NULL";
+                + "WHERE o.deleted_at IS NULL AND o.utility_account_available_funds IS NOT NULL "
+                + "UNION ALL SELECT i.shortcode_uuid, i.org_account_balance, COALESCE(i.transaction_date, i.created_at), "
+                + "2, i.id FROM mpesa_incoming_payments i WHERE i.deleted_at IS NULL AND i.status = 'SUCCESS' "
+                + "AND i.org_account_balance IS NOT NULL AND i.shortcode_uuid IS NOT NULL";
         String sql = "SELECT DISTINCT ON (p.shortcode_uuid) p.shortcode_uuid, s.shortcode, s.business_name, "
                 + "p.amount, p.reported_at FROM (" + reports + ") p JOIN mpesa_shortcodes s ON s.uuid = p.shortcode_uuid "
                 + "WHERE s.deleted_at IS NULL AND s.is_active" + scope(filter, params)

@@ -10,14 +10,18 @@ import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
 import com.sarafrika.apps.mpesaservice.dtos.PayoutFloatDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.BalanceAccountDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.BalanceReportDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.BalanceSnapshotDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.ShortcodeFloatStatusDto;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.models.BalanceSnapshot;
+import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.BalanceSnapshotRepository;
+import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
+import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
@@ -28,10 +32,14 @@ import com.sarafrika.apps.mpesaservice.services.shortcode.DarajaErrors;
 import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceQuerySource;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
+import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
+import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +65,7 @@ public class BalanceService {
     static final String UNKNOWN_OUTCOME = "Safaricom did not answer this query; its result may still arrive.";
     static final Duration MAX_HISTORY = Duration.ofDays(31);
     static final int MAX_HISTORY_POINTS = 1000;
+    static final int MAX_REPORTS = 50;
     private static final TypeReference<List<BalanceAccountDto>> ACCOUNTS = new TypeReference<>() {
     };
 
@@ -64,6 +73,8 @@ public class BalanceService {
     private final MpesaShortCodeRepository shortcodes;
     private final MpesaDarajaService daraja;
     private final MpesaPayoutService payouts;
+    private final MpesaIncomingPaymentRepository incoming;
+    private final MpesaOutgoingPaymentRepository outgoing;
     private final AuditService audit;
     private final AlertProperties alerts;
     private final TreasuryProperties treasury;
@@ -71,13 +82,16 @@ public class BalanceService {
     private final TransactionTemplate newTransaction;
 
     public BalanceService(BalanceSnapshotRepository snapshots, MpesaShortCodeRepository shortcodes,
-                          MpesaDarajaService daraja, MpesaPayoutService payouts, AuditService audit,
-                          AlertProperties alerts, TreasuryProperties treasury, ObjectMapper objectMapper,
+                          MpesaDarajaService daraja, MpesaPayoutService payouts,
+                          MpesaIncomingPaymentRepository incoming, MpesaOutgoingPaymentRepository outgoing,
+                          AuditService audit, AlertProperties alerts, TreasuryProperties treasury, ObjectMapper objectMapper,
                           PlatformTransactionManager transactions) {
         this.snapshots = snapshots;
         this.shortcodes = shortcodes;
         this.daraja = daraja;
         this.payouts = payouts;
+        this.incoming = incoming;
+        this.outgoing = outgoing;
         this.audit = audit;
         this.alerts = alerts;
         this.treasury = treasury;
@@ -219,7 +233,8 @@ public class BalanceService {
                 StringUtils.hasText(shortcode.getInitiatorName()));
     }
 
-    /** The newest utility balance known for a shortcode: a balance result or a settled payout's report. */
+    /** The newest utility balance known for a shortcode: a balance result, a settled payout's report or a
+     * successful C2B payment's OrgAccountBalance. */
     @Transactional(readOnly = true)
     public KnownFloat knownFloat(UUID shortcodeUuid) {
         return knownFloat(shortcodeUuid, snapshots.findFirstByShortcodeUuidAndStatusOrderByReceivedAtDescIdDesc(
@@ -228,9 +243,43 @@ public class BalanceService {
 
     private KnownFloat knownFloat(UUID shortcodeUuid, Optional<BalanceSnapshot> latest) {
         PayoutFloatDto payout = payouts.latestFloat(shortcodeUuid);
+        Optional<MpesaIncomingPayment> payment = incoming.newestWithBalance(shortcodeUuid,
+                IncomingPaymentStatus.SUCCESS, PageRequest.of(0, 1)).stream().findFirst();
         return KnownFloat.newest(latest.map(BalanceSnapshot::getUtilityAvailable).orElse(null),
                 latest.map(BalanceSnapshot::getReceivedAt).orElse(null),
-                payout.utilityAccountAvailableFunds(), payout.reportedAt());
+                payout.utilityAccountAvailableFunds(), payout.reportedAt(),
+                payment.map(MpesaIncomingPayment::getOrgAccountBalance).orElse(null),
+                payment.map(BalanceService::reportedAt).orElse(null));
+    }
+
+    /** The newest {@code limit} balance reports of each kind, merged newest first; a tie keeps the order
+     * balance result, payout, C2B payment. */
+    @Transactional(readOnly = true)
+    public List<BalanceReportDto> reports(UUID shortcodeUuid, int limit) {
+        shortcode(shortcodeUuid);
+        if (limit < 1 || limit > MAX_REPORTS) {
+            throw new InvalidRequestException("limit", "must be between 1 and " + MAX_REPORTS);
+        }
+        PageRequest page = PageRequest.of(0, limit);
+        List<BalanceReportDto> reports = new ArrayList<>();
+        snapshots.findByShortcodeUuidAndStatusOrderByReceivedAtDescIdDesc(shortcodeUuid,
+                BalanceSnapshotStatus.COMPLETED, page).forEach(s -> reports.add(new BalanceReportDto(
+                KnownFloat.BALANCE_QUERY, s.getSource(), s.getUtilityAvailable(), s.getWorkingAvailable(),
+                Times.offset(s.getReceivedAt()), s.getCreatedBy(), null, null)));
+        outgoing.newestWithBalance(shortcodeUuid, OutgoingPaymentStatus.SUCCESS, page).forEach(
+                o -> reports.add(new BalanceReportDto(KnownFloat.PAYOUT, null,
+                        o.getUtilityAccountAvailableFunds(), o.getWorkingAccountAvailableFunds(),
+                        Times.offset(o.getProcessedAt()), null, o.getTransactionId(), o.getAmount())));
+        incoming.newestWithBalance(shortcodeUuid, IncomingPaymentStatus.SUCCESS, page).forEach(
+                p -> reports.add(new BalanceReportDto(KnownFloat.C2B_PAYMENT, null, p.getOrgAccountBalance(), null,
+                        Times.offset(reportedAt(p)), null, p.getTransactionId(), p.getAmount())));
+        // A stable sort keeps the kinds in the order added when two reports share a time.
+        reports.sort(Comparator.comparing(BalanceReportDto::reportedAt, Comparator.reverseOrder()));
+        return reports.size() > limit ? List.copyOf(reports.subList(0, limit)) : reports;
+    }
+
+    private static LocalDateTime reportedAt(MpesaIncomingPayment payment) {
+        return payment.getTransactionDate() != null ? payment.getTransactionDate() : payment.getCreatedAt();
     }
 
     /** Completed snapshots received in [from, to), oldest first; defaults to the last 7 days, at most 31. */

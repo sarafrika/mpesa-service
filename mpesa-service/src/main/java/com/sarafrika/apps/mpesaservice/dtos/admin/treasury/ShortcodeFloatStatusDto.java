@@ -16,11 +16,12 @@ public record ShortcodeFloatStatusDto(
         @Schema(nullable = true, description = "Newest balance query of any status, e.g. one still PENDING")
         @JsonProperty("last_query") BalanceSnapshotDto lastQuery,
         @Schema(nullable = true, example = "1640210.00",
-                description = "Utility balance from the newest report: a balance result or a settled B2C payout")
+                description = "Utility balance from the newest report: a balance result, a settled B2C payout or a C2B "
+                        + "payment's OrgAccountBalance")
         @JsonProperty("utility_available") BigDecimal utilityAvailable,
         @Schema(nullable = true)
         @JsonProperty("utility_reported_at") OffsetDateTime utilityReportedAt,
-        @Schema(nullable = true, allowableValues = {"BALANCE_QUERY", "PAYOUT"},
+        @Schema(nullable = true, allowableValues = {"BALANCE_QUERY", "PAYOUT", "C2B_PAYMENT"},
                 description = "Where utility_available came from")
         @JsonProperty("utility_source") String utilitySource,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "50000.00",

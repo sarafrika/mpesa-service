@@ -57,12 +57,12 @@ class AccountBalanceParserTest {
         BigDecimal snapshot = new BigDecimal("900000");
         BigDecimal payout = new BigDecimal("1000");
 
-        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.minusHours(1)).source())
+        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.minusHours(1), null, null).source())
                 .isEqualTo(KnownFloat.BALANCE_QUERY);
-        assertThat(KnownFloat.newest(snapshot, noon, payout, noon).utility()).isEqualByComparingTo("900000");
-        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.plusMinutes(1)).source())
+        assertThat(KnownFloat.newest(snapshot, noon, payout, noon, null, null).utility()).isEqualByComparingTo("900000");
+        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.plusMinutes(1), null, null).source())
                 .isEqualTo(KnownFloat.PAYOUT);
-        assertThat(KnownFloat.newest(null, null, payout, noon).utility()).isEqualByComparingTo("1000");
-        assertThat(KnownFloat.newest(null, null, null, null).known()).isFalse();
+        assertThat(KnownFloat.newest(null, null, payout, noon, null, null).utility()).isEqualByComparingTo("1000");
+        assertThat(KnownFloat.newest(null, null, null, null, null, null).known()).isFalse();
     }
 }

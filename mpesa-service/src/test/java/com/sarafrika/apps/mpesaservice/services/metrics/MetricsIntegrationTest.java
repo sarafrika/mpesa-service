@@ -369,6 +369,22 @@ class MetricsIntegrationTest {
     }
 
     @Test
+    void aSuccessfulC2bPaymentsOrgAccountBalanceIsAFloatReport() {
+        UUID collects = shortcode("Elimika Fees", "PRODUCTION", true);
+        snapshot(collects, "900000.00", NOW.minus(Duration.ofHours(3)));
+        outgoing(collects, "SUCCESS", "10.00", "800000.00", NOW.minus(Duration.ofHours(2)));
+        orgBalance(collects, "SUCCESS", "40000.00", NOW.minus(Duration.ofHours(1)));
+        orgBalance(collects, "FAILED", "1.00", NOW.minus(Duration.ofMinutes(5)));
+
+        PaybillHealthDto row = health.health(null).getFirst();
+
+        assertThat(row.floatAmount()).isEqualByComparingTo("40000.00");
+        assertThat(row.state()).isEqualTo(PaybillState.LOW_FLOAT);
+        assertThat(metrics.summary(WEEK_FROM, WEEK_TO, Filter.ALL).floatSummary().lowest().reportedAt())
+                .isEqualTo(NOW.minus(Duration.ofHours(1)));
+    }
+
+    @Test
     void depositsToAnUnknownShortcodeCountInTotalsAndNeedAttention() {
         UUID fees = shortcode("Elimika Fees", "PRODUCTION", true);
         incoming(fees, "C2B", "SUCCESS", "100.00", NOW.minus(Duration.ofHours(1)));
@@ -459,6 +475,16 @@ class MetricsIntegrationTest {
                 uuid, shortcode, type, settled ? "TX" + n : "ws_CO_" + n, "ws_CO_" + n, new BigDecimal(amount),
                 status, MetricsTime.toStorage(at), settled ? MetricsTime.toStorage(at) : null);
         return uuid;
+    }
+
+    /** A C2B payment Safaricom confirmed at {@code at} (stored a minute later) with its OrgAccountBalance. */
+    private void orgBalance(UUID shortcode, String status, String balance, Instant at) {
+        int n = SEQUENCE.incrementAndGet();
+        jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
+                        + "amount, status, org_account_balance, created_at, transaction_date) "
+                        + "VALUES (?, 'C2B', ?, '254700000000', 10, ?, ?, ?, ?)",
+                shortcode, "TX" + n, status, new BigDecimal(balance),
+                MetricsTime.toStorage(at.plus(Duration.ofMinutes(1))), MetricsTime.toStorage(at));
     }
 
     private void snapshot(UUID shortcode, String utility, Instant at) {

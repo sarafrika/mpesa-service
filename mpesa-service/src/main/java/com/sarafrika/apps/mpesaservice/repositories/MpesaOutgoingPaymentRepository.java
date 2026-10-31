@@ -2,9 +2,11 @@ package com.sarafrika.apps.mpesaservice.repositories;
 
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -42,4 +44,13 @@ public interface MpesaOutgoingPaymentRepository extends JpaRepository<MpesaOutgo
     /** The newest settled payout of a shortcode carries the latest float balances Safaricom reported. */
     Optional<MpesaOutgoingPayment> findFirstByShortcodeUuidAndStatusAndUtilityAccountAvailableFundsIsNotNullOrderByProcessedAtDesc(
             UUID shortcodeUuid, OutgoingPaymentStatus status);
+
+    /** Settled payouts that reported the shortcode's balances, newest first, for the balance reports feed. */
+    @Query("""
+            SELECT o FROM MpesaOutgoingPayment o
+            WHERE o.shortcodeUuid = :shortcode AND o.status = :status
+              AND o.utilityAccountAvailableFunds IS NOT NULL AND o.processedAt IS NOT NULL
+            ORDER BY o.processedAt DESC, o.id DESC""")
+    List<MpesaOutgoingPayment> newestWithBalance(@Param("shortcode") UUID shortcodeUuid,
+                                                 @Param("status") OutgoingPaymentStatus status, Pageable limit);
 }

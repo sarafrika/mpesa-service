@@ -4,10 +4,12 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.C2bRegistrationState
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeHealthDto;
 import com.sarafrika.apps.mpesaservice.models.BalanceSnapshot;
 import com.sarafrika.apps.mpesaservice.models.C2bRegistration;
+import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.BalanceSnapshotRepository;
 import com.sarafrika.apps.mpesaservice.repositories.C2bRegistrationRepository;
+import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
@@ -36,6 +38,7 @@ public class ShortcodeHealthReader {
     private final EntityManager entityManager;
     private final C2bRegistrationRepository registrations;
     private final BalanceSnapshotRepository balanceSnapshots;
+    private final MpesaIncomingPaymentRepository incomingPayments;
     private final CallbackFailureCounts callbackFailures;
     private Clock clock = Clock.systemDefaultZone();
 
@@ -89,6 +92,9 @@ public class ShortcodeHealthReader {
                 .setParameter("ids", ids).getResultList(), Integer.class);
         Map<UUID, BalanceSnapshot> balances = balanceSnapshots.latestCompleted(ids, BalanceSnapshotStatus.COMPLETED)
                 .stream().collect(Collectors.toMap(BalanceSnapshot::getShortcodeUuid, Function.identity(), (a, b) -> a));
+        Map<UUID, MpesaIncomingPayment> c2bBalances = incomingPayments.newestWithBalanceFor(ids,
+                        IncomingPaymentStatus.SUCCESS).stream()
+                .collect(Collectors.toMap(MpesaIncomingPayment::getShortcodeUuid, Function.identity(), (a, b) -> a));
         Map<UUID, C2bRegistration> c2b = registrations.findLatestFor(ids).stream()
                 .collect(Collectors.toMap(C2bRegistration::getShortcodeUuid, Function.identity(), (a, b) -> a));
 
@@ -101,15 +107,27 @@ public class ShortcodeHealthReader {
             // An Account Balance result newer than (or as new as) the last payout report wins.
             boolean useBalance = balance != null && (latestFloat == null || latestFloat.getProcessedAt() == null
                     || !latestFloat.getProcessedAt().isAfter(balance.getReceivedAt()));
+            BigDecimal utility = useBalance ? balance.getUtilityAvailable()
+                    : latestFloat != null ? latestFloat.getUtilityAccountAvailableFunds() : null;
+            LocalDateTime reportedAt = useBalance ? balance.getReceivedAt()
+                    : latestFloat != null ? latestFloat.getProcessedAt() : null;
+            // A strictly newer C2B OrgAccountBalance replaces the utility figure; it carries no working balance.
+            MpesaIncomingPayment payment = c2bBalances.get(id);
+            LocalDateTime paymentAt = payment == null ? null
+                    : payment.getTransactionDate() != null ? payment.getTransactionDate() : payment.getCreatedAt();
+            if (payment != null && (utility == null
+                    || (paymentAt != null && (reportedAt == null || paymentAt.isAfter(reportedAt))))) {
+                utility = payment.getOrgAccountBalance();
+                reportedAt = paymentAt;
+            }
             result.put(id, new ShortcodeHealthDto(code.getLastConnectionOk(), code.getLastConnectionCheckedAt(),
                     code.getLastConnectionLatencyMs(), code.getLastConnectionError(), c2bState(code, registration),
                     registration != null ? registration.getCreatedAt() : null, lastPayment.get(id), lastPayout.get(id),
                     today.getOrDefault(id, BigDecimal.ZERO),
-                    useBalance ? balance.getUtilityAvailable()
-                            : latestFloat != null ? latestFloat.getUtilityAccountAvailableFunds() : null,
+                    utility,
                     useBalance ? balance.getWorkingAvailable()
                             : latestFloat != null ? latestFloat.getWorkingAccountAvailableFunds() : null,
-                    useBalance ? balance.getReceivedAt() : latestFloat != null ? latestFloat.getProcessedAt() : null,
+                    reportedAt,
                     paidOut.getOrDefault(id, BigDecimal.ZERO), DarajaHints.forPayout(lastResult.get(id)),
                     failures.getOrDefault(id, 0L)));
         }

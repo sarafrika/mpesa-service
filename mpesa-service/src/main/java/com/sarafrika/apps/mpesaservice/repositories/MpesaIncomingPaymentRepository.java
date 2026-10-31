@@ -122,4 +122,24 @@ public interface MpesaIncomingPaymentRepository extends JpaRepository<MpesaIncom
     /** Oldest first, for the job that asks Safaricom about STK requests still pending. */
     List<MpesaIncomingPayment> findByPaymentTypeAndStatusAndCreatedAtBefore(
             IncomingPaymentType paymentType, IncomingPaymentStatus status, LocalDateTime before, Pageable pageable);
+
+    /** Successful payments that carried the shortcode's utility balance (C2B OrgAccountBalance), newest first. */
+    @Query("""
+            SELECT p FROM MpesaIncomingPayment p
+            WHERE p.shortcodeUuid = :shortcode AND p.status = :status AND p.orgAccountBalance IS NOT NULL
+            ORDER BY COALESCE(p.transactionDate, p.createdAt) DESC, p.id DESC""")
+    List<MpesaIncomingPayment> newestWithBalance(@Param("shortcode") UUID shortcodeUuid,
+                                                 @Param("status") IncomingPaymentStatus status, Pageable limit);
+
+    /** For each of these shortcodes, its newest successful payment that carried the utility balance. */
+    @Query("""
+            SELECT p FROM MpesaIncomingPayment p
+            WHERE p.shortcodeUuid IN :ids AND p.status = :status AND p.orgAccountBalance IS NOT NULL
+              AND COALESCE(p.transactionDate, p.createdAt) = (
+                SELECT MAX(COALESCE(p2.transactionDate, p2.createdAt)) FROM MpesaIncomingPayment p2
+                WHERE p2.shortcodeUuid = p.shortcodeUuid AND p2.status = :status
+                  AND p2.orgAccountBalance IS NOT NULL)
+            ORDER BY p.id DESC""")
+    List<MpesaIncomingPayment> newestWithBalanceFor(@Param("ids") List<UUID> shortcodeUuids,
+                                                    @Param("status") IncomingPaymentStatus status);
 }

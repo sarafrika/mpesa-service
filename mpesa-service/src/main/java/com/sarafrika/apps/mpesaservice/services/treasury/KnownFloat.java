@@ -8,20 +8,28 @@ public record KnownFloat(BigDecimal utility, LocalDateTime reportedAt, String so
 
     public static final String BALANCE_QUERY = "BALANCE_QUERY";
     public static final String PAYOUT = "PAYOUT";
+    public static final String C2B_PAYMENT = "C2B_PAYMENT";
     static final KnownFloat UNKNOWN = new KnownFloat(null, null, null);
 
     public boolean known() {
         return utility != null;
     }
 
-    /** The newer of a balance result and a payout report; a tie goes to the balance result. */
+    /** The newest of a balance result, a payout report and a C2B confirmation's OrgAccountBalance. A tie goes
+     * to the balance result, then the payout; a report without a time loses to one with a time. */
     static KnownFloat newest(BigDecimal snapshotUtility, LocalDateTime snapshotAt, BigDecimal payoutUtility,
-                             LocalDateTime payoutAt) {
-        boolean snapshot = snapshotUtility != null;
-        boolean payout = payoutUtility != null;
-        if (snapshot && (!payout || payoutAt == null || (snapshotAt != null && !payoutAt.isAfter(snapshotAt)))) {
-            return new KnownFloat(snapshotUtility, snapshotAt, BALANCE_QUERY);
+                             LocalDateTime payoutAt, BigDecimal paymentUtility, LocalDateTime paymentAt) {
+        KnownFloat best = UNKNOWN;
+        for (KnownFloat candidate : new KnownFloat[]{new KnownFloat(snapshotUtility, snapshotAt, BALANCE_QUERY),
+                new KnownFloat(payoutUtility, payoutAt, PAYOUT), new KnownFloat(paymentUtility, paymentAt, C2B_PAYMENT)}) {
+            if (candidate.known() && (!best.known() || newer(candidate.reportedAt(), best.reportedAt()))) {
+                best = candidate;
+            }
         }
-        return payout ? new KnownFloat(payoutUtility, payoutAt, PAYOUT) : UNKNOWN;
+        return best;
+    }
+
+    private static boolean newer(LocalDateTime candidate, LocalDateTime best) {
+        return candidate != null && (best == null || candidate.isAfter(best));
     }
 }

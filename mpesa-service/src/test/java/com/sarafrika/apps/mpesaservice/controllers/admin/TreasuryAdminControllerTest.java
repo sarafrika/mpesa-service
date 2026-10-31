@@ -97,6 +97,13 @@ class TreasuryAdminControllerTest {
         mockMvc.perform(get(BASE + "/balance")).andExpect(status().isOk());
         mockMvc.perform(get(BASE + "/balance/history").param("from", "2026-10-19T00:00:00+03:00"))
                 .andExpect(status().isOk());
+        mockMvc.perform(get(BASE + "/balance/reports")).andExpect(status().isOk());
+        mockMvc.perform(get(BASE + "/balance/reports").param("limit", "25")).andExpect(status().isOk());
+        verify(balances).reports(ID, 10);
+        verify(balances).reports(ID, 25);
+        org.mockito.Mockito.doThrow(new InvalidRequestException("limit", "must be between 1 and 50"))
+                .when(balances).reports(ID, 51);
+        mockMvc.perform(get(BASE + "/balance/reports").param("limit", "51")).andExpect(status().isBadRequest());
         when(sweeps.list(eq(ID), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
         mockMvc.perform(get(BASE + "/b2b-transfers")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.total_items").value(0));

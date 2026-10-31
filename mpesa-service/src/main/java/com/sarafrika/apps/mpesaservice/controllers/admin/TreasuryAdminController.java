@@ -5,6 +5,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.PageResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.B2bDestinationDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.B2bSweepSubmittedDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.B2bTransferDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.BalanceReportDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.BalanceSnapshotDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.CreateB2bDestinationRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.RequestB2bSweepRequest;
@@ -112,6 +113,22 @@ public class TreasuryAdminController {
             @RequestParam(name = "to", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
         return balances.history(uuid, from, to);
+    }
+
+    @GetMapping("/balance/reports")
+    @PreAuthorize("hasRole('mpesa-viewer')")
+    @Operation(operationId = "listShortcodeBalanceReports",
+            summary = "Recent balance reports, newest first: balance results, settled payouts and C2B payments",
+            description = "Completed Account Balance results, successful B2C payouts that reported the float and "
+                    + "successful C2B payments that carried OrgAccountBalance, merged and cut to limit.")
+    @ApiResponse(responseCode = "200", description = "Balance reports, newest first")
+    public List<BalanceReportDto> listShortcodeBalanceReports(
+            @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,
+            @Parameter(description = "How many reports to return",
+                    schema = @Schema(type = "integer", format = "int32", minimum = "1", maximum = "50",
+                            defaultValue = "10"))
+            @RequestParam(name = "limit", required = false, defaultValue = "10") int limit) {
+        return balances.reports(uuid, limit);
     }
 
     @PatchMapping("/float-threshold")

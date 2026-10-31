@@ -23,6 +23,7 @@ import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
 import com.sarafrika.apps.mpesaservice.dtos.PayoutFloatDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.B2bDestinationDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.B2bSweepSubmittedDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.BalanceReportDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.BalanceSnapshotDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.CreateB2bDestinationRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.RequestB2bSweepRequest;
@@ -30,6 +31,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.ShortcodeFloatStatusD
 import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.UpdateB2bDestinationRequest;
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
+import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.exceptions.UpstreamException;
 import com.sarafrika.apps.mpesaservice.models.B2bDestination;
 import com.sarafrika.apps.mpesaservice.models.B2bTransfer;
@@ -46,6 +48,7 @@ import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bReceiverType;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
+import com.sarafrika.apps.mpesaservice.utils.enums.BalanceQuerySource;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
@@ -148,6 +151,8 @@ class TreasuryIntegrationTest {
         jdbc.update("DELETE FROM b2b_transfers");
         jdbc.update("DELETE FROM b2b_destinations");
         jdbc.update("DELETE FROM balance_snapshots");
+        jdbc.update("DELETE FROM mpesa_outgoing_payments");
+        jdbc.update("DELETE FROM mpesa_incoming_payments");
         jdbc.update("DELETE FROM mpesa_shortcodes");
         shortcode = shortcode(true, "elimika-api");
         when(payouts.latestFloat(any())).thenAnswer(call -> new PayoutFloatDto(call.getArgument(0), null, null, null));
@@ -238,6 +243,68 @@ class TreasuryIntegrationTest {
         assertThat(fallback.autoQueryIntervalMinutes()).isEqualTo(30L);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events WHERE action = 'FLOAT_THRESHOLD_UPDATED' AND entity_id = ?",
                 Integer.class, shortcode.getUuid().toString())).isEqualTo(2);
+    }
+
+    @Test
+    void aNewerC2bPaymentsOrgAccountBalanceIsTheKnownFloat() {
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        snapshot("900000.00", "800000.00", now.minusHours(3), "jane.doe");
+        when(payouts.latestFloat(any())).thenAnswer(call -> new PayoutFloatDto(call.getArgument(0),
+                new BigDecimal("700000.00"), new BigDecimal("1.00"), now.minusHours(2)));
+        c2b("SUCCESS", "100.00", "40000.00", now.minusDays(1), now.minusHours(1));
+        // Newer but not counted: a failed payment, and one without a balance.
+        c2b("FAILED", "100.00", "1.00", now, now);
+        c2b("SUCCESS", "100.00", null, now, now);
+
+        ShortcodeFloatStatusDto status = balances.status(shortcode.getUuid());
+
+        assertThat(status.utilitySource()).isEqualTo(KnownFloat.C2B_PAYMENT);
+        assertThat(status.utilityAvailable()).isEqualByComparingTo("40000.00");
+        assertThat(status.utilityReportedAt().toLocalDateTime()).isEqualTo(now.minusHours(1));
+        assertThat(status.lowFloat()).isTrue();
+        assertThat(balances.knownFloat(shortcode.getUuid()).source()).isEqualTo(KnownFloat.C2B_PAYMENT);
+
+        snapshot("950000.00", "0.00", now.plusMinutes(1), "system");
+        assertThat(balances.status(shortcode.getUuid()).utilitySource()).isEqualTo(KnownFloat.BALANCE_QUERY);
+    }
+
+    @Test
+    void theReportsFeedMergesEveryKindNewestFirstUpToTheLimit() {
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        snapshot("900000.00", "800000.00", now.minusHours(4), "jane.doe");
+        jdbc.update("INSERT INTO balance_snapshots (shortcode_uuid, status, source, requested_at, received_at) "
+                + "VALUES (?, 'FAILED', 'MANUAL', ?, ?)", shortcode.getUuid(), now, now);
+        payout("250.00", "899750.00", "OUT1", now.minusHours(3));
+        payout("10.00", null, "OUT2", now);
+        c2b("SUCCESS", "1500.00", "901250.00", now.minusDays(1), now.minusHours(2));
+        c2b("SUCCESS", "500.00", "901750.00", now.minusHours(1), null);
+        c2b("PENDING", "5.00", "1.00", now, now);
+
+        List<BalanceReportDto> all = balances.reports(shortcode.getUuid(), 10);
+
+        assertThat(all).extracting(BalanceReportDto::kind).containsExactly(KnownFloat.C2B_PAYMENT,
+                KnownFloat.C2B_PAYMENT, KnownFloat.PAYOUT, KnownFloat.BALANCE_QUERY);
+        assertThat(all.get(0).utilityAvailable()).isEqualByComparingTo("901750.00");
+        assertThat(all.get(0).workingAvailable()).isNull();
+        assertThat(all.get(0).amount()).isEqualByComparingTo("500.00");
+        assertThat(all.get(1).reportedAt().toLocalDateTime()).isEqualTo(now.minusHours(2));
+        assertThat(all.get(2).reference()).isEqualTo("OUT1");
+        assertThat(all.get(2).amount()).isEqualByComparingTo("250.00");
+        assertThat(all.get(2).querySource()).isNull();
+        BalanceReportDto query = all.get(3);
+        assertThat(query.querySource()).isEqualTo(BalanceQuerySource.MANUAL);
+        assertThat(query.requestedBy()).isEqualTo("jane.doe");
+        assertThat(query.workingAvailable()).isEqualByComparingTo("800000.00");
+        assertThat(query.amount()).isNull();
+        assertThat(query.reference()).isNull();
+
+        assertThat(balances.reports(shortcode.getUuid(), 2)).extracting(BalanceReportDto::utilityAvailable)
+                .usingElementComparator(BigDecimal::compareTo)
+                .containsExactly(new BigDecimal("901750.00"), new BigDecimal("901250.00"));
+        assertThatThrownBy(() -> balances.reports(shortcode.getUuid(), 0)).isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> balances.reports(shortcode.getUuid(), 51)).isInstanceOf(InvalidRequestException.class);
+        assertThat(balances.reports(shortcode.getUuid(), 50)).hasSize(4);
+        assertThatThrownBy(() -> balances.reports(UUID.randomUUID(), 10)).isInstanceOf(NotFoundException.class);
     }
 
     // ---- scheduled query
@@ -536,6 +603,31 @@ class TreasuryIntegrationTest {
         code.setInitiatorName(initiator);
         code.setIsActive(active);
         return shortCodeRepository.saveAndFlush(code);
+    }
+
+    private void snapshot(String utility, String working, LocalDateTime receivedAt, String by) {
+        jdbc.update("INSERT INTO balance_snapshots (shortcode_uuid, status, source, utility_available, "
+                + "working_available, requested_at, received_at, created_by) VALUES (?, 'COMPLETED', ?, ?, ?, ?, ?, ?)",
+                shortcode.getUuid(), "system".equals(by) ? "SCHEDULED" : "MANUAL", new BigDecimal(utility),
+                new BigDecimal(working), receivedAt, receivedAt, by);
+    }
+
+    private void payout(String amount, String utility, String receipt, LocalDateTime processedAt) {
+        jdbc.update("INSERT INTO mpesa_outgoing_payments (shortcode_uuid, payment_type, transaction_id, "
+                + "originator_conversation_id, recipient_phone_number, amount, command_id, initiator_name, status, "
+                + "utility_account_available_funds, working_account_available_funds, processed_at) "
+                + "VALUES (?, 'B2C', ?, ?, '254712345678', ?, 'BusinessPayment', 'api', 'SUCCESS', ?, 0, ?)",
+                shortcode.getUuid(), receipt, "sar-" + UUID.randomUUID(), new BigDecimal(amount),
+                utility == null ? null : new BigDecimal(utility), processedAt);
+    }
+
+    private void c2b(String status, String amount, String orgBalance, LocalDateTime createdAt,
+                     LocalDateTime transactionDate) {
+        jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
+                + "amount, status, org_account_balance, created_at, transaction_date) "
+                + "VALUES (?, 'C2B', ?, '254712345678', ?, ?, ?, ?, ?)", shortcode.getUuid(),
+                "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(amount), status,
+                orgBalance == null ? null : new BigDecimal(orgBalance), createdAt, transactionDate);
     }
 
     private B2bDestinationDto bank(MpesaShortCode owner) {

@@ -29,6 +29,10 @@ public interface BalanceSnapshotRepository extends JpaRepository<BalanceSnapshot
 
     Optional<BalanceSnapshot> findFirstByShortcodeUuidOrderByRequestedAtDescIdDesc(UUID shortcodeUuid);
 
+    List<BalanceSnapshot> findByShortcodeUuidAndStatusOrderByReceivedAtDescIdDesc(UUID shortcodeUuid,
+                                                                                BalanceSnapshotStatus status,
+                                                                                Pageable limit);
+
     /** Completed snapshots received in [from, to), oldest first, for the history chart. */
     @Query("""
             SELECT b FROM BalanceSnapshot b

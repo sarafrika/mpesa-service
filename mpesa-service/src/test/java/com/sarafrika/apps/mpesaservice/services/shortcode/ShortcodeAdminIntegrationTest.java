@@ -21,6 +21,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResult
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.CreateShortcodeRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.UpdateShortcodeCredentialsRequest;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeDetailDto;
+import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeHealthDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeTotalsDto;
@@ -509,6 +510,29 @@ class ShortcodeAdminIntegrationTest {
     }
 
     @Test
+    void aNewerC2bOrgAccountBalanceIsTheUtilityFloatAndKeepsThePayoutsWorkingBalance() {
+        signIn("mpesa-operator");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        ShortcodeDetailDto collects = service.create(named("Collects " + next(), ShortcodeType.PAYBILL));
+        ShortcodeDetailDto pays = service.create(named("Pays " + next(), ShortcodeType.PAYBILL));
+        payout(collects.uuid(), "70000.00", "5000.00", now.minusHours(2));
+        c2bBalance(collects.uuid(), "60000.00", now.minusHours(3));
+        c2bBalance(collects.uuid(), "71500.00", now.minusHours(1));
+        c2bBalance(pays.uuid(), "10.00", now.minusHours(2));
+        payout(pays.uuid(), "20000.00", "300.00", now.minusHours(2));
+
+        ShortcodeHealthDto c2b = service.get(collects.uuid()).health();
+        ShortcodeHealthDto payout = service.get(pays.uuid()).health();
+
+        assertThat(c2b.floatUtility()).isEqualByComparingTo("71500.00");
+        assertThat(c2b.floatWorking()).isEqualByComparingTo("5000.00");
+        assertThat(c2b.floatReportedAt()).isEqualTo(now.minusHours(1));
+        // A tie goes to the payout, which also reports the working balance.
+        assertThat(payout.floatUtility()).isEqualByComparingTo("20000.00");
+        assertThat(payout.floatWorking()).isEqualByComparingTo("300.00");
+    }
+
+    @Test
     void onlyAnAdminRepointsAProductionShortcodesCallbacks() {
         signIn("mpesa-admin");
         ShortcodeDetailDto live = service.create(request(next(), ShortcodeType.PAYBILL, Environment.PRODUCTION));
@@ -706,6 +730,22 @@ class ShortcodeAdminIntegrationTest {
                 + "amount, status, created_at, transaction_date) VALUES (?, 'C2B', ?, '254712345678', ?, ?, ?, ?)",
                 shortcode, "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(amount), status,
                 createdAt, transactionDate);
+    }
+
+    private void payout(UUID shortcode, String utility, String working, LocalDateTime processedAt) {
+        jdbc.update("INSERT INTO mpesa_outgoing_payments (shortcode_uuid, payment_type, originator_conversation_id, "
+                + "recipient_phone_number, amount, command_id, initiator_name, status, utility_account_available_funds, "
+                + "working_account_available_funds, processed_at) "
+                + "VALUES (?, 'B2C', ?, '254712345678', 100, 'BusinessPayment', 'api', 'SUCCESS', ?, ?, ?)",
+                shortcode, "sar-" + UUID.randomUUID(), new BigDecimal(utility), new BigDecimal(working), processedAt);
+    }
+
+    private void c2bBalance(UUID shortcode, String orgBalance, LocalDateTime transactionDate) {
+        jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
+                + "amount, status, org_account_balance, created_at, transaction_date) "
+                + "VALUES (?, 'C2B', ?, '254712345678', 10, 'SUCCESS', ?, ?, ?)",
+                shortcode, "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(orgBalance),
+                transactionDate.plusMinutes(5), transactionDate);
     }
 
     private void failedCallback(UUID shortcode, String status, int hoursAgo) {
