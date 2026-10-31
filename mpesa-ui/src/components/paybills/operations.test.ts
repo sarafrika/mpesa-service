@@ -112,12 +112,11 @@ describe("missingCredential", () => {
   it("names what an operation still lacks", () => {
     assert.equal(missingCredential("C2B", bare), undefined);
     assert.equal(missingCredential("STK_PUSH", bare), "passkey");
-    // The initiator is not enforced while INITIATOR_REQUIRED is off.
-    assert.equal(missingCredential("REVERSAL", bare), undefined);
+    assert.equal(missingCredential("REVERSAL", bare), "initiator");
     assert.equal(missingCredential("STK_PUSH", { ...bare, passkey_masked: "••••b21c" }), undefined);
     const initiator = { ...bare, initiator_name: "api", security_credential_set: true };
     assert.equal(missingCredential("B2C_PAYOUT", initiator), undefined);
-    assert.equal(missingCredential("B2C_PAYOUT", { ...bare, initiator_name: "api" }), undefined);
+    assert.equal(missingCredential("B2C_PAYOUT", { ...bare, initiator_name: "api" }), "initiator");
   });
 });
 

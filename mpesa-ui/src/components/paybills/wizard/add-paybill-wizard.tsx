@@ -59,7 +59,6 @@ import { grantableOperations, takesAccountNumbers } from "../capabilities";
 import { amountText, FormRootError, TextField, toAmount } from "../form-fields";
 import {
   DEFAULT_OPERATIONS,
-  INITIATOR_REQUIRED,
   initiatorRoles,
   initiatorUse,
   needsInitiator,
@@ -112,7 +111,7 @@ const schema = CreateShortcodeBody.omit({ min_amount: true, max_amount: true })
     operations: z.array(z.enum(OPERATIONS)).min(1, "Choose at least one thing it will do"),
   })
   .superRefine((values, ctx) => {
-    if (INITIATOR_REQUIRED && needsInitiator(values.operations)) {
+    if (needsInitiator(values.operations)) {
       if (!values.initiator_name?.trim())
         ctx.addIssue({
           code: "custom",
@@ -694,9 +693,7 @@ function Wizard() {
                 {fields.initiator && (
                   <div className="flex flex-col gap-4 rounded-lg border p-4">
                     <div className="flex flex-col gap-1">
-                      <h3 className="font-semibold text-sm">
-                        API initiator{INITIATOR_REQUIRED ? "" : " (optional for now)"}
-                      </h3>
+                      <h3 className="font-semibold text-sm">API initiator</h3>
                       <p className="text-muted-foreground text-sm">
                         {initiatorUse(operations)} On the M-PESA org portal, the API user needs{" "}
                         {roles.length === 1 ? "this role" : "these roles"}:

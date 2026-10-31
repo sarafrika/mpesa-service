@@ -49,7 +49,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,16 +71,13 @@ public class ShortcodeAdminService {
     private final MpesaOutgoingPaymentRepository payouts;
     private final SecurityCredentialService certificates;
     private final TransactionTemplate transaction;
-    // Off for now: the initiator is asked for but never blocks go-live or turning an operation on.
-    private final boolean requireInitiator;
 
     public ShortcodeAdminService(ShortcodeAdminRepository repository, ShortcodeHealthReader healthReader,
                                  ShortcodeConnectionTester connectionTester, MpesaDarajaService darajaService,
                                  AuditService auditService, CallbackUrls callbackUrls,
                                  ClientShortcodeGrantRepository grants, MpesaOutgoingPaymentRepository payouts,
                                  SecurityCredentialService certificates,
-                                 PlatformTransactionManager transactionManager,
-                                 @Value("${mpesa.shortcodes.require-initiator:false}") boolean requireInitiator) {
+                                 PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.healthReader = healthReader;
         this.connectionTester = connectionTester;
@@ -92,7 +88,6 @@ public class ShortcodeAdminService {
         this.payouts = payouts;
         this.certificates = certificates;
         this.transaction = new TransactionTemplate(transactionManager);
-        this.requireInitiator = requireInitiator;
     }
 
     /** Optional filters; blank or null values are ignored. q matches business name or shortcode;
@@ -297,7 +292,7 @@ public class ShortcodeAdminService {
         Set<ShortcodeOperation> current = ShortcodeCapabilities.operations(code);
         if (ShortcodeViews.status(code) == ShortcodeStatus.ACTIVE) {
             for (ShortcodeOperation operation : wanted) {
-                String missing = current.contains(operation) ? null : missingCredential(code, operation, requireInitiator);
+                String missing = current.contains(operation) ? null : missingCredential(code, operation);
                 if (missing != null) {
                     throw new ConflictException(missing);
                 }
@@ -327,13 +322,13 @@ public class ShortcodeAdminService {
     }
 
     /** The sentence asking for an operation's missing credential, or null when it has what it needs. */
-    static String missingCredential(MpesaShortCode code, ShortcodeOperation operation, boolean requireInitiator) {
+    static String missingCredential(MpesaShortCode code, ShortcodeOperation operation) {
         return switch (operation.needs()) {
             case NOTHING -> null;
             case PASSKEY -> StringUtils.hasText(code.getPasskey()) ? null
                     : "Add the passkey under Credentials first: " + operation.label() + " " + operation.needVerb()
                             + " it";
-            case INITIATOR -> !requireInitiator || StringUtils.hasText(code.getInitiatorName())
+            case INITIATOR -> StringUtils.hasText(code.getInitiatorName())
                     && (StringUtils.hasText(code.getInitiatorPassword())
                     || StringUtils.hasText(code.getSecurityCredential())) ? null
                     : "Add the API initiator under Credentials first: " + operation.label() + " "
@@ -464,9 +459,9 @@ public class ShortcodeAdminService {
     }
 
     // Credentials follow the operations turned on: the passkey for STK push, the initiator for the rest.
-    private void requireReadyToGoLive(MpesaShortCode code) {
+    private static void requireReadyToGoLive(MpesaShortCode code) {
         for (ShortcodeOperation operation : ShortcodeCapabilities.operations(code)) {
-            String missing = missingCredential(code, operation, requireInitiator);
+            String missing = missingCredential(code, operation);
             if (missing != null) {
                 throw new ConflictException(missing);
             }

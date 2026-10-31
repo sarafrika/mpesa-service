@@ -134,19 +134,25 @@ describe("verifyChecks", () => {
 describe("activationBlockers", () => {
   const ready = { token_ok: true, c2b_state: "REGISTERED" as const };
   const withPasskey = { ...CREDENTIALS, passkey_masked: "••••b21c" };
+  const withInitiator = { ...withPasskey, initiator_name: "api-op", initiator_password_set: true };
 
-  it("does not wait for the initiator while the requirement is paused", () => {
+  it("needs an initiator when an operation that uses it is on", () => {
     for (const type of ["B2C", "ONE_ACCOUNT"] as const) {
-      assert.deepEqual(
-        activationBlockers({ ...code(type), health: ready, credentials: withPasskey }),
-        [],
-      );
+      const blockers = activationBlockers({
+        ...code(type),
+        health: ready,
+        credentials: withPasskey,
+      });
+      assert.equal(blockers.length, 1);
+      assert.match(blockers[0], /initiator/);
     }
-    const reversals = code("PAYBILL", ["C2B", "REVERSAL"]);
     assert.deepEqual(
-      activationBlockers({ ...reversals, health: ready, credentials: CREDENTIALS }),
+      activationBlockers({ ...code("B2C"), health: ready, credentials: withInitiator }),
       [],
     );
+    const reversals = code("PAYBILL", ["C2B", "REVERSAL"]);
+    const blockers = activationBlockers({ ...reversals, health: ready, credentials: CREDENTIALS });
+    assert.match(blockers[0], /initiator.*reversals/);
   });
 
   it("asks a C2B-only paybill for nothing beyond the token", () => {
