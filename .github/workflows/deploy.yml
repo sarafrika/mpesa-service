@@ -149,6 +149,19 @@ jobs:
                   traefik.http.routers.mpesa-api.entrypoints: websecure
                   traefik.http.routers.mpesa-api.tls.certresolver: myresolver
                   traefik.http.services.mpesa-api.loadbalancer.server.port: "8080"
+                  # Safaricom still holds the original gateway's C2B URLs for paybill 4953892; serve them here.
+                  traefik.http.routers.mpesa-legacy-confirm.rule: Host(`malipo.sarafrika.com`) && Path(`/mobile/confirm/payment`)
+                  traefik.http.routers.mpesa-legacy-confirm.entrypoints: websecure
+                  traefik.http.routers.mpesa-legacy-confirm.tls.certresolver: myresolver
+                  traefik.http.routers.mpesa-legacy-confirm.service: mpesa-api
+                  traefik.http.routers.mpesa-legacy-confirm.middlewares: mpesa-legacy-confirm
+                  traefik.http.middlewares.mpesa-legacy-confirm.replacepath.path: /api/v1/callbacks/c2b/confirmation
+                  traefik.http.routers.mpesa-legacy-validate.rule: Host(`malipo.sarafrika.com`) && Path(`/mobile/validate/payment`)
+                  traefik.http.routers.mpesa-legacy-validate.entrypoints: websecure
+                  traefik.http.routers.mpesa-legacy-validate.tls.certresolver: myresolver
+                  traefik.http.routers.mpesa-legacy-validate.service: mpesa-api
+                  traefik.http.routers.mpesa-legacy-validate.middlewares: mpesa-legacy-validate
+                  traefik.http.middlewares.mpesa-legacy-validate.replacepath.path: /api/v1/callbacks/c2b/validation
 
               mpesa-ui:
                 image: sarafrika/mpesa-ui:latest
