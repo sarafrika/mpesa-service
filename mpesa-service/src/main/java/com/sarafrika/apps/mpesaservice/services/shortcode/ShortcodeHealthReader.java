@@ -11,6 +11,7 @@ import com.sarafrika.apps.mpesaservice.repositories.BalanceSnapshotRepository;
 import com.sarafrika.apps.mpesaservice.repositories.C2bRegistrationRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.services.callbacks.CallbackFailureCounts;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
@@ -18,8 +19,8 @@ import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ public class ShortcodeHealthReader {
     private final BalanceSnapshotRepository balanceSnapshots;
     private final MpesaIncomingPaymentRepository incomingPayments;
     private final CallbackFailureCounts callbackFailures;
-    private Clock clock = Clock.systemDefaultZone();
+    private Clock clock = Clock.systemUTC();
 
     void setClock(Clock clock) {
         this.clock = clock;
@@ -52,22 +53,24 @@ public class ShortcodeHealthReader {
             return Map.of();
         }
         List<UUID> ids = codes.stream().map(MpesaShortCode::getUuid).toList();
+        Instant todayStart = LocalDate.ofInstant(clock.instant(), DarajaTime.ZONE).atStartOfDay(DarajaTime.ZONE)
+                .toInstant();
         Map<UUID, Long> failures = callbackFailures.since(clock.instant().minus(CallbackFailureCounts.WINDOW));
-        Map<UUID, LocalDateTime> lastPayment = pairs(entityManager.createQuery("""
+        Map<UUID, Instant> lastPayment = pairs(entityManager.createQuery("""
                 SELECT p.shortcodeUuid, MAX(p.createdAt) FROM MpesaIncomingPayment p
                 WHERE p.shortcodeUuid IN :ids GROUP BY p.shortcodeUuid""", Object[].class)
-                .setParameter("ids", ids).getResultList(), LocalDateTime.class);
-        Map<UUID, LocalDateTime> lastPayout = pairs(entityManager.createQuery("""
+                .setParameter("ids", ids).getResultList(), Instant.class);
+        Map<UUID, Instant> lastPayout = pairs(entityManager.createQuery("""
                 SELECT o.shortcodeUuid, MAX(o.createdAt) FROM MpesaOutgoingPayment o
                 WHERE o.shortcodeUuid IN :ids GROUP BY o.shortcodeUuid""", Object[].class)
-                .setParameter("ids", ids).getResultList(), LocalDateTime.class);
+                .setParameter("ids", ids).getResultList(), Instant.class);
         Map<UUID, BigDecimal> today = pairs(entityManager.createQuery("""
                 SELECT p.shortcodeUuid, SUM(p.amount) FROM MpesaIncomingPayment p
                 WHERE p.shortcodeUuid IN :ids AND p.status = :status
                   AND COALESCE(p.transactionDate, p.createdAt) >= :start
                 GROUP BY p.shortcodeUuid""", Object[].class)
                 .setParameter("ids", ids).setParameter("status", IncomingPaymentStatus.SUCCESS)
-                .setParameter("start", LocalDate.now(clock).atStartOfDay()).getResultList(), BigDecimal.class);
+                .setParameter("start", todayStart).getResultList(), BigDecimal.class);
         Map<UUID, MpesaOutgoingPayment> floats = entityManager.createQuery("""
                 SELECT o FROM MpesaOutgoingPayment o WHERE o.id IN (
                     SELECT MAX(o2.id) FROM MpesaOutgoingPayment o2
@@ -82,7 +85,7 @@ public class ShortcodeHealthReader {
                 WHERE o.shortcodeUuid IN :ids AND o.status = :status AND o.createdAt >= :start
                 GROUP BY o.shortcodeUuid""", Object[].class)
                 .setParameter("ids", ids).setParameter("status", OutgoingPaymentStatus.SUCCESS)
-                .setParameter("start", LocalDate.now(clock).atStartOfDay()).getResultList(), BigDecimal.class);
+                .setParameter("start", todayStart).getResultList(), BigDecimal.class);
         // The newest payout with a result: an invalid-initiator answer there means the credentials need updating.
         Map<UUID, Integer> lastResult = pairs(entityManager.createQuery("""
                 SELECT o.shortcodeUuid, o.resultCode FROM MpesaOutgoingPayment o WHERE o.id IN (
@@ -109,11 +112,11 @@ public class ShortcodeHealthReader {
                     || !latestFloat.getProcessedAt().isAfter(balance.getReceivedAt()));
             BigDecimal utility = useBalance ? balance.getUtilityAvailable()
                     : latestFloat != null ? latestFloat.getUtilityAccountAvailableFunds() : null;
-            LocalDateTime reportedAt = useBalance ? balance.getReceivedAt()
+            Instant reportedAt = useBalance ? balance.getReceivedAt()
                     : latestFloat != null ? latestFloat.getProcessedAt() : null;
             // A strictly newer C2B OrgAccountBalance replaces the utility figure; it carries no working balance.
             MpesaIncomingPayment payment = c2bBalances.get(id);
-            LocalDateTime paymentAt = payment == null ? null
+            Instant paymentAt = payment == null ? null
                     : payment.getTransactionDate() != null ? payment.getTransactionDate() : payment.getCreatedAt();
             if (payment != null && (utility == null
                     || (paymentAt != null && (reportedAt == null || paymentAt.isAfter(reportedAt))))) {

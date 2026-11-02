@@ -1,11 +1,12 @@
 package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
+import com.sarafrika.apps.mpesaservice.utils.Times;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -87,10 +88,10 @@ public class ReconciliationLedger {
 
     /** Settled rows whose transaction time (or, without one, creation time) falls in [start, end); C2B deposits
      * only when c2bOnly, for a source that returns nothing else. */
-    public List<LedgerEntry> settledInPeriod(UUID shortcodeUuid, String shortcode, LocalDateTime start,
-                                             LocalDateTime end, boolean c2bOnly) {
+    public List<LedgerEntry> settledInPeriod(UUID shortcodeUuid, String shortcode, Instant start,
+                                             Instant end, boolean c2bOnly) {
         MapSqlParameterSource params = params(shortcodeUuid, shortcode)
-                .addValue("start", Timestamp.valueOf(start)).addValue("end", Timestamp.valueOf(end));
+                .addValue("start", Times.offset(start)).addValue("end", Times.offset(end));
         List<LedgerEntry> found = new ArrayList<>(jdbc.query(INCOMING + (c2bOnly ? " AND payment_type = 'C2B'" : "")
                 + IN_PERIOD, params, ReconciliationLedger::entry));
         if (!c2bOnly) {
@@ -105,38 +106,38 @@ public class ReconciliationLedger {
 
     /** A settled STK payment still holding its checkout id: Safaricom's STK query reply has no receipt. */
     public record StkCandidate(UUID uuid, String checkoutRequestId, BigDecimal amount, String phoneNumber,
-                               String accountReference, String clientId, LocalDateTime createdAt,
-                               LocalDateTime processedAt) {
+                               String accountReference, String clientId, Instant createdAt,
+                               Instant processedAt) {
     }
 
     /** Receiptless STK payments of this amount requested within window of the deposit's time. */
-    public List<StkCandidate> stkCandidates(UUID shortcodeUuid, BigDecimal amount, LocalDateTime at, Duration window) {
+    public List<StkCandidate> stkCandidates(UUID shortcodeUuid, BigDecimal amount, Instant at, Duration window) {
         if (shortcodeUuid == null || amount == null || at == null) {
             return List.of();
         }
         MapSqlParameterSource params = new MapSqlParameterSource().addValue("shortcode", shortcodeUuid)
-                .addValue("amount", amount).addValue("from", Timestamp.valueOf(at.minus(window)))
-                .addValue("to", Timestamp.valueOf(at.plus(window)));
+                .addValue("amount", amount).addValue("from", Times.offset(at.minus(window)))
+                .addValue("to", Times.offset(at.plus(window)));
         return jdbc.query(STK_CANDIDATES, params, (rs, row) -> new StkCandidate(rs.getObject("uuid", UUID.class),
                 rs.getString("checkout_request_id"), rs.getBigDecimal("amount"), rs.getString("phone_number"),
-                rs.getString("account_reference"), rs.getString("client_id"), local(rs.getTimestamp("created_at")),
-                local(rs.getTimestamp("processed_at"))));
+                rs.getString("account_reference"), rs.getString("client_id"), instant(rs.getTimestamp("created_at")),
+                instant(rs.getTimestamp("processed_at"))));
     }
 
     /** A C2B deposit stored on its own that a receiptless STK payment may be. */
-    public record C2bCandidate(UUID uuid, String transId, String msisdn, LocalDateTime seenAt) {
+    public record C2bCandidate(UUID uuid, String transId, String msisdn, Instant seenAt) {
     }
 
     /** C2B deposits of this amount seen (TransTime, else stored time) within window of the STK request time. */
-    public List<C2bCandidate> c2bCandidates(UUID shortcodeUuid, BigDecimal amount, LocalDateTime at, Duration window) {
+    public List<C2bCandidate> c2bCandidates(UUID shortcodeUuid, BigDecimal amount, Instant at, Duration window) {
         if (shortcodeUuid == null || amount == null || at == null) {
             return List.of();
         }
         MapSqlParameterSource params = new MapSqlParameterSource().addValue("shortcode", shortcodeUuid)
-                .addValue("amount", amount).addValue("from", Timestamp.valueOf(at.minus(window)))
-                .addValue("to", Timestamp.valueOf(at.plus(window)));
+                .addValue("amount", amount).addValue("from", Times.offset(at.minus(window)))
+                .addValue("to", Times.offset(at.plus(window)));
         return jdbc.query(C2B_CANDIDATES, params, (rs, row) -> new C2bCandidate(rs.getObject("uuid", UUID.class),
-                rs.getString("transaction_id"), rs.getString("phone_number"), local(rs.getTimestamp("seen_at"))));
+                rs.getString("transaction_id"), rs.getString("phone_number"), instant(rs.getTimestamp("seen_at"))));
     }
 
     /** Soft-deletes one duplicate deposit or payout row; nothing else about it changes. */
@@ -172,11 +173,11 @@ public class ReconciliationLedger {
                 : "IN".equals(direction) ? LedgerEntry.INCOMING : LedgerEntry.OUTGOING;
         return new LedgerEntry(rs.getLong("id"), rs.getObject("uuid", UUID.class), table, direction, type,
                 rs.getString("transaction_id"), rs.getBigDecimal("amount"), rs.getString("status"),
-                rs.getString("account_reference"), local(rs.getTimestamp("created_at")),
-                local(rs.getTimestamp("transaction_date")));
+                rs.getString("account_reference"), instant(rs.getTimestamp("created_at")),
+                instant(rs.getTimestamp("transaction_date")));
     }
 
-    private static LocalDateTime local(Timestamp value) {
-        return value == null ? null : value.toLocalDateTime();
+    private static Instant instant(Timestamp value) {
+        return value == null ? null : value.toInstant();
     }
 }

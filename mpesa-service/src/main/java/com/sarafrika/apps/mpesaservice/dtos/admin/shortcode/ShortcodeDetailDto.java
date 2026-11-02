@@ -8,7 +8,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /** A shortcode's profile, limits, defaults, callback URLs, masked credentials and health. */
@@ -39,10 +39,10 @@ public record ShortcodeDetailDto(
         @JsonProperty("validation_url") String validationUrl,
         @JsonProperty("b2c_result_url") String b2cResultUrl,
         @JsonProperty("b2c_timeout_url") String b2cTimeoutUrl,
-        @JsonProperty("activated_at") LocalDateTime activatedAt,
-        @JsonProperty("suspended_at") LocalDateTime suspendedAt,
-        @JsonProperty("created_at") LocalDateTime createdAt,
-        @JsonProperty("updated_at") LocalDateTime updatedAt,
+        @JsonProperty("activated_at") Instant activatedAt,
+        @JsonProperty("suspended_at") Instant suspendedAt,
+        @JsonProperty("created_at") Instant createdAt,
+        @JsonProperty("updated_at") Instant updatedAt,
         @JsonProperty("created_by") String createdBy,
         @JsonProperty("updated_by") String updatedBy,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
@@ -67,14 +67,14 @@ public record ShortcodeDetailDto(
         @JsonProperty("available_operations") java.util.List<ShortcodeOperation> availableOperations,
         @Schema(nullable = true, description = "90 days after the initiator password or security credential was "
                 + "saved (Safaricom: \"Password is valid for 90 days\"); null without one")
-        @JsonProperty("initiator_credential_expires_at") LocalDateTime initiatorCredentialExpiresAt) {
+        @JsonProperty("initiator_credential_expires_at") Instant initiatorCredentialExpiresAt) {
 
     public ShortcodeDetailDto(UUID uuid, String shortcode, String businessName, ShortcodeType shortcodeType,
                               Environment environment, ShortcodeStatus status, boolean active, String accountReference,
                               String transactionDesc, BigDecimal minAmount, BigDecimal maxAmount, String callbackUrl,
                               String confirmationUrl, String validationUrl, String b2cResultUrl, String b2cTimeoutUrl,
-                              LocalDateTime activatedAt, LocalDateTime suspendedAt, LocalDateTime createdAt,
-                              LocalDateTime updatedAt, String createdBy, String updatedBy,
+                              Instant activatedAt, Instant suspendedAt, Instant createdAt,
+                              Instant updatedAt, String createdBy, String updatedBy,
                               ShortcodeCredentialsDto credentials, ShortcodeHealthDto health,
                               java.util.List<ShortcodeSummaryDto.ProductRef> products) {
         this(uuid, shortcode, businessName, shortcodeType, environment, status, active, accountReference,

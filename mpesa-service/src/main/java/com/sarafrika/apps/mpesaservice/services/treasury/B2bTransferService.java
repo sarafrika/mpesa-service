@@ -26,11 +26,11 @@ import com.sarafrika.apps.mpesaservice.services.daraja.NotSent;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.data.domain.PageRequest;
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -140,13 +140,13 @@ public class B2bTransferService {
             } else if (NotSent.is(response)) {
                 row.setStatus(B2bTransferStatus.FAILED);
                 row.setResultDesc(truncate(NotSent.describe(response, "sweep")));
-                row.setCompletedAt(LocalDateTime.now());
+                row.setCompletedAt(Instant.now());
             } else {
                 row.setStatus(B2bTransferStatus.FAILED);
                 row.setResultDesc(truncate(response.error() != null ? response.error().errorMessage()
                         : response.data() != null ? response.data().responseDescription()
                         : "Safaricom refused the request"));
-                row.setCompletedAt(LocalDateTime.now());
+                row.setCompletedAt(Instant.now());
             }
             return transfers.save(row);
         });
@@ -227,7 +227,7 @@ public class B2bTransferService {
     /** Open transfers without Safaricom ids from the last FALLBACK_WINDOW, newest first. */
     @Transactional(readOnly = true)
     public List<B2bTransfer> attachable() {
-        return transfers.findAttachable(LocalDateTime.now().minus(FALLBACK_WINDOW), PageRequest.of(0, 50));
+        return transfers.findAttachable(Instant.now().minus(FALLBACK_WINDOW), PageRequest.of(0, 50));
     }
 
     /** Finance closes a transfer whose outcome stayed unknown as FAILED, once the statement shows no money moved. */
@@ -249,7 +249,7 @@ public class B2bTransferService {
         transfer.setCloseNote(truncate(note.trim(), 500));
         transfer.setResultDesc(truncate("Closed as failed by " + actor + " after checking the statement: "
                 + note.trim(), 500));
-        transfer.setCompletedAt(LocalDateTime.now());
+        transfer.setCompletedAt(Instant.now());
         B2bTransfer saved = transfers.save(transfer);
         audit.record(AUDIT_CLOSED, "B2B_TRANSFER", saved.getUuid().toString(),
                 Map.of("status", B2bTransferStatus.PENDING.name(), "outcome_unknown", true),
@@ -281,7 +281,7 @@ public class B2bTransferService {
             transfer.setOriginatorConversationId(result.originatorConversationId());
         }
         transfer.setRawResult(raw);
-        transfer.setCompletedAt(LocalDateTime.now());
+        transfer.setCompletedAt(Instant.now());
         return transfers.save(transfer);
     }
 
@@ -291,7 +291,7 @@ public class B2bTransferService {
             return Optional.empty();
         }
         List<B2bTransfer> candidates = transfers.lockUnmatched(facts.receiver(), facts.amount(),
-                        LocalDateTime.now().minus(FALLBACK_WINDOW)).stream()
+                        Instant.now().minus(FALLBACK_WINDOW)).stream()
                 .filter(t -> facts.billReference() == null || t.getAccountReference() == null
                         || facts.billReference().equals(t.getAccountReference()))
                 .toList();
@@ -357,7 +357,7 @@ public class B2bTransferService {
                                               String description) {
         return lock(originatorConversationId, conversationId).map(transfer -> {
             if (transfer.getStatus() == B2bTransferStatus.PENDING && transfer.getTimedOutAt() == null) {
-                transfer.setTimedOutAt(LocalDateTime.now());
+                transfer.setTimedOutAt(Instant.now());
                 transfer.setOutcomeUnknown(true);
                 transfer.setResultDesc(truncate(description != null ? description : UNKNOWN_OUTCOME));
                 return transfers.save(transfer);

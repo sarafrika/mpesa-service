@@ -6,6 +6,7 @@ import com.sarafrika.apps.mpesaservice.services.payout.SecurityCredentialService
 import com.sarafrika.apps.mpesaservice.services.shortcode.CallbackUrls;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.exceptions.CapabilityNotSupportedException;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 
 import com.sarafrika.apps.mpesaservice.clients.DarajaHttpException;
@@ -31,7 +32,8 @@ import org.springframework.web.client.ResourceAccessException;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
@@ -53,7 +55,6 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     // Cache for access tokens to avoid frequent authentication calls
     private final Map<String, CachedToken> tokenCache = new ConcurrentHashMap<>();
 
-    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final long TOKEN_CACHE_DURATION_MINUTES = 55; // M-Pesa tokens expire in 1 hour
 
     /**
@@ -78,9 +79,9 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     /**
      * Cached token holder
      */
-    private record CachedToken(String token, LocalDateTime expiryTime) {
+    private record CachedToken(String token, Instant expiryTime) {
         public boolean isExpired() {
-            return LocalDateTime.now().isAfter(expiryTime);
+            return Instant.now().isAfter(expiryTime);
         }
     }
 
@@ -624,7 +625,7 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
 
             if (response != null && response.isValid()) {
                 // Cache the token
-                LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(TOKEN_CACHE_DURATION_MINUTES);
+                Instant expiryTime = Instant.now().plus(Duration.ofMinutes(TOKEN_CACHE_DURATION_MINUTES));
                 tokenCache.put(cacheKey, new CachedToken(response.accessToken(), expiryTime));
 
                 log.debug("Retrieved and cached new token for shortcode: {}", shortcode.getUuid());
@@ -641,8 +642,9 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         }
     }
 
+    /** Daraja's request Timestamp is East Africa Time. */
     private String getCurrentTimestamp() {
-        return LocalDateTime.now().format(TIMESTAMP_FORMATTER);
+        return DarajaTime.compact(Instant.now());
     }
 
     /** base64(BusinessShortCode + passkey + Timestamp), with the same timestamp the payload carries. */
@@ -710,9 +712,9 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
                 errorCode,
                 errorMessage,
                 null,
-                LocalDateTime.now()
+                Instant.now()
         );
-        return new MpesaApiResponse<>(false, null, errorResponse, LocalDateTime.now(), httpStatus, processingTimeMs);
+        return new MpesaApiResponse<>(false, null, errorResponse, Instant.now(), httpStatus, processingTimeMs);
     }
 
     // ==================== 9. PULL TRANSACTIONS IMPLEMENTATION ====================
@@ -747,8 +749,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
     }
 
     @Override
-    public MpesaApiResponse<Map<String, Object>> queryPullTransactions(MpesaShortCode shortcode, LocalDateTime start,
-                                                                      LocalDateTime end, int offset) {
+    public MpesaApiResponse<Map<String, Object>> queryPullTransactions(MpesaShortCode shortcode, Instant start,
+                                                                      Instant end, int offset) {
         long startTime = System.currentTimeMillis();
         MpesaApiResponse<Map<String, Object>> unsupported = unsupported(shortcode, ShortcodeCapability.PULL_TRANSACTIONS);
         if (unsupported != null) {
@@ -761,8 +763,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
             }
             Map<String, Object> payload = new HashMap<>();
             payload.put("ShortCode", ShortcodeCapabilities.goLiveNumber(shortcode));
-            payload.put("StartDate", start.format(PULL_TIME));
-            payload.put("EndDate", end.format(PULL_TIME));
+            payload.put("StartDate", DarajaTime.format(start, PULL_TIME));
+            payload.put("EndDate", DarajaTime.format(end, PULL_TIME));
             payload.put("OffSetValue", String.valueOf(offset));
             Map<String, Object> response = getHttpClient(shortcode.getEnvironment())
                     .queryPullTransactions("Bearer " + accessToken, payload);

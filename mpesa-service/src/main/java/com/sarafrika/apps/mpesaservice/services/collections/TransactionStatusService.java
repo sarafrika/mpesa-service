@@ -33,7 +33,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryMethod;
 import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryStatus;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -120,7 +120,7 @@ public class TransactionStatusService {
         query.setResultCode(data.resultCode());
         query.setResultDesc(data.resultDesc());
         query.setReceipt(data.mpesaReceiptNumber());
-        query.setCompletedAt(LocalDateTime.now());
+        query.setCompletedAt(Instant.now());
         TransactionStatusQuery saved = queryRepository.save(query);
         // The documented query reply has no MpesaReceiptNumber (developer.safaricom.co.ke/apis/MpesaExpressQuery),
         // so a payment settled here usually keeps its checkout id; reconciliation attaches the statement's receipt.
@@ -168,7 +168,7 @@ public class TransactionStatusService {
         query.setResultCode(result.resultCode());
         query.setResultDesc(result.resultDesc());
         query.setRawResult(rawJson);
-        query.setCompletedAt(LocalDateTime.now());
+        query.setCompletedAt(Instant.now());
         query.setStatus(result.isSuccessful() ? StatusQueryStatus.COMPLETED : StatusQueryStatus.FAILED);
         if (params != null && params.resultParameters() != null) {
             query.setTransactionStatus(params.getTransactionStatus());
@@ -186,7 +186,7 @@ public class TransactionStatusService {
         return find(conversationId, originatorConversationId).map(query -> {
             if (query.getStatus() == StatusQueryStatus.PENDING) {
                 query.setStatus(StatusQueryStatus.TIMED_OUT);
-                query.setCompletedAt(LocalDateTime.now());
+                query.setCompletedAt(Instant.now());
             }
             return queryRepository.save(query);
         });

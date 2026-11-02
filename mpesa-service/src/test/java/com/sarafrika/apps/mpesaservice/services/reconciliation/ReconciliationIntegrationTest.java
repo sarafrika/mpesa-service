@@ -42,6 +42,8 @@ import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionKind;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationTrigger;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -305,20 +307,20 @@ class ReconciliationIntegrationTest {
         jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, "
                 + "checkout_request_id, phone_number, amount, status, transaction_date, created_at) VALUES (?, "
                 + "'STK_PUSH', ?, ?, '254712345678', 50, 'SUCCESS', ?, ?)", shortcode.getUuid(), p + "STK",
-                "ws_CO_" + p, yesterday.atTime(10, 0), yesterday.atTime(10, 0));
+                "ws_CO_" + p, eat(yesterday.atTime(10, 0)), eat(yesterday.atTime(10, 0)));
         deposit(p + "C2B", "75.00", yesterday.atTime(12, 0));
-        LocalDateTime start = yesterday.atStartOfDay();
+        Instant start = yesterday.atStartOfDay(ReconciliationService.NAIROBI).toInstant();
 
         ReconciliationRunDto first = service.reconcilePull(shortcode.getUuid(), start,
-                LocalDateTime.now(ReconciliationService.NAIROBI).plusHours(2), ReconciliationTrigger.MANUAL);
+                Instant.now().plus(Duration.ofHours(2)), ReconciliationTrigger.MANUAL);
 
         assertThat(first.periodEnd()).isBeforeOrEqualTo(OffsetDateTime.now());
         assertThat(service.listExceptions(first.uuid(), null, null, PageRequest.of(0, 25)).getContent())
                 .extracting(ReconciliationExceptionDto::receipt).containsExactly(p + "C2B");
         assertThat(service.getRun(statement.uuid()).openExceptions()).isEqualTo(2);
 
-        ReconciliationRunDto second = service.reconcilePull(shortcode.getUuid(), start,
-                LocalDateTime.now(ReconciliationService.NAIROBI), ReconciliationTrigger.MANUAL);
+        ReconciliationRunDto second = service.reconcilePull(shortcode.getUuid(), start, Instant.now(),
+                ReconciliationTrigger.MANUAL);
         assertThat(service.getRun(first.uuid()).openExceptions()).isZero();
         assertThat(second.openExceptions()).isEqualTo(1);
         assertThat(service.getRun(statement.uuid()).openExceptions()).isEqualTo(2);
@@ -393,15 +395,16 @@ class ReconciliationIntegrationTest {
 
     @Test
     void pullTransactionsNeedsTheFeatureAndARegistration() {
-        LocalDateTime start = LocalDateTime.now(ReconciliationService.NAIROBI).minusHours(20);
-        assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start, start.plusHours(12),
+        LocalDateTime wallStart = LocalDateTime.now(ReconciliationService.NAIROBI).minusHours(20);
+        Instant start = eat(wallStart).toInstant();
+        assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start, start.plus(Duration.ofHours(12)),
                 ReconciliationTrigger.MANUAL)).isInstanceOf(ConflictException.class).hasMessageContaining("Features");
         assertThatThrownBy(() -> pull.register(shortcode.getUuid(), "0722000000"))
                 .isInstanceOf(ConflictException.class);
         verify(daraja, never()).registerPullTransactions(any(), anyString(), anyString());
 
         features.set(shortcode.getUuid(), DarajaFeature.PULL_TRANSACTIONS, true, "admin");
-        assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start, start.plusHours(12),
+        assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start, start.plus(Duration.ofHours(12)),
                 ReconciliationTrigger.MANUAL)).isInstanceOf(ConflictException.class).hasMessageContaining("Register");
 
         when(daraja.registerPullTransactions(any(), eq("0722000000"), anyString())).thenReturn(MpesaApiResponse.success(
@@ -413,19 +416,19 @@ class ReconciliationIntegrationTest {
         verify(daraja).registerPullTransactions(any(), eq("0722000000"),
                 eq("https://example.test/api/v1/callbacks/pull-transactions/callback"));
 
-        deposit(p + "PL1", "168.00", start.plusHours(1));
+        deposit(p + "PL1", "168.00", wallStart.plusHours(1));
         when(daraja.queryPullTransactions(any(), any(), any(), eq(0))).thenReturn(MpesaApiResponse.success(Map.of(
                 "ResponseRefID", "26178-42530161-2", "ResponseCode", "1000", "ResponseMessage", "Success",
                 "Response", List.of(List.of(
-                        Map.of("transactionId", p + "PL1", "trxDate", start.plusHours(1) + "Z", "msisdn", 722000000,
+                        Map.of("transactionId", p + "PL1", "trxDate", wallStart.plusHours(1) + "Z", "msisdn", 722000000,
                                 "transactiontype", "c2b-pay-bill-debit", "billreference", "INV-1", "amount", "168.00"),
-                        Map.of("transactionId", p + "PL2", "trxDate", start.plusHours(2) + "Z", "msisdn", 722000001,
+                        Map.of("transactionId", p + "PL2", "trxDate", wallStart.plusHours(2) + "Z", "msisdn", 722000001,
                                 "transactiontype", "c2b-pay-bill-debit", "billreference", "INV-2", "amount", "50.00")))),
                 200));
         when(daraja.queryPullTransactions(any(), any(), any(), eq(2))).thenReturn(MpesaApiResponse.success(Map.of(
                 "ResponseCode", "1001", "ResponseMessage", "No transactions", "Response", List.of(List.of())), 200));
 
-        ReconciliationRunDto run = service.reconcilePull(shortcode.getUuid(), start, start.plusHours(12),
+        ReconciliationRunDto run = service.reconcilePull(shortcode.getUuid(), start, start.plus(Duration.ofHours(12)),
                 ReconciliationTrigger.MANUAL);
         assertThat(run.source()).isEqualTo("PULL_TRANSACTIONS");
         assertThat(run.matchedCount()).isEqualTo(1);
@@ -440,7 +443,7 @@ class ReconciliationIntegrationTest {
                         && (p + "PL2").equals(e.data().get("trans_id")))
                 .singleElement().satisfies(e -> assertThat(e.data()).containsEntry("source", "PULL_TRANSACTIONS"));
 
-        assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start.minusDays(3), start,
+        assertThatThrownBy(() -> service.reconcilePull(shortcode.getUuid(), start.minus(Duration.ofDays(3)), start,
                 ReconciliationTrigger.MANUAL)).isInstanceOf(InvalidRequestException.class).hasMessageContaining("48 hours");
     }
 
@@ -495,7 +498,7 @@ class ReconciliationIntegrationTest {
                 + "?, ?, ?, ?::numeric, 'test', 'SUCCESS', ?, ?, ?)", shortcode.getUuid(), product, UUID.randomUUID(),
                 product.equals("TAX_REMITTANCE") ? "PayTaxToKRA" : "BusinessPayToPochi",
                 product.equals("TAX_REMITTANCE") ? "572572" : "254705912645",
-                product.equals("TAX_REMITTANCE") ? "PRN1" : null, amount, receipt, at, at);
+                product.equals("TAX_REMITTANCE") ? "PRN1" : null, amount, receipt, eat(at), eat(at));
     }
 
     private void grant(String clientId, String operations) {
@@ -513,7 +516,7 @@ class ReconciliationIntegrationTest {
         UUID uuid = UUID.randomUUID();
         jdbc.update("INSERT INTO mpesa_incoming_payments (uuid, shortcode_uuid, payment_type, transaction_id, "
                 + "phone_number, amount, status, transaction_date, created_at) VALUES (?, ?, 'C2B', ?, '254712345678', "
-                + "?::numeric, 'SUCCESS', ?, ?)", uuid, shortcode.getUuid(), receipt, amount, at, at);
+                + "?::numeric, 'SUCCESS', ?, ?)", uuid, shortcode.getUuid(), receipt, amount, eat(at), eat(at));
         return uuid;
     }
 
@@ -522,7 +525,12 @@ class ReconciliationIntegrationTest {
                 + "originator_conversation_id, recipient_phone_number, amount, command_id, initiator_name, status, "
                 + "transaction_date, created_at) VALUES (?, 'B2C', ?, ?, '254733000222', ?::numeric, 'BusinessPayment', "
                 + "'elimika-api', 'SUCCESS', ?, ?)", shortcode.getUuid(), receipt, "sar-" + UUID.randomUUID(), amount,
-                at, at);
+                eat(at), eat(at));
+    }
+
+    /** Fixture times are East Africa Time, as on the statement. */
+    private static OffsetDateTime eat(LocalDateTime wallTime) {
+        return wallTime.atZone(ReconciliationService.NAIROBI).toOffsetDateTime();
     }
 
     private static ReconciliationExceptionDto find(List<ReconciliationExceptionDto> rows, String receipt) {

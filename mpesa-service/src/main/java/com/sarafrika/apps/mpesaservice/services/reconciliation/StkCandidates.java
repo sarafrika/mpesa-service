@@ -4,7 +4,7 @@ import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService.C2bT
 import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger.C2bCandidate;
 import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger.StkCandidate;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,7 @@ public class StkCandidates {
 
     /** The same match for a deposit seen at a time, from a party shown as Safaricom shows it (a C2B MSISDN that
      * is masked or hashed fits any phone, since nothing in it can be compared). */
-    public List<StkCandidate> find(UUID shortcodeUuid, LocalDateTime at, String otherParty, BigDecimal amount) {
+    public List<StkCandidate> find(UUID shortcodeUuid, Instant at, String otherParty, BigDecimal amount) {
         if (at == null) {
             return List.of();
         }
@@ -36,7 +36,7 @@ public class StkCandidates {
 
     /** The reverse match, for an STK payment settling without a receipt: C2B deposits stored on their own that fit
      * it. One deposit is contested when another receiptless STK payment fits that deposit too. */
-    public C2bTwins c2bTwins(UUID shortcodeUuid, UUID stkUuid, LocalDateTime requestedAt, String phone,
+    public C2bTwins c2bTwins(UUID shortcodeUuid, UUID stkUuid, Instant requestedAt, String phone,
                              BigDecimal amount) {
         if (requestedAt == null) {
             return C2bTwins.NONE;

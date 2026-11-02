@@ -45,7 +45,7 @@ import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeC2bService;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -117,6 +117,8 @@ class ShortcodeAdminControllerTest {
                 .andExpect(jsonPath("$.items[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$.items[0].health.c2b_state").value("REGISTERED"))
                 .andExpect(jsonPath("$.items[0].health.collected_today").value(902140.0))
+                // An instant with its offset: without one a browser in Nairobi read it three hours early.
+                .andExpect(jsonPath("$.items[0].health.token_checked_at").value("2026-10-27T09:00:00Z"))
                 .andExpect(jsonPath("$.items[0].consumer_secret").doesNotExist())
                 .andExpect(jsonPath("$.items[0].products[0].client_id").value("elimika-backend"))
                 .andExpect(jsonPath("$.page").value(1))
@@ -336,12 +338,13 @@ class ShortcodeAdminControllerTest {
     @WithMockUser(roles = "mpesa-operator")
     void aFailedConnectionTestStill200sWithTheReason() throws Exception {
         when(shortcodes.testConnection(ID)).thenReturn(new ConnectionTestResultDto(false, 48,
-                "Daraja refused these credentials (400 BAD_REQUEST)", LocalDateTime.parse("2026-10-27T09:00:00")));
+                "Daraja refused these credentials (400 BAD_REQUEST)", Instant.parse("2026-10-27T09:00:00Z")));
         mockMvc.perform(post(BASE + "/" + ID + "/test-connection"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(false))
                 .andExpect(jsonPath("$.latency_ms").value(48))
-                .andExpect(jsonPath("$.error").value("Daraja refused these credentials (400 BAD_REQUEST)"));
+                .andExpect(jsonPath("$.error").value("Daraja refused these credentials (400 BAD_REQUEST)"))
+                .andExpect(jsonPath("$.checked_at").value("2026-10-27T09:00:00Z"));
     }
 
     @Test
@@ -360,7 +363,7 @@ class ShortcodeAdminControllerTest {
     void registeringC2bUrlsAnswers201OrTheUpstreamFailure() throws Exception {
         when(c2b.register(ID, C2bResponseType.Cancelled, true)).thenReturn(new C2bRegistrationDto(UUID.randomUUID(),
                 C2bResponseType.Cancelled, "https://x/c", "https://x/v", true, "0", "Success", "jane.doe",
-                LocalDateTime.now()));
+                Instant.now()));
         when(c2b.register(ID, C2bResponseType.Completed, false))
                 .thenThrow(UpstreamException.badGateway("Safaricom refused to register the C2B URLs"))
                 .thenThrow(UpstreamException.unavailable("Safaricom could not be reached"));
@@ -436,22 +439,23 @@ class ShortcodeAdminControllerTest {
     }
 
     private static ShortcodeHealthDto health() {
-        return new ShortcodeHealthDto(true, LocalDateTime.now(), 312, null, C2bRegistrationState.REGISTERED,
-                LocalDateTime.now(), LocalDateTime.now(), null, new BigDecimal("902140.00"), new BigDecimal("1640210.00"),
-                BigDecimal.ZERO, LocalDateTime.now(), BigDecimal.ZERO, null, 0);
+        return new ShortcodeHealthDto(true, Instant.parse("2026-10-27T09:00:00Z"), 312, null,
+                C2bRegistrationState.REGISTERED,
+                Instant.now(), Instant.now(), null, new BigDecimal("902140.00"), new BigDecimal("1640210.00"),
+                BigDecimal.ZERO, Instant.now(), BigDecimal.ZERO, null, 0);
     }
 
     private static ShortcodeSummaryDto summary() {
         return new ShortcodeSummaryDto(ID, "600100", "Elimika Fees", ShortcodeType.PAYBILL, Environment.PRODUCTION,
-                ShortcodeStatus.ACTIVE, true, LocalDateTime.now(), LocalDateTime.now(), health(),
+                ShortcodeStatus.ACTIVE, true, Instant.now(), Instant.now(), health(),
                 List.of(new ShortcodeSummaryDto.ProductRef("elimika-backend", "Elimika")));
     }
 
     private static ShortcodeDetailDto detail() {
         return new ShortcodeDetailDto(ID, "600100", "Elimika Fees", ShortcodeType.PAYBILL, Environment.SANDBOX,
                 ShortcodeStatus.DRAFT, false, "ELIMIKA", "Elimika fees", BigDecimal.ONE, new BigDecimal("150000"),
-                "https://x/stk", null, null, null, null, null, null, LocalDateTime.now(), LocalDateTime.now(),
+                "https://x/stk", null, null, null, null, null, null, Instant.now(), Instant.now(),
                 "jane.doe", "jane.doe", new ShortcodeCredentialsDto("••••Qx7d", "••••9KfA", null, null, false, false,
-                LocalDateTime.now()), health(), List.of());
+                Instant.now()), health(), List.of());
     }
 }

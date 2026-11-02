@@ -13,7 +13,7 @@ import com.sarafrika.apps.mpesaservice.dtos.MpesaTokenResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResultDto;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.ResourceAccessException;
@@ -56,7 +56,7 @@ class ShortcodeConnectionTesterTest {
         ConnectionTestResultDto last = tester.test(code);
         assertThat(last.ok()).isFalse();
         assertThat(last.error()).isEqualTo("The token request failed");
-        assertThat(last.checkedAt()).isBeforeOrEqualTo(LocalDateTime.now());
+        assertThat(last.checkedAt()).isBeforeOrEqualTo(Instant.now());
     }
 
     @Test

@@ -82,11 +82,11 @@ public class MetricsQueries {
     public List<StatusTotal> statusTotals(Direction direction, Instant from, Instant to, Instant previousFrom,
                                           Instant previousTo, Filter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("from", MetricsTime.toStorage(from))
-                .addValue("to", MetricsTime.toStorage(to))
-                .addValue("previousFrom", MetricsTime.toStorage(previousFrom))
-                .addValue("previousTo", MetricsTime.toStorage(previousTo))
-                .addValue("scanFrom", MetricsTime.toStorage(earliest(from, previousFrom).minus(SLACK)));
+                .addValue("from", MetricsTime.sql(from))
+                .addValue("to", MetricsTime.sql(to))
+                .addValue("previousFrom", MetricsTime.sql(previousFrom))
+                .addValue("previousTo", MetricsTime.sql(previousTo))
+                .addValue("scanFrom", MetricsTime.sql(earliest(from, previousFrom).minus(SLACK)));
         String t = direction.time;
         String sql = "SELECT " + t + " >= :from AS is_current, p.payment_type, p.status, COUNT(*) AS n, "
                 + "COALESCE(SUM(p.amount), 0) AS total "
@@ -103,19 +103,18 @@ public class MetricsQueries {
                                             Filter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("unit", unit)
-                .addValue("storageZone", MetricsTime.storageZone().getId())
                 .addValue("reportingZone", MetricsTime.REPORTING_ZONE.getId())
-                .addValue("from", MetricsTime.toStorage(from))
-                .addValue("to", MetricsTime.toStorage(to))
-                .addValue("scanFrom", MetricsTime.toStorage(from.minus(SLACK)));
+                .addValue("from", MetricsTime.sql(from))
+                .addValue("to", MetricsTime.sql(to))
+                .addValue("scanFrom", MetricsTime.sql(from.minus(SLACK)));
         String t = direction.time;
-        String sql = "SELECT date_trunc(CAST(:unit AS text), (" + t + " AT TIME ZONE CAST(:storageZone AS text)) "
-                + "AT TIME ZONE CAST(:reportingZone AS text)) AS bucket, COUNT(*) AS n, SUM(p.amount) AS total "
+        String sql = "SELECT date_trunc(CAST(:unit AS text), " + t + " AT TIME ZONE CAST(:reportingZone AS text)) "
+                + "AS bucket, COUNT(*) AS n, SUM(p.amount) AS total "
                 + from(direction)
                 + " AND p.status = 'SUCCESS' AND p.created_at >= :scanFrom AND " + t + " >= :from AND " + t + " < :to"
                 + scope(filter, params) + " GROUP BY 1";
         return jdbc.query(sql, params, (rs, i) -> new BucketTotal(direction,
-                rs.getTimestamp("bucket").toLocalDateTime(), rs.getLong("n"), rs.getBigDecimal("total")));
+                rs.getObject("bucket", LocalDateTime.class), rs.getLong("n"), rs.getBigDecimal("total")));
     }
 
     /** Each active shortcode's newest reported utility balance: an Account Balance result, a settled B2C payout
@@ -137,7 +136,7 @@ public class MetricsQueries {
                 + " ORDER BY p.shortcode_uuid, p.reported_at DESC NULLS LAST, p.preference, p.id DESC";
         return jdbc.query(sql, params, (rs, i) -> new LatestFloat(rs.getObject("shortcode_uuid", UUID.class),
                 rs.getString("shortcode"), rs.getString("business_name"), rs.getBigDecimal("amount"),
-                MetricsTime.fromStorage(rs.getTimestamp("reported_at"))));
+                MetricsTime.instant(rs.getTimestamp("reported_at"))));
     }
 
     /** Every shortcode that is not deleted, with its newest payment or callback in either table. */
@@ -162,8 +161,8 @@ public class MetricsQueries {
         return jdbc.query(sql.toString(), params, (rs, i) -> new ShortcodeRow(rs.getObject("uuid", UUID.class),
                 rs.getString("shortcode"), rs.getString("business_name"), rs.getString("shortcode_type"),
                 rs.getString("environment"), rs.getBoolean("is_active"), rs.getBoolean("draft"),
-                MetricsTime.fromStorage(rs.getTimestamp("created_at")),
-                MetricsTime.fromStorage(rs.getTimestamp("last_activity")), rs.getBigDecimal("low_float_threshold")));
+                MetricsTime.instant(rs.getTimestamp("created_at")),
+                MetricsTime.instant(rs.getTimestamp("last_activity")), rs.getBigDecimal("low_float_threshold")));
     }
 
     /** Per shortcode: successful payments since {@code todayStart}, failed and settled ones since {@code recentStart}. */
@@ -171,9 +170,9 @@ public class MetricsQueries {
         Instant since = earliest(todayStart, recentStart).minus(SLACK);
         String t = direction.time;
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("since", MetricsTime.toStorage(since))
-                .addValue("todayStart", MetricsTime.toStorage(todayStart))
-                .addValue("recentStart", MetricsTime.toStorage(recentStart));
+                .addValue("since", MetricsTime.sql(since))
+                .addValue("todayStart", MetricsTime.sql(todayStart))
+                .addValue("recentStart", MetricsTime.sql(recentStart));
         String sql = "SELECT p.shortcode_uuid, "
                 + "COUNT(*) FILTER (WHERE p.status = 'SUCCESS' AND " + t + " >= :todayStart) AS today_count, "
                 + "COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'SUCCESS' AND " + t + " >= :todayStart), 0) "
@@ -194,13 +193,13 @@ public class MetricsQueries {
     /** STK requests still pending that were created in [since, olderThan). */
     public PendingStk pendingStk(Instant since, Instant olderThan, Filter filter) {
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("since", MetricsTime.toStorage(since))
-                .addValue("olderThan", MetricsTime.toStorage(olderThan));
+                .addValue("since", MetricsTime.sql(since))
+                .addValue("olderThan", MetricsTime.sql(olderThan));
         String sql = "SELECT COUNT(*) AS n, MIN(p.created_at) AS oldest " + from(Direction.IN)
                 + " AND p.payment_type = 'STK_PUSH' AND p.status = 'PENDING'"
                 + " AND p.created_at >= :since AND p.created_at < :olderThan" + scope(filter, params);
         return jdbc.queryForObject(sql, params, (rs, i) -> new PendingStk(rs.getLong("n"),
-                MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
+                MetricsTime.instant(rs.getTimestamp("oldest"))));
     }
 
     /** C2B confirmations since a time that several receiptless STK payments may also be. */
@@ -214,22 +213,22 @@ public class MetricsQueries {
     }
 
     private PendingStk flaggedTwins(String paymentType, Instant since, Filter filter) {
-        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.toStorage(since))
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.sql(since))
                 .addValue("type", paymentType);
         String sql = "SELECT COUNT(*) AS n, MIN(p.created_at) AS oldest " + from(Direction.IN)
                 + " AND p.payment_type = :type AND p.possible_stk_duplicates IS NOT NULL AND p.created_at >= :since"
                 + scope(filter, params);
         return jdbc.queryForObject(sql, params, (rs, i) -> new PendingStk(rs.getLong("n"),
-                MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
+                MetricsTime.instant(rs.getTimestamp("oldest"))));
     }
 
     /** C2B confirmations since a time that reached a shortcode not configured here. */
     public PendingStk unlinkedDeposits(Instant since) {
-        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.toStorage(since));
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("since", MetricsTime.sql(since));
         String sql = "SELECT COUNT(*) AS n, MIN(p.created_at) AS oldest FROM mpesa_incoming_payments p "
                 + "WHERE p.deleted_at IS NULL AND p.shortcode_uuid IS NULL AND p.created_at >= :since";
         return jdbc.queryForObject(sql, params, (rs, i) -> new PendingStk(rs.getLong("n"),
-                MetricsTime.fromStorage(rs.getTimestamp("oldest"))));
+                MetricsTime.instant(rs.getTimestamp("oldest"))));
     }
 
     /** The newest payments across both tables, newest first. */
@@ -252,7 +251,7 @@ public class MetricsQueries {
                 rs.getString("payment_type"), rs.getString("status"), rs.getBigDecimal("amount"),
                 rs.getString("reference"), rs.getString("account_reference"),
                 rs.getObject("shortcode_uuid", UUID.class), rs.getString("shortcode"), rs.getString("business_name"),
-                MetricsTime.fromStorage(rs.getTimestamp("created_at")));
+                MetricsTime.instant(rs.getTimestamp("created_at")));
     }
 
     // LEFT JOIN: a C2B confirmation for a shortcode we do not know is still money that arrived.

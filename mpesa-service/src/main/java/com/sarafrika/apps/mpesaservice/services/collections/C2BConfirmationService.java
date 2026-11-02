@@ -11,13 +11,12 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentServiceImpl;
 import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLedger.StkCandidate;
 import com.sarafrika.apps.mpesaservice.services.reconciliation.StkCandidates;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.C2BChannel;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,8 +36,6 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 @Slf4j
 public class C2BConfirmationService {
-
-    private static final DateTimeFormatter TRANS_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final MpesaIncomingPaymentRepository paymentRepository;
     private final MpesaShortCodeRepository shortCodeRepository;
@@ -101,7 +98,7 @@ public class C2BConfirmationService {
                 : objectMapper.convertValue(callback, new TypeReference<Map<String, Object>>() {}));
         List<StkCandidate> candidates = shortcode.isEmpty() || !SOURCE_CONFIRMATION.equals(source) ? List.of()
                 : stkCandidates.find(shortcode.get().getUuid(), payment.getTransactionDate() != null
-                        ? payment.getTransactionDate() : LocalDateTime.now(), callback.msisdn(), payment.getAmount());
+                        ? payment.getTransactionDate() : Instant.now(), callback.msisdn(), payment.getAmount());
         if (candidates.size() == 1) {
             Optional<Confirmation> attached = attachToStk(candidates.getFirst(), payment);
             if (attached.isPresent()) {
@@ -117,7 +114,7 @@ public class C2BConfirmationService {
         }
         payment.setStatus(IncomingPaymentStatus.SUCCESS);
         payment.setResultCode(0);
-        payment.setProcessedAt(LocalDateTime.now());
+        payment.setProcessedAt(Instant.now());
         // saveAndFlush surfaces a concurrent duplicate here, inside this call, as DataIntegrityViolationException.
         MpesaIncomingPayment saved = paymentRepository.saveAndFlush(payment);
 
@@ -202,15 +199,9 @@ public class C2BConfirmationService {
         return data;
     }
 
-    private static LocalDateTime parseTransTime(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(value.trim(), TRANS_TIME);
-        } catch (DateTimeParseException e) {
-            return null;
-        }
+    /** TransTime is East Africa Time wall clock (yyyyMMddHHmmss); null when blank or unreadable. */
+    static Instant parseTransTime(String value) {
+        return DarajaTime.parseCompact(value);
     }
 
     private static String blankToNull(String value) {

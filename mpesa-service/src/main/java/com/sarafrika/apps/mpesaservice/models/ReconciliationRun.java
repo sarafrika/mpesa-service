@@ -12,7 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -53,10 +53,10 @@ public class ReconciliationRun {
     private ReconciliationRunStatus status;
 
     @Column(name = "period_start", nullable = false)
-    private LocalDateTime periodStart;
+    private Instant periodStart;
 
     @Column(name = "period_end", nullable = false)
-    private LocalDateTime periodEnd;
+    private Instant periodEnd;
 
     @Column(name = "file_name")
     private String fileName;
@@ -106,8 +106,8 @@ public class ReconciliationRun {
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "completed_at")
-    private LocalDateTime completedAt;
+    private Instant completedAt;
 }

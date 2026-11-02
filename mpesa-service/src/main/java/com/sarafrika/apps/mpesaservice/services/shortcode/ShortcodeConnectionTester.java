@@ -6,7 +6,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ConnectionTestResult
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Base64;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -45,7 +45,7 @@ public class ShortcodeConnectionTester {
         if (error != null) {
             log.warn("Daraja token check failed for shortcode {}: {}", code.getUuid(), error);
         }
-        return new ConnectionTestResultDto(error == null, latency, error, LocalDateTime.now());
+        return new ConnectionTestResultDto(error == null, latency, error, Instant.now());
     }
 
     // MpesaClientConfig turns HTTP errors into "Client error: 401 UNAUTHORIZED" and "Server error: ..."

@@ -24,7 +24,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationAction;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationSource;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -261,7 +261,7 @@ public class ReconciliationResolver {
         e.setLastAction(action);
         e.setResolutionNote(ReconciliationService.truncate(note, 1000));
         e.setResolvedBy(CurrentActor.name());
-        e.setResolvedAt(LocalDateTime.now());
+        e.setResolvedAt(Instant.now());
     }
 
     private ReconciliationExceptionDto dto(ReconciliationExceptionRecord e) {

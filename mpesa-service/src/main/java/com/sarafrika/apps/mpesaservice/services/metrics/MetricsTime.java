@@ -1,28 +1,26 @@
 package com.sarafrika.apps.mpesaservice.services.metrics;
 
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
-/** Payment timestamps are TIMESTAMP columns holding the JVM's local wall time (LocalDateTime.now(),
- * Hibernate's creation stamps), so instants go through the JVM zone; reports use Africa/Nairobi. */
+/** Payment timestamps are TIMESTAMPTZ instants; days and hours in reports are Africa/Nairobi. */
 public final class MetricsTime {
 
-    public static final ZoneId REPORTING_ZONE = ZoneId.of("Africa/Nairobi");
+    public static final ZoneId REPORTING_ZONE = DarajaTime.ZONE;
 
     private MetricsTime() {
     }
 
-    public static ZoneId storageZone() {
-        return ZoneId.systemDefault();
+    /** A JDBC parameter for a TIMESTAMPTZ comparison (the driver takes OffsetDateTime, not Instant). */
+    public static OffsetDateTime sql(Instant instant) {
+        return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
     }
 
-    public static LocalDateTime toStorage(Instant instant) {
-        return LocalDateTime.ofInstant(instant, storageZone());
-    }
-
-    public static Instant fromStorage(Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toLocalDateTime().atZone(storageZone()).toInstant();
+    public static Instant instant(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant();
     }
 }

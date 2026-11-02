@@ -6,7 +6,7 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentReposito
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +52,7 @@ public class StkStatusReconciler {
         this.batchSize = batchSize;
         this.maxDelay = maxDelay;
         this.giveUpAfter = giveUpAfter;
-        this.clock = clock.orElse(Clock.systemDefaultZone());
+        this.clock = clock.orElse(Clock.systemUTC());
     }
 
     @Scheduled(fixedDelayString = "${mpesa.stk.status-query-interval-ms:60000}",
@@ -88,7 +88,7 @@ public class StkStatusReconciler {
 
     /** Takes due rows and moves their next check out before asking, so no other pass takes them meanwhile. */
     List<MpesaIncomingPayment> claim() {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = clock.instant();
         List<MpesaIncomingPayment> rows = transactions.execute(status -> {
             List<MpesaIncomingPayment> claimed = paymentRepository.claimStkChecks(now.minus(after),
                     now.minus(giveUpAfter), now, batchSize);

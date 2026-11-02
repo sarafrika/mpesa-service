@@ -41,7 +41,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ProductPayoutStatus;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -182,7 +182,7 @@ public class ProductPayoutService {
         payout.setCloseNote(DarajaReplies.truncate(note.trim(), 500));
         payout.setResultDesc(DarajaReplies.truncate("Closed as failed by " + actor + " after checking the statement: "
                 + note.trim(), 500));
-        payout.setCompletedAt(LocalDateTime.now());
+        payout.setCompletedAt(Instant.now());
         ProductPayout saved = payouts.save(payout);
         audit.record(AUDIT_CLOSED, "PRODUCT_PAYOUT", saved.getUuid().toString(),
                 Map.of("status", ProductPayoutStatus.PENDING.name(), "outcome_unknown", true),
@@ -299,11 +299,11 @@ public class ProductPayoutService {
             } else if (NotSent.is(response)) {
                 row.setStatus(ProductPayoutStatus.FAILED);
                 row.setResultDesc(DarajaReplies.truncate(NotSent.describe(response, label(product) + " payment"), 500));
-                row.setCompletedAt(LocalDateTime.now());
+                row.setCompletedAt(Instant.now());
             } else {
                 row.setStatus(ProductPayoutStatus.FAILED);
                 row.setResultDesc(DarajaReplies.truncate(DarajaReplies.refusal(response, "ResponseDescription"), 500));
-                row.setCompletedAt(LocalDateTime.now());
+                row.setCompletedAt(Instant.now());
             }
             return payouts.save(row);
         });
@@ -493,7 +493,7 @@ public class ProductPayoutService {
             payout.setConversationId(DarajaReplies.text(result, "ConversationID"));
         }
         payout.setRawResult(raw);
-        payout.setCompletedAt(LocalDateTime.now());
+        payout.setCompletedAt(Instant.now());
         return payouts.save(payout);
     }
 
@@ -505,7 +505,7 @@ public class ProductPayoutService {
         return lock(product, DarajaReplies.text(result, "OriginatorConversationID"),
                 DarajaReplies.text(result, "ConversationID")).map(payout -> {
             if (payout.getStatus() == ProductPayoutStatus.PENDING && payout.getTimedOutAt() == null) {
-                payout.setTimedOutAt(LocalDateTime.now());
+                payout.setTimedOutAt(Instant.now());
                 payout.setOutcomeUnknown(true);
                 payout.setResultDesc(DarajaReplies.truncate(description != null ? description : UNKNOWN_OUTCOME, 500));
                 return payouts.save(payout);

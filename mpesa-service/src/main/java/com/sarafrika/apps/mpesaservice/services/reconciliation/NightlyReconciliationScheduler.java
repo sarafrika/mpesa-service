@@ -6,6 +6,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationSource;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationTrigger;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -62,16 +63,20 @@ public class NightlyReconciliationScheduler {
                 continue;
             }
             try {
-                service.reconcilePull(uuid, day.atStartOfDay(), day.plusDays(1).atStartOfDay(),
+                service.reconcilePull(uuid, start(day), start(day.plusDays(1)),
                         ReconciliationTrigger.SCHEDULED);
                 done++;
             } catch (RuntimeException ex) {
                 log.warn("Nightly reconciliation of shortcode {} failed: {}", uuid, ex.toString());
-                service.recordFailure(shortcode.get(), ReconciliationSource.PULL_TRANSACTIONS, day.atStartOfDay(),
-                        day.plusDays(1).atStartOfDay(), ex.getMessage());
+                service.recordFailure(shortcode.get(), ReconciliationSource.PULL_TRANSACTIONS, start(day),
+                        start(day.plusDays(1)), ex.getMessage());
             }
         }
         return done;
+    }
+
+    private static Instant start(LocalDate day) {
+        return day.atStartOfDay(ReconciliationService.NAIROBI).toInstant();
     }
 
     // One UPDATE marks the day claimed; SKIP LOCKED keeps a second instance off rows being claimed (Postgres).

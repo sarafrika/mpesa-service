@@ -5,7 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationMatcher.Draft;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionKind;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -15,8 +16,8 @@ import org.junit.jupiter.api.Test;
 
 class ReconciliationMatcherTest {
 
-    static final LocalDateTime START = LocalDateTime.of(2026, 10, 25, 0, 0);
-    static final LocalDateTime END = START.plusDays(1);
+    static final Instant START = Instant.parse("2026-10-25T00:00:00Z");
+    static final Instant END = START.plus(Duration.ofDays(1));
     static final ReconciliationMatcher.Markers MARKERS = new ReconciliationMatcher.Markers(
             List.of("charge"), List.of("reversal"), List.of("settlement account"));
 
@@ -24,9 +25,9 @@ class ReconciliationMatcherTest {
     void classifiesTheFixtureStatementAgainstTheLedger() throws Exception {
         List<StatementLine> lines = StatementCsvParser.parse(StatementCsvParserTest.fixture("org-statement-utility.csv"),
                 100).lines();
-        LedgerEntry matched = in(1, "TJP9X2K1AA", "5000.00", "SUCCESS", START.plusHours(9));
+        LedgerEntry matched = in(1, "TJP9X2K1AA", "5000.00", "SUCCESS", START.plus(Duration.ofHours(9)));
         LedgerEntry payout = out(2, "TJP9X2K2CC", "3000.00");
-        LedgerEntry notOnStatement = in(3, "TJQ0000ZZZ", "1200.00", "SUCCESS", START.plusHours(16));
+        LedgerEntry notOnStatement = in(3, "TJQ0000ZZZ", "1200.00", "SUCCESS", START.plus(Duration.ofHours(16)));
 
         ReconciliationMatcher.Result result = ReconciliationMatcher.match(lines, START, END,
                 List.of(matched, payout), List.of(matched, payout, notOnStatement), MARKERS);
@@ -54,10 +55,10 @@ class ReconciliationMatcherTest {
     @Test
     void flagsAmountMismatchesDuplicatesAndUnsettledRows() {
         List<StatementLine> lines = List.of(line("R1", "10000.00"), line("R2", "3000.00"), line("R3", "800.00"));
-        LedgerEntry wrongAmount = in(1, "R1", "1000.00", "SUCCESS", START.plusHours(1));
-        LedgerEntry first = in(2, "R2", "3000.00", "SUCCESS", START.plusHours(1));
-        LedgerEntry again = in(3, "r2 ", "3000.00", "SUCCESS", START.plusHours(2));
-        LedgerEntry pending = in(4, "R3", "800.00", "FAILED", START.plusHours(1));
+        LedgerEntry wrongAmount = in(1, "R1", "1000.00", "SUCCESS", START.plus(Duration.ofHours(1)));
+        LedgerEntry first = in(2, "R2", "3000.00", "SUCCESS", START.plus(Duration.ofHours(1)));
+        LedgerEntry again = in(3, "r2 ", "3000.00", "SUCCESS", START.plus(Duration.ofHours(2)));
+        LedgerEntry pending = in(4, "R3", "800.00", "FAILED", START.plus(Duration.ofHours(1)));
 
         ReconciliationMatcher.Result result = ReconciliationMatcher.match(lines, START, END,
                 List.of(wrongAmount, first, again, pending), List.of(wrongAmount, first, again), MARKERS);
@@ -77,9 +78,9 @@ class ReconciliationMatcherTest {
 
     @Test
     void ignoresLinesOutsideThePeriodButNeverCallsTheirLedgerRowsMissing() {
-        StatementLine late = new StatementLine(2, "R9", END.plusMinutes(1), "Pay Bill", "Completed",
+        StatementLine late = new StatementLine(2, "R9", END.plus(Duration.ofMinutes(1)), "Pay Bill", "Completed",
                 new BigDecimal("50"), BigDecimal.ZERO, "Pay Bill Online", null, null, null, Map.of());
-        LedgerEntry recordedEarly = in(1, "R9", "50", "SUCCESS", END.minusMinutes(1));
+        LedgerEntry recordedEarly = in(1, "R9", "50", "SUCCESS", END.minus(Duration.ofMinutes(1)));
 
         ReconciliationMatcher.Result result = ReconciliationMatcher.match(List.of(late), START, END,
                 List.of(recordedEarly), List.of(recordedEarly), MARKERS);
@@ -90,7 +91,7 @@ class ReconciliationMatcherTest {
 
     @Test
     void internalTransfersAreNotExpectedInTheLedger() {
-        StatementLine sweep = new StatementLine(2, "S1", START.plusHours(3), "Transfer", "Completed", BigDecimal.ZERO,
+        StatementLine sweep = new StatementLine(2, "S1", START.plus(Duration.ofHours(3)), "Transfer", "Completed", BigDecimal.ZERO,
                 new BigDecimal("90000"), "Utility Account to Organization Settlement Account", null, null, null, Map.of());
 
         ReconciliationMatcher.Result result = ReconciliationMatcher.match(List.of(sweep), START, END, List.of(),
@@ -101,18 +102,18 @@ class ReconciliationMatcherTest {
     }
 
     static StatementLine line(String receipt, String paidIn) {
-        return new StatementLine(1, receipt, START.plusHours(1), "Pay Bill Online", "Completed", new BigDecimal(paidIn),
+        return new StatementLine(1, receipt, START.plus(Duration.ofHours(1)), "Pay Bill Online", "Completed", new BigDecimal(paidIn),
                 BigDecimal.ZERO, "Pay Bill Online", "254712***678 - Jane ***", null, null, Map.of());
     }
 
-    static LedgerEntry in(long id, String receipt, String amount, String status, LocalDateTime at) {
+    static LedgerEntry in(long id, String receipt, String amount, String status, Instant at) {
         return new LedgerEntry(id, UUID.randomUUID(), LedgerEntry.INCOMING, "IN", "C2B", receipt, new BigDecimal(amount),
                 status, null, at, at);
     }
 
     static LedgerEntry out(long id, String receipt, String amount) {
         return new LedgerEntry(id, UUID.randomUUID(), LedgerEntry.OUTGOING, "OUT", "B2C", receipt,
-                new BigDecimal(amount), "SUCCESS", null, START.plusHours(11), START.plusHours(11));
+                new BigDecimal(amount), "SUCCESS", null, START.plus(Duration.ofHours(11)), START.plus(Duration.ofHours(11)));
     }
 
     private static Map<String, Draft> byReceipt(ReconciliationMatcher.Result result) {

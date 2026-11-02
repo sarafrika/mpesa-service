@@ -3,7 +3,8 @@ package com.sarafrika.apps.mpesaservice.services.treasury;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -53,14 +54,14 @@ class AccountBalanceParserTest {
 
     @Test
     void theNewerReportWinsAndATieGoesToTheBalanceResult() {
-        LocalDateTime noon = LocalDateTime.of(2026, 10, 26, 12, 0);
+        Instant noon = Instant.parse("2026-10-26T12:00:00Z");
         BigDecimal snapshot = new BigDecimal("900000");
         BigDecimal payout = new BigDecimal("1000");
 
-        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.minusHours(1), null, null).source())
+        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.minus(Duration.ofHours(1)), null, null).source())
                 .isEqualTo(KnownFloat.BALANCE_QUERY);
         assertThat(KnownFloat.newest(snapshot, noon, payout, noon, null, null).utility()).isEqualByComparingTo("900000");
-        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.plusMinutes(1), null, null).source())
+        assertThat(KnownFloat.newest(snapshot, noon, payout, noon.plus(Duration.ofMinutes(1)), null, null).source())
                 .isEqualTo(KnownFloat.PAYOUT);
         assertThat(KnownFloat.newest(null, null, payout, noon, null, null).utility()).isEqualByComparingTo("1000");
         assertThat(KnownFloat.newest(null, null, null, null, null, null).known()).isFalse();

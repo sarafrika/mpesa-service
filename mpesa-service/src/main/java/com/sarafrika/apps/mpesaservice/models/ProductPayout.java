@@ -8,7 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -94,10 +94,10 @@ public class ProductPayout extends BaseEntity {
     private String checker;
 
     @Column(name = "timed_out_at")
-    private LocalDateTime timedOutAt;
+    private Instant timedOutAt;
 
     @Column(name = "completed_at")
-    private LocalDateTime completedAt;
+    private Instant completedAt;
 
     @Column(name = "closed_by")
     private String closedBy;

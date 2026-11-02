@@ -30,9 +30,9 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -314,7 +314,7 @@ public class ProductAdminService {
                         WHERE p.status = :status AND p.createdAt >= :since AND p.clientId IS NOT NULL
                         GROUP BY p.clientId""", Object[].class)
                 .setParameter("status", OutgoingPaymentStatus.SUCCESS)
-                .setParameter("since", LocalDateTime.now().minusDays(STATS_DAYS)).getResultList();
+                .setParameter("since", Instant.now().minus(Duration.ofDays(STATS_DAYS))).getResultList();
         return rows.stream().collect(Collectors.toMap(r -> (String) r[0], r -> (BigDecimal) r[1]));
     }
 
@@ -323,7 +323,7 @@ public class ProductAdminService {
                         SELECT p.shortcodeUuid, COALESCE(SUM(p.amount), 0) FROM MpesaIncomingPayment p
                         WHERE p.status = :status AND p.createdAt >= :since GROUP BY p.shortcodeUuid""", Object[].class)
                 .setParameter("status", IncomingPaymentStatus.SUCCESS)
-                .setParameter("since", LocalDateTime.now().minusDays(STATS_DAYS)).getResultList();
+                .setParameter("since", Instant.now().minus(Duration.ofDays(STATS_DAYS))).getResultList();
         return rows.stream().filter(r -> r[0] != null)
                 .collect(Collectors.toMap(r -> (UUID) r[0], r -> (BigDecimal) r[1]));
     }

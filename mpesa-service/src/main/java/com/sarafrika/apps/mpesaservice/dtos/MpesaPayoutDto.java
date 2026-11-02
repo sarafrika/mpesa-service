@@ -5,7 +5,7 @@ import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Schema(description = "A B2C payout and what Safaricom said about it")
@@ -26,13 +26,13 @@ public record MpesaPayoutDto(
         @JsonProperty("result_code") Integer resultCode,
         @JsonProperty("result_desc") String resultDesc,
         @Schema(description = "Set when Safaricom reported a queue timeout; the outcome is still unknown")
-        @JsonProperty("timed_out_at") LocalDateTime timedOutAt,
+        @JsonProperty("timed_out_at") Instant timedOutAt,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "true while PENDING when Safaricom never "
                 + "confirmed receiving the payout: it may still be paid, so wait for the result and do not retry")
         @JsonProperty("outcome_unknown") boolean outcomeUnknown,
-        @JsonProperty("transaction_date") LocalDateTime transactionDate,
-        @JsonProperty("created_at") LocalDateTime createdAt,
-        @JsonProperty("processed_at") LocalDateTime processedAt
+        @JsonProperty("transaction_date") Instant transactionDate,
+        @JsonProperty("created_at") Instant createdAt,
+        @JsonProperty("processed_at") Instant processedAt
 ) {
 
     public static MpesaPayoutDto from(MpesaOutgoingPayment payment) {

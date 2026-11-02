@@ -26,7 +26,7 @@ public interface MpesaOutgoingPaymentRepository extends JpaRepository<MpesaOutgo
 
     Optional<MpesaOutgoingPayment> findByConversationId(String conversationId);
 
-    long countByResultCodeAndProcessedAtAfter(Integer resultCode, java.time.LocalDateTime after);
+    long countByResultCodeAndProcessedAtAfter(Integer resultCode, java.time.Instant after);
 
     /** Row-locked reads, so two copies of one Safaricom result settle a payout once. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

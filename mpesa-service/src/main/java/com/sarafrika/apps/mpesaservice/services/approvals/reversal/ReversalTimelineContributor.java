@@ -4,9 +4,9 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.TimelineEventDto;
 import com.sarafrika.apps.mpesaservice.models.ReversalRequest;
 import com.sarafrika.apps.mpesaservice.repositories.ReversalRequestRepository;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionTimelineContributor;
+import com.sarafrika.apps.mpesaservice.utils.Times;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -51,6 +51,6 @@ public class ReversalTimelineContributor implements TransactionTimelineContribut
     }
 
     private static OffsetDateTime at(Instant instant) {
-        return instant == null ? null : instant.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        return Times.offset(instant);
     }
 }

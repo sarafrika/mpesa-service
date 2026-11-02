@@ -240,7 +240,7 @@ class MetricsIntegrationTest {
         UUID backfilled = incoming(fees, "C2B", "SUCCESS", "700.00", NOW.minus(Duration.ofMinutes(5)));
         // A statement or Pull backfill stores today a deposit made on 21 October (Nairobi).
         jdbc.update("UPDATE mpesa_incoming_payments SET transaction_date = ? WHERE uuid = ?",
-                MetricsTime.toStorage(Instant.parse("2026-10-21T07:00:00Z")), backfilled);
+                MetricsTime.sql(Instant.parse("2026-10-21T07:00:00Z")), backfilled);
         incoming(fees, "C2B", "SUCCESS", "300.00", NOW.minus(Duration.ofMinutes(1)));
 
         MetricsTimeseriesDto days = metrics.timeseries(WEEK_FROM, WEEK_TO, "day", Filter.ALL);
@@ -457,7 +457,7 @@ class MetricsIntegrationTest {
                         + "consumer_secret, callback_url, environment, is_active, created_at) "
                         + "VALUES (?, ?, 'PAYBILL', ?, 'k', 's', 'https://example.test/cb', ?, ?, ?)",
                 uuid, String.valueOf(600000 + SEQUENCE.incrementAndGet()), name, environment, active,
-                MetricsTime.toStorage(NOW.minus(Duration.ofDays(60))));
+                MetricsTime.sql(NOW.minus(Duration.ofDays(60))));
         return uuid;
     }
 
@@ -473,7 +473,7 @@ class MetricsIntegrationTest {
                         + "checkout_request_id, phone_number, amount, status, created_at, processed_at) "
                         + "VALUES (?, ?, ?, ?, ?, '254700000000', ?, ?, ?, ?)",
                 uuid, shortcode, type, settled ? "TX" + n : "ws_CO_" + n, "ws_CO_" + n, new BigDecimal(amount),
-                status, MetricsTime.toStorage(at), settled ? MetricsTime.toStorage(at) : null);
+                status, MetricsTime.sql(at), settled ? MetricsTime.sql(at) : null);
         return uuid;
     }
 
@@ -484,13 +484,13 @@ class MetricsIntegrationTest {
                         + "amount, status, org_account_balance, created_at, transaction_date) "
                         + "VALUES (?, 'C2B', ?, '254700000000', 10, ?, ?, ?, ?)",
                 shortcode, "TX" + n, status, new BigDecimal(balance),
-                MetricsTime.toStorage(at.plus(Duration.ofMinutes(1))), MetricsTime.toStorage(at));
+                MetricsTime.sql(at.plus(Duration.ofMinutes(1))), MetricsTime.sql(at));
     }
 
     private void snapshot(UUID shortcode, String utility, Instant at) {
         jdbc.update("INSERT INTO balance_snapshots (shortcode_uuid, status, source, utility_available, requested_at, "
                 + "received_at) VALUES (?, 'COMPLETED', 'MANUAL', ?, ?, ?)", shortcode, new BigDecimal(utility),
-                MetricsTime.toStorage(at), MetricsTime.toStorage(at));
+                MetricsTime.sql(at), MetricsTime.sql(at));
     }
 
     private void outgoing(UUID shortcode, String status, String amount, String utilityFunds, Instant at) {
@@ -500,7 +500,7 @@ class MetricsIntegrationTest {
                         + "status, utility_account_available_funds, created_at, processed_at) "
                         + "VALUES (?, 'B2C', ?, ?, '254700000000', ?, 'BusinessPayment', 'api', ?, ?, ?, ?)",
                 shortcode, status.equals("SUCCESS") ? "OUT" + n : null, "sar-" + n, new BigDecimal(amount), status,
-                utilityFunds == null ? null : new BigDecimal(utilityFunds), MetricsTime.toStorage(at),
-                MetricsTime.toStorage(at));
+                utilityFunds == null ? null : new BigDecimal(utilityFunds), MetricsTime.sql(at),
+                MetricsTime.sql(at));
     }
 }

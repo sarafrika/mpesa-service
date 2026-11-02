@@ -32,8 +32,10 @@ import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
@@ -143,7 +145,7 @@ class StkReceiptAttachIntegrationTest {
 
     @Test
     void aStatusQuerySettledStkPaymentGetsTheStatementReceiptAndIsNeverBackfilledTwice() throws Exception {
-        LocalDateTime requested = LocalDateTime.of(2026, 10, 25, 10, 1, 10);
+        Instant requested = Instant.parse("2026-10-25T10:01:10+03:00");
         UUID stk = stkPush("ws_CO_" + p + "A", "254722123111", requested);
         stkPush("ws_CO_" + p + "B", "254799000999", requested); // same amount, another phone: not this deposit
         // The STK callback never came; the console asks Safaricom, whose documented reply has no receipt.
@@ -181,7 +183,7 @@ class StkReceiptAttachIntegrationTest {
         assertThat(done.ledgerPaymentUuid()).isEqualTo(stk);
         MpesaIncomingPayment attached = payments.findByUuid(stk).orElseThrow();
         assertThat(attached.getTransactionId()).isEqualTo(p + "0BB");
-        assertThat(attached.getTransactionDate()).isEqualTo(LocalDateTime.of(2026, 10, 25, 10, 1, 44));
+        assertThat(attached.getTransactionDate()).isEqualTo(Instant.parse("2026-10-25T10:01:44+03:00"));
         assertThat(attached.getRawCallbackData()).containsKey("ReceiptFromReconciliation");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM mpesa_incoming_payments WHERE amount = 2500 "
                 + "AND shortcode_uuid = ? AND deleted_at IS NULL", Long.class, shortcode.getUuid())).isEqualTo(2);
@@ -206,7 +208,7 @@ class StkReceiptAttachIntegrationTest {
         assertThat(StkCandidates.phoneFits(null, "254722000002")).isTrue();
     }
 
-    private UUID stkPush(String checkout, String phone, LocalDateTime at) {
+    private UUID stkPush(String checkout, String phone, Instant at) {
         MpesaIncomingPayment payment = new MpesaIncomingPayment();
         payment.setShortcodeUuid(shortcode.getUuid());
         payment.setPaymentType(IncomingPaymentType.STK_PUSH);
@@ -219,7 +221,7 @@ class StkReceiptAttachIntegrationTest {
         payment.setStatus(IncomingPaymentStatus.PENDING);
         payment.setClientId("elimika-backend");
         MpesaIncomingPayment saved = payments.saveAndFlush(payment);
-        jdbc.update("UPDATE mpesa_incoming_payments SET created_at = ? WHERE uuid = ?", at, saved.getUuid());
+        jdbc.update("UPDATE mpesa_incoming_payments SET created_at = ? WHERE uuid = ?", utc(at), saved.getUuid());
         return saved.getUuid();
     }
 
@@ -229,5 +231,10 @@ class StkReceiptAttachIntegrationTest {
                 .getBytes(StandardCharsets.UTF_8);
         return service.reconcileStatement(shortcode.getUuid(), LocalDate.of(2026, 10, 25), LocalDate.of(2026, 10, 25),
                 "statement.csv", content);
+    }
+
+    /** The JDBC driver binds an OffsetDateTime, not an Instant, to a TIMESTAMPTZ parameter. */
+    private static OffsetDateTime utc(Instant instant) {
+        return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
     }
 }

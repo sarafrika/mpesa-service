@@ -2,7 +2,7 @@ package com.sarafrika.apps.mpesaservice.dtos;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * Generic wrapper for all M-Pesa API responses
@@ -21,7 +21,7 @@ public record MpesaApiResponse<T>(
         MpesaErrorResponse error,
 
         @Schema(description = "Response timestamp")
-        LocalDateTime timestamp,
+        Instant timestamp,
 
         @Schema(description = "HTTP status code")
         int httpStatus,
@@ -34,28 +34,28 @@ public record MpesaApiResponse<T>(
      * Create successful response
      */
     public static <T> MpesaApiResponse<T> success(T data, int httpStatus) {
-        return new MpesaApiResponse<>(true, data, null, LocalDateTime.now(), httpStatus, null);
+        return new MpesaApiResponse<>(true, data, null, Instant.now(), httpStatus, null);
     }
 
     /**
      * Create successful response with processing time
      */
     public static <T> MpesaApiResponse<T> success(T data, int httpStatus, long processingTimeMs) {
-        return new MpesaApiResponse<>(true, data, null, LocalDateTime.now(), httpStatus, processingTimeMs);
+        return new MpesaApiResponse<>(true, data, null, Instant.now(), httpStatus, processingTimeMs);
     }
 
     /**
      * Create error response
      */
     public static <T> MpesaApiResponse<T> error(MpesaErrorResponse error, int httpStatus) {
-        return new MpesaApiResponse<>(false, null, error, LocalDateTime.now(), httpStatus, null);
+        return new MpesaApiResponse<>(false, null, error, Instant.now(), httpStatus, null);
     }
 
     /**
      * Create error response with processing time
      */
     public static <T> MpesaApiResponse<T> error(MpesaErrorResponse error, int httpStatus, long processingTimeMs) {
-        return new MpesaApiResponse<>(false, null, error, LocalDateTime.now(), httpStatus, processingTimeMs);
+        return new MpesaApiResponse<>(false, null, error, Instant.now(), httpStatus, processingTimeMs);
     }
 
     /**
@@ -66,7 +66,7 @@ public record MpesaApiResponse<T>(
                 errorCode,
                 errorMessage,
                 null,
-                LocalDateTime.now()
+                Instant.now()
         );
         return error(errorResponse, httpStatus);
     }
@@ -79,7 +79,7 @@ public record MpesaApiResponse<T>(
                 errorCode,
                 errorMessage,
                 null,
-                LocalDateTime.now()
+                Instant.now()
         );
         return error(errorResponse, httpStatus, processingTimeMs);
     }

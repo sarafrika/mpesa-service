@@ -1,8 +1,10 @@
 package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
 import com.sarafrika.apps.mpesaservice.services.reconciliation.StatementParseException.RowError;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -150,13 +152,14 @@ public final class StatementCsvParser {
                 blankToNull(cell(row, columns, Column.ACCOUNT)), raw);
     }
 
-    static LocalDateTime time(String value) {
+    /** Statement times are East Africa Time. */
+    static Instant time(String value) {
         if (value.isEmpty()) {
             throw new IllegalArgumentException("Completion Time is empty");
         }
         for (DateTimeFormatter format : TIMES) {
             try {
-                return LocalDateTime.parse(value.trim(), format);
+                return DarajaTime.of(LocalDateTime.parse(value.trim(), format));
             } catch (DateTimeParseException ignored) {
                 // try the next layout
             }

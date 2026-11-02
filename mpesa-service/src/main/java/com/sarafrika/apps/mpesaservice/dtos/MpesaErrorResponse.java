@@ -3,7 +3,7 @@ package com.sarafrika.apps.mpesaservice.dtos;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * Error response structure from M-Pesa API
@@ -25,7 +25,7 @@ public record MpesaErrorResponse(
         String requestId,
 
         @Schema(description = "Timestamp when error occurred")
-        LocalDateTime timestamp
+        Instant timestamp
 ) {
 
     /** Daraja could not be reached or did not answer in time; whether it acted on the request is unknown. */

@@ -17,10 +17,10 @@ import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.QRTransactionType;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
-import java.time.ZoneId;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -172,7 +172,7 @@ public class QrCodeService {
         return new QrCodeDto(code.getUuid(), code.getShortcodeUuid(), code.getMerchantName(), code.getRefNo(),
                 code.getAmount(), code.getTrxCode(), code.getCpi(), code.getSize(), code.getRequestId(),
                 code.getCreatedBy(),
-                code.getCreatedAt() == null ? null : code.getCreatedAt().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+                Times.offset(code.getCreatedAt()),
                 "/api/v1/admin/shortcodes/" + code.getShortcodeUuid() + "/qr-codes/" + code.getUuid() + "/image",
                 withImage ? code.getImageBase64() : null);
     }

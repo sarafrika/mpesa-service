@@ -11,7 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,8 +33,8 @@ public class MpesaShortCodeServiceImpl implements MpesaShortCodeService {
         }
 
         MpesaShortCode entity = convertToEntity(dto);
-        entity.setCreatedAt(LocalDateTime.now());
-        entity.setUpdatedAt(LocalDateTime.now());
+        entity.setCreatedAt(Instant.now());
+        entity.setUpdatedAt(Instant.now());
 
         MpesaShortCode saved = shortCodeRepository.save(entity);
         log.info("Successfully created M-Pesa shortcode with UUID: {}", saved.getUuid());
@@ -56,7 +56,7 @@ public class MpesaShortCodeServiceImpl implements MpesaShortCodeService {
         }
 
         updateEntityFromDto(existing, dto);
-        existing.setUpdatedAt(LocalDateTime.now());
+        existing.setUpdatedAt(Instant.now());
 
         MpesaShortCode updated = shortCodeRepository.save(existing);
         log.info("Successfully updated M-Pesa shortcode with UUID: {}", uuid);

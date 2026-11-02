@@ -4,7 +4,7 @@ import com.sarafrika.apps.mpesaservice.services.shortcode.CallbackUrls;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sarafrika.apps.mpesaservice.models.C2bRegistration;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /** One C2B URL registration attempt and Safaricom's answer. */
@@ -27,7 +27,7 @@ public record C2bRegistrationDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "jane.doe")
         @JsonProperty("registered_by") String registeredBy,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
-        @JsonProperty("created_at") LocalDateTime createdAt) {
+        @JsonProperty("created_at") Instant createdAt) {
 
     public static C2bRegistrationDto from(C2bRegistration registration) {
         return new C2bRegistrationDto(registration.getUuid(), C2bResponseType.valueOf(registration.getResponseType()),

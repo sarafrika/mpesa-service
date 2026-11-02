@@ -4,7 +4,7 @@ import com.sarafrika.apps.mpesaservice.models.B2bTransfer;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,13 +39,13 @@ public interface B2bTransferRepository extends JpaRepository<B2bTransfer, Long> 
               AND t.outcomeUnknown = true AND t.conversationId IS NULL AND t.originatorConversationId IS NULL
               AND t.receiverShortcode = :receiver AND t.amount = :amount AND t.createdAt >= :since""")
     List<B2bTransfer> lockUnmatched(@Param("receiver") String receiver, @Param("amount") BigDecimal amount,
-                                    @Param("since") LocalDateTime since);
+                                    @Param("since") Instant since);
 
     /** Open transfers a stored result could be attached to by hand. */
     @Query("""
             SELECT t FROM B2bTransfer t WHERE t.status = com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus.PENDING
               AND t.conversationId IS NULL AND t.createdAt >= :since ORDER BY t.createdAt DESC, t.id DESC""")
-    List<B2bTransfer> findAttachable(@Param("since") LocalDateTime since, Pageable pageable);
+    List<B2bTransfer> findAttachable(@Param("since") Instant since, Pageable pageable);
 
     Optional<B2bTransfer> findByUuidAndShortcodeUuid(UUID uuid, UUID shortcodeUuid);
 

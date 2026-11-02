@@ -29,7 +29,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -52,7 +52,6 @@ import org.springframework.util.StringUtils;
 @Service
 public class B2bCheckoutService {
 
-    private static final java.time.ZoneId NAIROBI = java.time.ZoneId.of("Africa/Nairobi");
 
     public static final String EVENT_COMPLETED = PaymentEvent.B2B_CHECKOUT_COMPLETED;
     static final String AUDIT_STARTED = "B2B_EXPRESS_CHECKOUT_STARTED";
@@ -149,7 +148,7 @@ public class B2bCheckoutService {
             row.setStatus(B2bCheckoutStatus.FAILED);
             row.setResultCode(DarajaReplies.truncate(DarajaReplies.text(response.data(), "code"), 20));
             row.setResultDesc(DarajaReplies.truncate(DarajaReplies.refusal(response, "status"), 500));
-            row.setCompletedAt(LocalDateTime.now());
+            row.setCompletedAt(Instant.now());
         }
         return checkouts.save(row);
     }
@@ -184,7 +183,7 @@ public class B2bCheckoutService {
         checkout.setResultDesc(DarajaReplies.truncate(DarajaReplies.text(body, "resultDesc"), 500));
         checkout.setOutcomeUnknown(false);
         checkout.setRawResult(raw);
-        checkout.setCompletedAt(LocalDateTime.now());
+        checkout.setCompletedAt(Instant.now());
         if ("0".equals(code)) {
             checkout.setStatus(B2bCheckoutStatus.SUCCESS);
             checkout.setTransactionId(DarajaReplies.text(body, "transactionId"));
@@ -215,9 +214,8 @@ public class B2bCheckoutService {
         payment.setResultCode(0);
         payment.setResultDesc(checkout.getResultDesc());
         payment.setStatus(IncomingPaymentStatus.SUCCESS);
-        // Transaction times are East Africa Time, as Daraja's own timestamps are.
-        payment.setTransactionDate(LocalDateTime.now(NAIROBI));
-        payment.setProcessedAt(LocalDateTime.now());
+        payment.setTransactionDate(Instant.now());
+        payment.setProcessedAt(Instant.now());
         payment.setRawCallbackData(objectMapper.convertValue(body, new TypeReference<Map<String, Object>>() {}));
         MpesaIncomingPayment saved = incoming.saveAndFlush(payment);
         Map<String, Object> data = new LinkedHashMap<>();

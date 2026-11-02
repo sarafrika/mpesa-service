@@ -44,7 +44,11 @@ import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -262,7 +266,7 @@ class ShortcodeAdminIntegrationTest {
     @Test
     void anOperationNeedingTheInitiatorGoesLiveOnlyWithIt() {
         signIn("mpesa-admin");
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, Instant.now()));
         ShortcodeDetailDto draft = service.create(new CreateShortcodeRequest(next(), ShortcodeType.ONE_ACCOUNT,
                 "Both", Environment.SANDBOX, "k", "s", "pk", null, null, null, null, null, null, null));
         service.testConnection(draft.uuid());
@@ -292,13 +296,13 @@ class ShortcodeAdminIntegrationTest {
         String tag = "Health" + next();
         ShortcodeDetailDto fees = service.create(named(tag + " Fees", ShortcodeType.PAYBILL));
         ShortcodeDetailDto shop = service.create(named(tag + " Shop", ShortcodeType.TILL));
-        payment(fees.uuid(), "SUCCESS", "1500.00", LocalDateTime.now());
-        payment(fees.uuid(), "SUCCESS", "250.50", LocalDateTime.now());
-        payment(fees.uuid(), "PENDING", "999.00", LocalDateTime.now());
-        payment(fees.uuid(), "SUCCESS", "777.00", LocalDateTime.now().minusDays(2));
+        payment(fees.uuid(), "SUCCESS", "1500.00", Instant.now());
+        payment(fees.uuid(), "SUCCESS", "250.50", Instant.now());
+        payment(fees.uuid(), "PENDING", "999.00", Instant.now());
+        payment(fees.uuid(), "SUCCESS", "777.00", Instant.now().minus(Duration.ofDays(2)));
         // Backfilled today for money that arrived two days ago, and the other way round.
-        payment(fees.uuid(), "SUCCESS", "40.00", LocalDateTime.now(), LocalDateTime.now().minusDays(2));
-        payment(fees.uuid(), "SUCCESS", "60.00", LocalDateTime.now().minusDays(2), LocalDateTime.now());
+        payment(fees.uuid(), "SUCCESS", "40.00", Instant.now(), Instant.now().minus(Duration.ofDays(2)));
+        payment(fees.uuid(), "SUCCESS", "60.00", Instant.now().minus(Duration.ofDays(2)), Instant.now());
         payout(fees.uuid(), "98500.00");
         failedCallback(fees.uuid(), "FAILED", 1);
         failedCallback(fees.uuid(), "FAILED", 30);
@@ -339,7 +343,7 @@ class ShortcodeAdminIntegrationTest {
         assertThatThrownBy(() -> service.activate(draft.uuid())).isInstanceOf(ConflictException.class);
         assertThatThrownBy(() -> service.suspend(draft.uuid(), null)).isInstanceOf(ConflictException.class);
 
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 312, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 312, null, Instant.now()));
         ConnectionTestResultDto check = service.testConnection(draft.uuid());
         ShortcodeDetailDto active = service.activate(draft.uuid());
         ShortcodeDetailDto suspended = service.suspend(draft.uuid(), "Rotating keys");
@@ -362,7 +366,7 @@ class ShortcodeAdminIntegrationTest {
         signIn("mpesa-operator");
         ShortcodeDetailDto draft = service.create(request(next(), ShortcodeType.PAYBILL, Environment.SANDBOX));
         when(tester.test(any())).thenReturn(new ConnectionTestResultDto(false, 40,
-                "Daraja refused these credentials (400 BAD_REQUEST)", LocalDateTime.now()));
+                "Daraja refused these credentials (400 BAD_REQUEST)", Instant.now()));
 
         ConnectionTestResultDto result = service.testConnection(draft.uuid());
 
@@ -374,7 +378,7 @@ class ShortcodeAdminIntegrationTest {
     void updatesChangeOnlyWhatIsGivenAndSavingCredentialsRerunsTheTokenCheck() {
         signIn("mpesa-admin");
         ShortcodeDetailDto draft = service.create(request(next(), ShortcodeType.PAYBILL, Environment.SANDBOX));
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, Instant.now()));
         service.testConnection(draft.uuid());
 
         ShortcodeDetailDto updated = service.update(draft.uuid(), new UpdateShortcodeRequest("Renamed", null,
@@ -452,7 +456,7 @@ class ShortcodeAdminIntegrationTest {
         TestStkRequest oneShilling = new TestStkRequest("254708374149", null);
         assertThatThrownBy(() -> c2b.testStk(code.uuid(), oneShilling)).isInstanceOf(ConflictException.class);
 
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 200, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 200, null, Instant.now()));
         service.updateOperations(code.uuid(), operations(ShortcodeOperation.C2B, ShortcodeOperation.STK_PUSH));
         service.testConnection(code.uuid());
         service.activate(code.uuid());
@@ -512,21 +516,21 @@ class ShortcodeAdminIntegrationTest {
     @Test
     void aNewerC2bOrgAccountBalanceIsTheUtilityFloatAndKeepsThePayoutsWorkingBalance() {
         signIn("mpesa-operator");
-        LocalDateTime now = LocalDateTime.now().withNano(0);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         ShortcodeDetailDto collects = service.create(named("Collects " + next(), ShortcodeType.PAYBILL));
         ShortcodeDetailDto pays = service.create(named("Pays " + next(), ShortcodeType.PAYBILL));
-        payout(collects.uuid(), "70000.00", "5000.00", now.minusHours(2));
-        c2bBalance(collects.uuid(), "60000.00", now.minusHours(3));
-        c2bBalance(collects.uuid(), "71500.00", now.minusHours(1));
-        c2bBalance(pays.uuid(), "10.00", now.minusHours(2));
-        payout(pays.uuid(), "20000.00", "300.00", now.minusHours(2));
+        payout(collects.uuid(), "70000.00", "5000.00", now.minus(Duration.ofHours(2)));
+        c2bBalance(collects.uuid(), "60000.00", now.minus(Duration.ofHours(3)));
+        c2bBalance(collects.uuid(), "71500.00", now.minus(Duration.ofHours(1)));
+        c2bBalance(pays.uuid(), "10.00", now.minus(Duration.ofHours(2)));
+        payout(pays.uuid(), "20000.00", "300.00", now.minus(Duration.ofHours(2)));
 
         ShortcodeHealthDto c2b = service.get(collects.uuid()).health();
         ShortcodeHealthDto payout = service.get(pays.uuid()).health();
 
         assertThat(c2b.floatUtility()).isEqualByComparingTo("71500.00");
         assertThat(c2b.floatWorking()).isEqualByComparingTo("5000.00");
-        assertThat(c2b.floatReportedAt()).isEqualTo(now.minusHours(1));
+        assertThat(c2b.floatReportedAt()).isEqualTo(now.minus(Duration.ofHours(1)));
         // A tie goes to the payout, which also reports the working balance.
         assertThat(payout.floatUtility()).isEqualByComparingTo("20000.00");
         assertThat(payout.floatWorking()).isEqualByComparingTo("300.00");
@@ -550,7 +554,7 @@ class ShortcodeAdminIntegrationTest {
     @Test
     void eachTypeStartsWithItsDefaultOperationsAndACollectOnlyPaybillGoesLiveOnItsKeysAlone() {
         signIn("mpesa-admin");
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, Instant.now()));
         ShortcodeDetailDto paybill = service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
                 Environment.PRODUCTION, "k", "s", null, null, null, null, null, null, null, null));
         ShortcodeDetailDto till = service.create(named("Shop", ShortcodeType.TILL));
@@ -583,7 +587,7 @@ class ShortcodeAdminIntegrationTest {
     @Test
     void goingLiveAsksForThePasskeyWhenStkPushIsOn() {
         signIn("mpesa-admin");
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, Instant.now()));
         ShortcodeDetailDto draft = service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
                 Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null, null,
                 List.of(ShortcodeOperation.C2B, ShortcodeOperation.STK_PUSH)));
@@ -598,7 +602,7 @@ class ShortcodeAdminIntegrationTest {
     @Test
     void operationsStayWithinTheTypeAndALiveShortcodeNeedsTheCredentialFirst() {
         signIn("mpesa-admin");
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, Instant.now()));
         ShortcodeDetailDto code = service.create(new CreateShortcodeRequest(next(), ShortcodeType.PAYBILL, "Fees",
                 Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null));
 
@@ -653,22 +657,22 @@ class ShortcodeAdminIntegrationTest {
         ShortcodeDetailDto bare = service.create(new CreateShortcodeRequest(next(), ShortcodeType.B2C, "Payouts",
                 Environment.SANDBOX, "k", "s", null, null, null, null, null, null, null, null));
 
-        LocalDateTime setAt = jdbc.queryForObject("SELECT initiator_credential_set_at FROM mpesa_shortcodes "
-                + "WHERE uuid = ?", LocalDateTime.class, live.uuid());
-        assertThat(service.get(live.uuid()).initiatorCredentialExpiresAt()).isEqualTo(setAt.plusDays(90));
+        Instant setAt = jdbc.queryForObject("SELECT initiator_credential_set_at FROM mpesa_shortcodes "
+                + "WHERE uuid = ?", Instant.class, live.uuid());
+        assertThat(service.get(live.uuid()).initiatorCredentialExpiresAt()).isEqualTo(setAt.plus(Duration.ofDays(90)));
         assertThat(sandbox.initiatorCredentialExpiresAt()).isNotNull();
         assertThat(bare.initiatorCredentialExpiresAt()).isNull();
         assertThatThrownBy(() -> service.updateCredentials(live.uuid(),
                 new UpdateShortcodeCredentialsRequest(null, null, null, null, "new-pw", null)))
                 .isInstanceOfSatisfying(InvalidRequestException.class,
                         e -> assertThat(e.getField()).isEqualTo("initiator_password"));
-        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, LocalDateTime.now()));
+        when(tester.test(any())).thenReturn(new ConnectionTestResultDto(true, 10, null, Instant.now()));
         jdbc.update("UPDATE mpesa_shortcodes SET initiator_credential_set_at = NOW() - INTERVAL '60 days' "
                 + "WHERE uuid = ?", bare.uuid());
         assertThat(service.get(bare.uuid()).initiatorCredentialExpiresAt()).isNull();
         ShortcodeDetailDto renewed = service.updateCredentials(bare.uuid(),
                 new UpdateShortcodeCredentialsRequest(null, null, null, "api", null, "CRED2=="));
-        assertThat(renewed.initiatorCredentialExpiresAt()).isAfter(LocalDateTime.now().plusDays(89));
+        assertThat(renewed.initiatorCredentialExpiresAt()).isAfter(Instant.now().plus(Duration.ofDays(89)));
     }
 
     @Test
@@ -724,28 +728,28 @@ class ShortcodeAdminIntegrationTest {
         return new ShortcodeAdminService.ShortcodeQuery(null, null, null, status, q);
     }
 
-    private void payment(UUID shortcode, String status, String amount, LocalDateTime createdAt,
-                         LocalDateTime transactionDate) {
+    private void payment(UUID shortcode, String status, String amount, Instant createdAt,
+                         Instant transactionDate) {
         jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
                 + "amount, status, created_at, transaction_date) VALUES (?, 'C2B', ?, '254712345678', ?, ?, ?, ?)",
                 shortcode, "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(amount), status,
-                createdAt, transactionDate);
+                utc(createdAt), utc(transactionDate));
     }
 
-    private void payout(UUID shortcode, String utility, String working, LocalDateTime processedAt) {
+    private void payout(UUID shortcode, String utility, String working, Instant processedAt) {
         jdbc.update("INSERT INTO mpesa_outgoing_payments (shortcode_uuid, payment_type, originator_conversation_id, "
                 + "recipient_phone_number, amount, command_id, initiator_name, status, utility_account_available_funds, "
                 + "working_account_available_funds, processed_at) "
                 + "VALUES (?, 'B2C', ?, '254712345678', 100, 'BusinessPayment', 'api', 'SUCCESS', ?, ?, ?)",
-                shortcode, "sar-" + UUID.randomUUID(), new BigDecimal(utility), new BigDecimal(working), processedAt);
+                shortcode, "sar-" + UUID.randomUUID(), new BigDecimal(utility), new BigDecimal(working), utc(processedAt));
     }
 
-    private void c2bBalance(UUID shortcode, String orgBalance, LocalDateTime transactionDate) {
+    private void c2bBalance(UUID shortcode, String orgBalance, Instant transactionDate) {
         jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
                 + "amount, status, org_account_balance, created_at, transaction_date) "
                 + "VALUES (?, 'C2B', ?, '254712345678', 10, 'SUCCESS', ?, ?, ?)",
                 shortcode, "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(orgBalance),
-                transactionDate.plusMinutes(5), transactionDate);
+                utc(transactionDate.plus(Duration.ofMinutes(5))), utc(transactionDate));
     }
 
     private void failedCallback(UUID shortcode, String status, int hoursAgo) {
@@ -754,10 +758,10 @@ class ShortcodeAdminIntegrationTest {
                 + "NOW() - make_interval(hours => ?), ?)", status, hoursAgo, shortcode);
     }
 
-    private void payment(UUID shortcode, String status, String amount, LocalDateTime at) {
+    private void payment(UUID shortcode, String status, String amount, Instant at) {
         jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
                 + "amount, status, created_at) VALUES (?, 'C2B', ?, '254712345678', ?, ?, ?)",
-                shortcode, "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(amount), status, at);
+                shortcode, "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(amount), status, utc(at));
     }
 
     private void payout(UUID shortcode, String utility) {
@@ -778,5 +782,10 @@ class ShortcodeAdminIntegrationTest {
                 .claim("preferred_username", "jane.doe").build();
         SecurityContextHolder.getContext().setAuthentication(
                 new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_" + role))));
+    }
+
+    /** The JDBC driver binds an OffsetDateTime, not an Instant, to a TIMESTAMPTZ parameter. */
+    private static OffsetDateTime utc(Instant instant) {
+        return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
     }
 }

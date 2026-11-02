@@ -17,6 +17,7 @@ import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationMatcher.Draft;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationAction;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionKind;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionStatus;
@@ -27,8 +28,8 @@ import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -56,7 +57,7 @@ import org.springframework.util.StringUtils;
 public class ReconciliationService {
 
     static final String AUDIT_RUN = "RECONCILIATION_RUN";
-    static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
+    static final ZoneId NAIROBI = DarajaTime.ZONE;
     // Safaricom: "Transactions can only be pulled within 48 hours" (developer.safaricom.co.ke/apis/PullTransaction FAQ).
     static final Duration PULL_WINDOW = Duration.ofHours(48);
 
@@ -110,24 +111,25 @@ public class ReconciliationService {
             throw new InvalidRequestException("file", "this statement is for shortcode " + parsed.shortCode()
                     + ", not " + shortcode.getShortcode());
         }
-        return run(shortcode, ReconciliationSource.STATEMENT, ReconciliationTrigger.MANUAL, from.atStartOfDay(),
-                to.plusDays(1).atStartOfDay(), fileName, parsed.lines());
+        return run(shortcode, ReconciliationSource.STATEMENT, ReconciliationTrigger.MANUAL,
+                from.atStartOfDay(NAIROBI).toInstant(), to.plusDays(1).atStartOfDay(NAIROBI).toInstant(), fileName,
+                parsed.lines());
     }
 
     /** Safaricom's Pull Transactions rows for [start, end) as the statement; deposits only, as Pull is C2B only.
      * Safaricom is asked before any database transaction opens, and a period ending in the future ends now. */
-    public ReconciliationRunDto reconcilePull(UUID shortcodeUuid, LocalDateTime start, LocalDateTime end,
+    public ReconciliationRunDto reconcilePull(UUID shortcodeUuid, Instant start, Instant end,
                                               ReconciliationTrigger trigger) {
         MpesaShortCode shortcode = shortcode(shortcodeUuid);
         pull.requireEnabled(shortcodeUuid);
         if (!end.isAfter(start)) {
             throw new InvalidRequestException("to", "must be after the start");
         }
-        LocalDateTime now = LocalDateTime.now(clock);
-        if (start.isBefore(now.minus(PULL_WINDOW).minusMinutes(5))) {
+        Instant now = clock.instant();
+        if (start.isBefore(now.minus(PULL_WINDOW).minus(Duration.ofMinutes(5)))) {
             throw new InvalidRequestException("from", "Safaricom only returns Pull Transactions from the last 48 hours");
         }
-        LocalDateTime until = end.isAfter(now) ? now : end;
+        Instant until = end.isAfter(now) ? now : end;
         if (!until.isAfter(start)) {
             throw new InvalidRequestException("from", "must be in the past");
         }
@@ -138,7 +140,7 @@ public class ReconciliationService {
 
     @Transactional
     public ReconciliationRunDto run(MpesaShortCode shortcode, ReconciliationSource source, ReconciliationTrigger trigger,
-                                    LocalDateTime start, LocalDateTime end, String fileName, List<StatementLine> lines) {
+                                    Instant start, Instant end, String fileName, List<StatementLine> lines) {
         // Pull returns C2B rows only (its FAQ), so a Pull run expects nothing else of ours in the period; any
         // deposit of ours may still hold one of its receipts.
         boolean pullRun = source == ReconciliationSource.PULL_TRANSACTIONS;
@@ -173,7 +175,7 @@ public class ReconciliationService {
         run.setWithdrawnTotal(result.withdrawnTotal());
         run.setChargesTotal(result.chargesTotal());
         run.setCreatedBy(CurrentActor.name());
-        run.setCompletedAt(LocalDateTime.now());
+        run.setCompletedAt(Instant.now());
         ReconciliationRun saved = runs.save(run);
 
         // A Pull run saw deposits only, so it rechecks only earlier Pull runs' exceptions.
@@ -189,8 +191,8 @@ public class ReconciliationService {
 
     /** A scheduled Pull run that could not reach Safaricom is kept as FAILED so the run list shows the gap. */
     @Transactional
-    public void recordFailure(MpesaShortCode shortcode, ReconciliationSource source, LocalDateTime start,
-                              LocalDateTime end, String reason) {
+    public void recordFailure(MpesaShortCode shortcode, ReconciliationSource source, Instant start,
+                              Instant end, String reason) {
         ReconciliationRun run = new ReconciliationRun();
         run.setShortcodeUuid(shortcode.getUuid());
         run.setSource(source);
@@ -200,7 +202,7 @@ public class ReconciliationService {
         run.setPeriodEnd(end);
         run.setFailureReason(truncate(reason == null ? "Unknown failure" : reason, 1000));
         run.setCreatedBy(CurrentActor.SYSTEM);
-        run.setCompletedAt(LocalDateTime.now());
+        run.setCompletedAt(Instant.now());
         runs.save(run);
     }
 

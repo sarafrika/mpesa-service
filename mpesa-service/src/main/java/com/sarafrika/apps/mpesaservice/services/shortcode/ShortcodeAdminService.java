@@ -31,7 +31,8 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -156,7 +157,7 @@ public class ShortcodeAdminService {
         return new ShortcodeTotalsDto(all.size(), active, suspended, draft, production, all.size() - production,
                 c2bApplicable, c2bRegistered, totalFloat, floatKnown,
                 payouts.countByResultCodeAndProcessedAtAfter(DarajaHints.INVALID_INITIATOR,
-                        LocalDateTime.now().minusHours(24)));
+                        Instant.now().minus(Duration.ofHours(24))));
     }
 
     @Transactional(readOnly = true)
@@ -196,7 +197,7 @@ public class ShortcodeAdminService {
             checkStoreNumberFree(storeNumber, null);
         }
         String actor = CurrentActor.name();
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         MpesaShortCode code = new MpesaShortCode();
         code.setShortcode(shortcode);
         code.setShortcodeType(type);
@@ -272,7 +273,7 @@ public class ShortcodeAdminService {
             checkStoreNumberFree(storeNumber, code.getId());
             storeChanged = !storeNumber.equals(code.getStoreNumber());
             code.setStoreNumber(storeNumber);
-            code.setStoreNumberConfirmedAt(LocalDateTime.now());
+            code.setStoreNumberConfirmedAt(Instant.now());
         }
         code.setUpdatedBy(CurrentActor.name());
         code = repository.saveAndFlush(code);
@@ -380,7 +381,7 @@ public class ShortcodeAdminService {
             if (changed.isEmpty()) {
                 throw new InvalidRequestException("credentials", "Enter at least one new credential");
             }
-            LocalDateTime now = LocalDateTime.now();
+            Instant now = Instant.now();
             code.setCredentialsUpdatedAt(now);
             if (changed.contains("initiator_password") || changed.contains("security_credential")) {
                 code.setInitiatorCredentialSetAt(now);
@@ -427,7 +428,7 @@ public class ShortcodeAdminService {
                     + "credentials before the shortcode goes live");
         }
         requireReadyToGoLive(code);
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         code.setIsActive(true);
         if (code.getActivatedAt() == null) {
             code.setActivatedAt(now);
@@ -448,7 +449,7 @@ public class ShortcodeAdminService {
             throw new ConflictException("Shortcode " + code.getShortcode() + " is not active");
         }
         code.setIsActive(false);
-        code.setSuspendedAt(LocalDateTime.now());
+        code.setSuspendedAt(Instant.now());
         code.setUpdatedBy(CurrentActor.name());
         code = repository.saveAndFlush(code);
         Map<String, Object> after = new LinkedHashMap<>();

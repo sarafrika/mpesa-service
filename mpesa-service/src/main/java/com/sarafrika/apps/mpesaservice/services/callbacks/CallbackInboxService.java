@@ -11,6 +11,7 @@ import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.models.CallbackInboxEntry;
 import com.sarafrika.apps.mpesaservice.repositories.CallbackInboxRepository;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackKind;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackStatus;
 import jakarta.persistence.criteria.Predicate;
@@ -18,7 +19,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -174,7 +174,7 @@ public class CallbackInboxService {
     }
 
     static OffsetDateTime offset(Instant instant) {
-        return instant == null ? null : instant.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        return Times.offset(instant);
     }
 
     private static Specification<CallbackInboxEntry> matching(Filter filter) {

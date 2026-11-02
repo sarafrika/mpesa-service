@@ -53,7 +53,11 @@ import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -247,11 +251,11 @@ class TreasuryIntegrationTest {
 
     @Test
     void aNewerC2bPaymentsOrgAccountBalanceIsTheKnownFloat() {
-        LocalDateTime now = LocalDateTime.now().withNano(0);
-        snapshot("900000.00", "800000.00", now.minusHours(3), "jane.doe");
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        snapshot("900000.00", "800000.00", now.minus(Duration.ofHours(3)), "jane.doe");
         when(payouts.latestFloat(any())).thenAnswer(call -> new PayoutFloatDto(call.getArgument(0),
-                new BigDecimal("700000.00"), new BigDecimal("1.00"), now.minusHours(2)));
-        c2b("SUCCESS", "100.00", "40000.00", now.minusDays(1), now.minusHours(1));
+                new BigDecimal("700000.00"), new BigDecimal("1.00"), now.minus(Duration.ofHours(2))));
+        c2b("SUCCESS", "100.00", "40000.00", now.minus(Duration.ofDays(1)), now.minus(Duration.ofHours(1)));
         // Newer but not counted: a failed payment, and one without a balance.
         c2b("FAILED", "100.00", "1.00", now, now);
         c2b("SUCCESS", "100.00", null, now, now);
@@ -260,24 +264,24 @@ class TreasuryIntegrationTest {
 
         assertThat(status.utilitySource()).isEqualTo(KnownFloat.C2B_PAYMENT);
         assertThat(status.utilityAvailable()).isEqualByComparingTo("40000.00");
-        assertThat(status.utilityReportedAt().toLocalDateTime()).isEqualTo(now.minusHours(1));
+        assertThat(status.utilityReportedAt().toInstant()).isEqualTo(now.minus(Duration.ofHours(1)));
         assertThat(status.lowFloat()).isTrue();
         assertThat(balances.knownFloat(shortcode.getUuid()).source()).isEqualTo(KnownFloat.C2B_PAYMENT);
 
-        snapshot("950000.00", "0.00", now.plusMinutes(1), "system");
+        snapshot("950000.00", "0.00", now.plus(Duration.ofMinutes(1)), "system");
         assertThat(balances.status(shortcode.getUuid()).utilitySource()).isEqualTo(KnownFloat.BALANCE_QUERY);
     }
 
     @Test
     void theReportsFeedMergesEveryKindNewestFirstUpToTheLimit() {
-        LocalDateTime now = LocalDateTime.now().withNano(0);
-        snapshot("900000.00", "800000.00", now.minusHours(4), "jane.doe");
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        snapshot("900000.00", "800000.00", now.minus(Duration.ofHours(4)), "jane.doe");
         jdbc.update("INSERT INTO balance_snapshots (shortcode_uuid, status, source, requested_at, received_at) "
-                + "VALUES (?, 'FAILED', 'MANUAL', ?, ?)", shortcode.getUuid(), now, now);
-        payout("250.00", "899750.00", "OUT1", now.minusHours(3));
+                + "VALUES (?, 'FAILED', 'MANUAL', ?, ?)", shortcode.getUuid(), utc(now), utc(now));
+        payout("250.00", "899750.00", "OUT1", now.minus(Duration.ofHours(3)));
         payout("10.00", null, "OUT2", now);
-        c2b("SUCCESS", "1500.00", "901250.00", now.minusDays(1), now.minusHours(2));
-        c2b("SUCCESS", "500.00", "901750.00", now.minusHours(1), null);
+        c2b("SUCCESS", "1500.00", "901250.00", now.minus(Duration.ofDays(1)), now.minus(Duration.ofHours(2)));
+        c2b("SUCCESS", "500.00", "901750.00", now.minus(Duration.ofHours(1)), null);
         c2b("PENDING", "5.00", "1.00", now, now);
 
         List<BalanceReportDto> all = balances.reports(shortcode.getUuid(), 10);
@@ -287,7 +291,7 @@ class TreasuryIntegrationTest {
         assertThat(all.get(0).utilityAvailable()).isEqualByComparingTo("901750.00");
         assertThat(all.get(0).workingAvailable()).isNull();
         assertThat(all.get(0).amount()).isEqualByComparingTo("500.00");
-        assertThat(all.get(1).reportedAt().toLocalDateTime()).isEqualTo(now.minusHours(2));
+        assertThat(all.get(1).reportedAt().toInstant()).isEqualTo(now.minus(Duration.ofHours(2)));
         assertThat(all.get(2).reference()).isEqualTo("OUT1");
         assertThat(all.get(2).amount()).isEqualByComparingTo("250.00");
         assertThat(all.get(2).querySource()).isNull();
@@ -314,7 +318,7 @@ class TreasuryIntegrationTest {
         MpesaShortCode second = shortcode(true, "api-2");
         shortcode(true, null);
         shortcode(false, "api-3");
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
 
         Set<UUID> claimed = ConcurrentHashMap.newKeySet();
         int total;
@@ -324,7 +328,7 @@ class TreasuryIntegrationTest {
             for (int i = 0; i < 4; i++) {
                 runs.add(pool.submit(() -> {
                     start.await();
-                    return claims.claimDue(now, now.plusMinutes(30), 10);
+                    return claims.claimDue(now, now.plus(Duration.ofMinutes(30)), 10);
                 }));
             }
             start.countDown();
@@ -338,8 +342,8 @@ class TreasuryIntegrationTest {
 
         assertThat(total).isEqualTo(2);
         assertThat(claimed).containsExactlyInAnyOrder(shortcode.getUuid(), second.getUuid());
-        assertThat(claims.claimDue(now.plusMinutes(29), now.plusMinutes(59), 10)).isEmpty();
-        assertThat(claims.claimDue(now.plusMinutes(31), now.plusMinutes(61), 10)).hasSize(2);
+        assertThat(claims.claimDue(now.plus(Duration.ofMinutes(29)), now.plus(Duration.ofMinutes(59)), 10)).isEmpty();
+        assertThat(claims.claimDue(now.plus(Duration.ofMinutes(31)), now.plus(Duration.ofMinutes(61)), 10)).hasSize(2);
     }
 
     @Test
@@ -378,7 +382,7 @@ class TreasuryIntegrationTest {
         MpesaShortCode other = shortcode(true, "api-x");
         B2bDestinationDto foreign = bank(other);
         when(payouts.latestFloat(shortcode.getUuid())).thenReturn(new PayoutFloatDto(shortcode.getUuid(),
-                new BigDecimal("600000.00"), null, LocalDateTime.now()));
+                new BigDecimal("600000.00"), null, Instant.now()));
         UUID approval = UUID.randomUUID();
         when(gateway.submit(any())).thenReturn(approval);
 
@@ -561,7 +565,7 @@ class TreasuryIntegrationTest {
     void aSweepSubmissionCarriesItsTitleDarajaCallAndPreChecks() {
         B2bDestinationDto bank = bank(shortcode);
         when(payouts.latestFloat(shortcode.getUuid())).thenReturn(new PayoutFloatDto(shortcode.getUuid(),
-                new BigDecimal("600000.00"), null, LocalDateTime.now()));
+                new BigDecimal("600000.00"), null, Instant.now()));
         when(gateway.submit(any())).thenReturn(UUID.randomUUID());
 
         sweeps.request(shortcode.getUuid(), sweep(bank.uuid(), "590000"));
@@ -605,29 +609,29 @@ class TreasuryIntegrationTest {
         return shortCodeRepository.saveAndFlush(code);
     }
 
-    private void snapshot(String utility, String working, LocalDateTime receivedAt, String by) {
+    private void snapshot(String utility, String working, Instant receivedAt, String by) {
         jdbc.update("INSERT INTO balance_snapshots (shortcode_uuid, status, source, utility_available, "
                 + "working_available, requested_at, received_at, created_by) VALUES (?, 'COMPLETED', ?, ?, ?, ?, ?, ?)",
                 shortcode.getUuid(), "system".equals(by) ? "SCHEDULED" : "MANUAL", new BigDecimal(utility),
-                new BigDecimal(working), receivedAt, receivedAt, by);
+                new BigDecimal(working), utc(receivedAt), utc(receivedAt), by);
     }
 
-    private void payout(String amount, String utility, String receipt, LocalDateTime processedAt) {
+    private void payout(String amount, String utility, String receipt, Instant processedAt) {
         jdbc.update("INSERT INTO mpesa_outgoing_payments (shortcode_uuid, payment_type, transaction_id, "
                 + "originator_conversation_id, recipient_phone_number, amount, command_id, initiator_name, status, "
                 + "utility_account_available_funds, working_account_available_funds, processed_at) "
                 + "VALUES (?, 'B2C', ?, ?, '254712345678', ?, 'BusinessPayment', 'api', 'SUCCESS', ?, 0, ?)",
                 shortcode.getUuid(), receipt, "sar-" + UUID.randomUUID(), new BigDecimal(amount),
-                utility == null ? null : new BigDecimal(utility), processedAt);
+                utility == null ? null : new BigDecimal(utility), utc(processedAt));
     }
 
-    private void c2b(String status, String amount, String orgBalance, LocalDateTime createdAt,
-                     LocalDateTime transactionDate) {
+    private void c2b(String status, String amount, String orgBalance, Instant createdAt,
+                     Instant transactionDate) {
         jdbc.update("INSERT INTO mpesa_incoming_payments (shortcode_uuid, payment_type, transaction_id, phone_number, "
                 + "amount, status, org_account_balance, created_at, transaction_date) "
                 + "VALUES (?, 'C2B', ?, '254712345678', ?, ?, ?, ?, ?)", shortcode.getUuid(),
                 "T" + UUID.randomUUID().toString().substring(0, 12), new BigDecimal(amount), status,
-                orgBalance == null ? null : new BigDecimal(orgBalance), createdAt, transactionDate);
+                orgBalance == null ? null : new BigDecimal(orgBalance), utc(createdAt), utc(transactionDate));
     }
 
     private B2bDestinationDto bank(MpesaShortCode owner) {
@@ -682,5 +686,10 @@ class TreasuryIntegrationTest {
                 conversationId, new AccountBalanceResultParameters(List.of(
                         new AccountBalanceResultParameter("AccountBalance", balance),
                         new AccountBalanceResultParameter("BOCompletedTime", "20200109125710"))));
+    }
+
+    /** The JDBC driver binds an OffsetDateTime, not an Instant, to a TIMESTAMPTZ parameter. */
+    private static OffsetDateTime utc(Instant instant) {
+        return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
     }
 }

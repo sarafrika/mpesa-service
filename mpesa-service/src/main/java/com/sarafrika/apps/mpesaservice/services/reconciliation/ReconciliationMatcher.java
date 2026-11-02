@@ -2,7 +2,7 @@ package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionKind;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -58,7 +58,7 @@ public final class ReconciliationMatcher {
     }
 
     /** ledgerByReceipt holds every live row for the statement's receipts; inPeriod the settled rows in the period. */
-    public static Result match(List<StatementLine> lines, LocalDateTime start, LocalDateTime end,
+    public static Result match(List<StatementLine> lines, Instant start, Instant end,
                                List<LedgerEntry> ledgerByReceipt, List<LedgerEntry> inPeriod, Markers markers) {
         int skipped = 0;
         int charges = 0;

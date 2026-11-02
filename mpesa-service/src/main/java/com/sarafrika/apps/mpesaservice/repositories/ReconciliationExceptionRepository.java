@@ -3,7 +3,7 @@ package com.sarafrika.apps.mpesaservice.repositories;
 import com.sarafrika.apps.mpesaservice.models.ReconciliationExceptionRecord;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionStatus;
 import jakarta.persistence.LockModeType;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -59,6 +59,6 @@ public interface ReconciliationExceptionRepository extends JpaRepository<Reconci
                                AND (CAST(:source AS VARCHAR) IS NULL OR source = CAST(:source AS VARCHAR)))""",
             nativeQuery = true)
     int supersede(@Param("shortcode") UUID shortcodeUuid, @Param("runId") Long runId,
-                  @Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+                  @Param("start") Instant start, @Param("end") Instant end,
                   @Param("source") String source);
 }

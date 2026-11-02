@@ -12,7 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -82,7 +82,7 @@ public class ReconciliationExceptionRecord {
     private String ledgerType;
 
     @Column(name = "statement_time")
-    private LocalDateTime statementTime;
+    private Instant statementTime;
 
     @Column(name = "details")
     private String details;
@@ -124,13 +124,13 @@ public class ReconciliationExceptionRecord {
     private String resolvedBy;
 
     @Column(name = "resolved_at")
-    private LocalDateTime resolvedAt;
+    private Instant resolvedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 }

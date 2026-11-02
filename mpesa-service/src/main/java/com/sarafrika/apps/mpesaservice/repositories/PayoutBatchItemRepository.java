@@ -31,7 +31,7 @@ public interface PayoutBatchItemRepository extends JpaRepository<PayoutBatchItem
             """)
     List<Object[]> findUsedReferences(@Param("references") Collection<String> references,
                                       @Param("consoleClient") String consoleClient,
-                                      @Param("since") java.time.LocalDateTime since);
+                                      @Param("since") java.time.Instant since);
 
     /** Claims a reference for a batch; the primary key refuses a reference another open batch holds. */
     @Modifying(flushAutomatically = true)

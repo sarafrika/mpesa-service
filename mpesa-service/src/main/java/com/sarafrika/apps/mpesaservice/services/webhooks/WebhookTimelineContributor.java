@@ -4,9 +4,9 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.transactions.TimelineEventDto;
 import com.sarafrika.apps.mpesaservice.models.WebhookDelivery;
 import com.sarafrika.apps.mpesaservice.repositories.WebhookDeliveryRepository;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionTimelineContributor;
+import com.sarafrika.apps.mpesaservice.utils.Times;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +65,6 @@ public class WebhookTimelineContributor implements TransactionTimelineContributo
     }
 
     private static OffsetDateTime at(Instant instant) {
-        return instant == null ? null : instant.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        return Times.offset(instant);
     }
 }

@@ -5,7 +5,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentType;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -70,7 +70,7 @@ public interface MpesaOutgoingPaymentService {
     /**
      * Find payments within date range
      */
-    List<MpesaOutgoingPayment> findByDateRange(LocalDateTime startDate, LocalDateTime endDate);
+    List<MpesaOutgoingPayment> findByDateRange(Instant startDate, Instant endDate);
 
     /**
      * Find payments by amount range
@@ -167,7 +167,7 @@ public interface MpesaOutgoingPaymentService {
     /**
      * Get payments for reconciliation
      */
-    List<MpesaOutgoingPayment> getPaymentsForReconciliation(LocalDateTime date);
+    List<MpesaOutgoingPayment> getPaymentsForReconciliation(Instant date);
 
     /**
      * Get account balance summary

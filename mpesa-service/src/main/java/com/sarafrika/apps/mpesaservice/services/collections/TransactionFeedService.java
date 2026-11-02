@@ -30,7 +30,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryMethod;
 import com.sarafrika.apps.mpesaservice.utils.enums.StatusQueryStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.Predicate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -235,7 +235,7 @@ public class TransactionFeedService {
         return events;
     }
 
-    private static TimelineEventDto event(String kind, String title, String description, LocalDateTime at, String tone) {
+    private static TimelineEventDto event(String kind, String title, String description, Instant at, String tone) {
         return new TimelineEventDto(kind, title, description, Times.offset(at), tone);
     }
 
@@ -322,10 +322,10 @@ public class TransactionFeedService {
                 }
             });
             if (f.from() != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), Times.local(f.from())));
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), Times.instant(f.from())));
             }
             if (f.to() != null) {
-                predicates.add(cb.lessThan(root.get("createdAt"), Times.local(f.to())));
+                predicates.add(cb.lessThan(root.get("createdAt"), Times.instant(f.to())));
             }
             if (f.q() != null) {
                 String prefix = f.q().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%")

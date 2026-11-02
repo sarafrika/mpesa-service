@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +24,7 @@ class StatementCsvParserTest {
         assertThat(lines).hasSize(7); // the blank trailing row is skipped
         StatementLine first = lines.getFirst();
         assertThat(first.receipt()).isEqualTo("TJP9X2K1AA");
-        assertThat(first.completedAt()).isEqualTo(LocalDateTime.of(2026, 10, 25, 9, 15, 2));
+        assertThat(first.completedAt()).isEqualTo(Instant.parse("2026-10-25T09:15:02+03:00"));
         assertThat(first.paidIn()).isEqualByComparingTo("5000.00");
         assertThat(first.accountNumber()).isEqualTo("ELM-002211");
         assertThat(first.otherParty()).isEqualTo("254712***678 - Jane ***");
@@ -46,7 +46,7 @@ class StatementCsvParserTest {
 
         StatementLine line = parsed.lines().getFirst();
         assertThat(parsed.shortCode()).isNull();
-        assertThat(line.completedAt()).isEqualTo(LocalDateTime.of(2026, 10, 25, 8, 0));
+        assertThat(line.completedAt()).isEqualTo(Instant.parse("2026-10-25T08:00:00+03:00"));
         assertThat(line.otherParty()).isEqualTo("254712***678 - Jane ***");
         assertThat(line.accountNumber()).isNull();
         assertThat(StatementBackfill.accountReference(line)).isEqualTo("INV-7");
@@ -100,9 +100,9 @@ class StatementCsvParserTest {
         assertThat(StatementCsvParser.amount("Withdrawn", "(60.00)", true)).isEqualByComparingTo("60");
         assertThat(StatementCsvParser.amount("Withdrawn", "-3,000.00", true)).isEqualByComparingTo("3000");
         assertThat(StatementCsvParser.amount("Withdrawn", "", true)).isEqualByComparingTo("0");
-        assertThat(StatementCsvParser.time("07-04-2025 23:01:41")).isEqualTo(LocalDateTime.of(2025, 4, 7, 23, 1, 41));
-        assertThat(StatementCsvParser.time("2025-04-07 23:01:41")).isEqualTo(LocalDateTime.of(2025, 4, 7, 23, 1, 41));
-        assertThat(StatementCsvParser.time("7/4/2025 23:01")).isEqualTo(LocalDateTime.of(2025, 4, 7, 23, 1));
+        assertThat(StatementCsvParser.time("07-04-2025 23:01:41")).isEqualTo(Instant.parse("2025-04-07T23:01:41+03:00"));
+        assertThat(StatementCsvParser.time("2025-04-07 23:01:41")).isEqualTo(Instant.parse("2025-04-07T23:01:41+03:00"));
+        assertThat(StatementCsvParser.time("7/4/2025 23:01")).isEqualTo(Instant.parse("2025-04-07T23:01:00+03:00"));
     }
 
     static byte[] fixture(String name) throws IOException {

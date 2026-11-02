@@ -17,13 +17,13 @@ import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.features.ShortcodeFeatures;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
-import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.Times;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -54,7 +54,6 @@ public class PullTransactionsService {
     static final Set<String> REGISTERED = Set.of("1000", "1001");
     static final String ROWS = "1000";
     static final String NO_ROWS = "1001";
-    static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
 
     private final MpesaDarajaService daraja;
     private final ShortcodeFeatures features;
@@ -114,7 +113,7 @@ public class PullTransactionsService {
         boolean ok = status != null && REGISTERED.contains(status.trim());
         row.setRegistered(ok || row.isRegistered());
         if (ok) {
-            row.setRegisteredAt(LocalDateTime.now());
+            row.setRegisteredAt(Instant.now());
         }
         PullTransactionRegistration saved = registrations.save(row);
         audit.record(AUDIT_REGISTER, "SHORTCODE", shortcodeUuid.toString(), null, Map.of(
@@ -124,7 +123,7 @@ public class PullTransactionsService {
     }
 
     /** Every C2B row Safaricom has for the window, paging with OffSetValue until a page is empty or repeats. */
-    public List<StatementLine> fetch(MpesaShortCode shortcode, LocalDateTime start, LocalDateTime end) {
+    public List<StatementLine> fetch(MpesaShortCode shortcode, Instant start, Instant end) {
         ShortcodeCapabilities.require(shortcode, ShortcodeCapability.PULL_TRANSACTIONS);
         requireEnabled(shortcode.getUuid());
         boolean registered = registrations.findByShortcodeUuid(shortcode.getUuid())
@@ -197,12 +196,12 @@ public class PullTransactionsService {
 
     // Documented samples show "2020-08-05T10:13:00Z"; whether that is UTC or EAT marked Z is unverified, so the
     // local part is taken as East Africa Time, as everywhere else in Daraja.
-    static LocalDateTime time(String value) {
+    static Instant time(String value) {
         if (value == null) {
             return null;
         }
         try {
-            return OffsetDateTime.parse(value).toLocalDateTime();
+            return DarajaTime.of(OffsetDateTime.parse(value).toLocalDateTime());
         } catch (DateTimeParseException e) {
             try {
                 return StatementCsvParser.time(value);

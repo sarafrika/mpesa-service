@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import com.sarafrika.apps.mpesaservice.events.PaymentEvent;
+import java.time.Instant;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -17,9 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,9 +42,6 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
     private final MpesaIncomingPaymentRepository repository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
-
-    private static final DateTimeFormatter MPESA_TIMESTAMP_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     // ==================== CRUD ====================
 
@@ -124,7 +120,7 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
 
     @Override
     @Transactional(readOnly = true)
-    public List<MpesaIncomingPayment> findByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+    public List<MpesaIncomingPayment> findByDateRange(Instant startDate, Instant endDate) {
         return repository.findByCreatedAtBetween(startDate, endDate);
     }
 
@@ -164,7 +160,7 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
     @Override
     public MpesaIncomingPayment markAsProcessed(UUID uuid) {
         MpesaIncomingPayment payment = getByUuidOrThrow(uuid);
-        payment.setProcessedAt(LocalDateTime.now());
+        payment.setProcessedAt(Instant.now());
         return repository.save(payment);
     }
 
@@ -212,7 +208,7 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
             if (phone != null) {
                 payment.setPhoneNumber(phone);
             }
-            LocalDateTime txnDate = parseMpesaTimestamp(metadata.get("TransactionDate"));
+            Instant txnDate = parseMpesaTimestamp(metadata.get("TransactionDate"));
             if (txnDate != null) {
                 payment.setTransactionDate(txnDate);
             }
@@ -230,7 +226,7 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
                 raw.put("PossibleC2BPayments", twins.transIds());
             }
         }
-        payment.setProcessedAt(LocalDateTime.now());
+        payment.setProcessedAt(Instant.now());
 
         MpesaIncomingPayment saved = repository.save(payment);
         log.info("STK Push callback processed for checkoutRequestId: {} -> status: {}",
@@ -329,13 +325,13 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         applyIfPresent(readString(raw.get("FirstName")), payment::setFirstName);
         applyIfPresent(readString(raw.get("MiddleName")), payment::setMiddleName);
         applyIfPresent(readString(raw.get("LastName")), payment::setLastName);
-        LocalDateTime txnDate = parseMpesaTimestamp(raw.get("TransTime"));
+        Instant txnDate = parseMpesaTimestamp(raw.get("TransTime"));
         if (txnDate != null) {
             payment.setTransactionDate(txnDate);
         }
 
         payment.setStatus(IncomingPaymentStatus.SUCCESS);
-        payment.setProcessedAt(LocalDateTime.now());
+        payment.setProcessedAt(Instant.now());
 
         return repository.save(payment);
     }
@@ -369,10 +365,10 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
 
     @Override
     @Transactional(readOnly = true)
-    public List<MpesaIncomingPayment> getPaymentsForReconciliation(LocalDateTime date) {
-        LocalDate day = date.toLocalDate();
-        LocalDateTime start = day.atStartOfDay();
-        LocalDateTime end = day.atTime(LocalTime.MAX);
+    public List<MpesaIncomingPayment> getPaymentsForReconciliation(Instant date) {
+        LocalDate day = LocalDate.ofInstant(date, DarajaTime.ZONE);
+        Instant start = day.atStartOfDay(DarajaTime.ZONE).toInstant();
+        Instant end = day.plusDays(1).atStartOfDay(DarajaTime.ZONE).toInstant().minusNanos(1);
         return repository.findByCreatedAtBetween(start, end);
     }
 
@@ -476,19 +472,11 @@ public class MpesaIncomingPaymentServiceImpl implements MpesaIncomingPaymentServ
         return value != null ? value.toString() : null;
     }
 
-    private LocalDateTime parseMpesaTimestamp(Object value) {
-        if (value == null) {
-            return null;
+    private Instant parseMpesaTimestamp(Object value) {
+        Instant parsed = DarajaTime.parseCompact(value);
+        if (parsed == null && value != null && !value.toString().isBlank()) {
+            log.debug("Unable to parse M-Pesa timestamp: {}", value);
         }
-        String raw = value.toString().trim();
-        if (raw.isEmpty()) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(raw, MPESA_TIMESTAMP_FORMATTER);
-        } catch (Exception e) {
-            log.debug("Unable to parse M-Pesa timestamp: {}", raw);
-            return null;
-        }
+        return parsed;
     }
 }

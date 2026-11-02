@@ -7,7 +7,7 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.shortcode.ShortcodeSummaryDto;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +36,7 @@ final class ShortcodeViews {
         return secret.length() <= 4 ? MASK : MASK + secret.substring(secret.length() - 4);
     }
 
-    static LocalDateTime credentialsUpdatedAt(MpesaShortCode code) {
+    static Instant credentialsUpdatedAt(MpesaShortCode code) {
         return code.getCredentialsUpdatedAt() != null ? code.getCredentialsUpdatedAt() : code.getCreatedAt();
     }
 

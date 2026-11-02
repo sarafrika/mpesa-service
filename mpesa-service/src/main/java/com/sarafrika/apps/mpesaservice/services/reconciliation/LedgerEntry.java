@@ -1,7 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -17,8 +17,8 @@ public record LedgerEntry(
         BigDecimal amount,
         String status,
         String accountReference,
-        LocalDateTime createdAt,
-        LocalDateTime transactionDate) {
+        Instant createdAt,
+        Instant transactionDate) {
 
     public static final String INCOMING = "mpesa_incoming_payments";
     public static final String OUTGOING = "mpesa_outgoing_payments";

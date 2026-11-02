@@ -92,8 +92,8 @@ describe("parseInstant", () => {
     assert.equal(parseInstant("2026-10-26T12:00:00+0300"), utc);
   });
 
-  it("reads a time without a zone as Nairobi time, not the viewer's", () => {
-    assert.equal(parseInstant("2026-10-26T12:00:00"), Date.parse("2026-10-26T09:00:00Z"));
+  it("reads a time without a zone as UTC, not the viewer's", () => {
+    assert.equal(parseInstant("2026-10-26T09:00:00"), Date.parse("2026-10-26T09:00:00Z"));
     assert.equal(parseInstant(null), null);
     assert.equal(parseInstant(""), null);
     assert.equal(parseInstant("not a date"), null);

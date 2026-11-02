@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -65,7 +65,7 @@ public class STKCallbackController {
             return ResponseEntity.ok(new STKCallbackAcknowledgment(
                     "00000000",
                     "success",
-                    LocalDateTime.now()
+                    Instant.now()
             ));
 
         } catch (Exception e) {
@@ -76,7 +76,7 @@ public class STKCallbackController {
             return ResponseEntity.ok(new STKCallbackAcknowledgment(
                     "00000001",
                     "Internal server error",
-                    LocalDateTime.now()
+                    Instant.now()
             ));
         }
     }
@@ -193,6 +193,6 @@ public class STKCallbackController {
             String resultDesc,
 
             @JsonProperty("ThirdPartyTransID")
-            LocalDateTime timestamp
+            Instant timestamp
     ) {}
 }

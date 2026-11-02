@@ -3,7 +3,7 @@ package com.sarafrika.apps.mpesaservice.dtos.admin.products;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,6 +29,6 @@ public record ProductGrantDto(
         @Schema(description = "The product's webhook health, null when it has no webhook")
         @JsonProperty("webhook_health") WebhookHealthDto webhookHealth,
         @JsonProperty("created_by") String createdBy,
-        @JsonProperty("created_at") LocalDateTime createdAt,
-        @JsonProperty("updated_at") LocalDateTime updatedAt) {
+        @JsonProperty("created_at") Instant createdAt,
+        @JsonProperty("updated_at") Instant updatedAt) {
 }

@@ -3,7 +3,7 @@ package com.sarafrika.apps.mpesaservice.repositories;
 import com.sarafrika.apps.mpesaservice.models.BalanceSnapshot;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceSnapshotStatus;
 import jakarta.persistence.LockModeType;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,7 +41,7 @@ public interface BalanceSnapshotRepository extends JpaRepository<BalanceSnapshot
             ORDER BY b.receivedAt ASC, b.id ASC""")
     List<BalanceSnapshot> history(@Param("shortcode") UUID shortcodeUuid,
                                   @Param("status") BalanceSnapshotStatus status,
-                                  @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+                                  @Param("from") Instant from, @Param("to") Instant to,
                                   Pageable limit);
 
     /** The newest completed snapshot of each of these shortcodes. */

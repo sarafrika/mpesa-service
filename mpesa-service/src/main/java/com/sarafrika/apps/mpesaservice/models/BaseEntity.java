@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 // Soft delete is declared on each entity with its literal table: Hibernate ignores it on a mapped superclass.
@@ -27,11 +27,11 @@ public abstract class BaseEntity {
 
     @CreationTimestamp
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     @Column(name = "created_by")
     private String createdBy;
@@ -40,13 +40,13 @@ public abstract class BaseEntity {
     private String updatedBy;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private Instant deletedAt;
 
     public boolean isDeleted() {
         return deletedAt != null;
     }
 
     public void markAsDeleted() {
-        this.deletedAt = LocalDateTime.now();
+        this.deletedAt = Instant.now();
     }
 }

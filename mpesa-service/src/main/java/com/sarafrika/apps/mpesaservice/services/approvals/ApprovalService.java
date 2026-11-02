@@ -21,13 +21,13 @@ import com.sarafrika.apps.mpesaservice.repositories.ReversalRequestRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.ApprovalStatus;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -379,7 +379,7 @@ public class ApprovalService implements ApprovalGateway {
     }
 
     private static OffsetDateTime offset(Instant instant) {
-        return instant == null ? null : instant.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        return Times.offset(instant);
     }
 
     private static NotFoundException notFound() {

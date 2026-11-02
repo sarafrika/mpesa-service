@@ -30,7 +30,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +62,6 @@ public class ReconciliationAdminController {
     static final Map<String, String> RUN_SORTS = Map.of("created_at", "createdAt", "period_start", "periodStart");
     static final Map<String, String> EXCEPTION_SORTS = Map.of("receipt", "receipt", "statement_amount",
             "statementAmount", "created_at", "createdAt");
-    static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
 
     private final ReconciliationService service;
     private final ReconciliationResolver resolver;
@@ -117,8 +115,8 @@ public class ReconciliationAdminController {
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ReconciliationRunDto runPullTransactionsReconciliation(@Valid @RequestBody PullReconciliationRequest body) {
         return service.reconcilePull(body.shortcodeUuid(),
-                body.from().atZoneSameInstant(NAIROBI).toLocalDateTime(),
-                body.to().atZoneSameInstant(NAIROBI).toLocalDateTime(), ReconciliationTrigger.MANUAL);
+                body.from().toInstant(),
+                body.to().toInstant(), ReconciliationTrigger.MANUAL);
     }
 
     @GetMapping("/runs")

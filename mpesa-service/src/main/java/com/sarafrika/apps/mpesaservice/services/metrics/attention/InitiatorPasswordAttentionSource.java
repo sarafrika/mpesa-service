@@ -3,8 +3,10 @@ package com.sarafrika.apps.mpesaservice.services.metrics.attention;
 import com.sarafrika.apps.mpesaservice.dtos.admin.metrics.AttentionItemDto;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -21,25 +23,25 @@ public class InitiatorPasswordAttentionSource implements AttentionSource {
 
     static final String KIND = "INITIATOR_PASSWORD_EXPIRING";
     static final int WARN_DAYS = 15;
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM yyyy");
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM yyyy").withZone(DarajaTime.ZONE);
 
     private final MpesaShortCodeRepository shortcodes;
     private final Clock clock;
 
     public InitiatorPasswordAttentionSource(MpesaShortCodeRepository shortcodes, Optional<Clock> clock) {
         this.shortcodes = shortcodes;
-        this.clock = clock.orElse(Clock.systemDefaultZone());
+        this.clock = clock.orElse(Clock.systemUTC());
     }
 
     @Override
     public List<AttentionItemDto> currentItems(AttentionScope scope) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = clock.instant();
         List<AttentionItemDto> items = new ArrayList<>();
         for (MpesaShortCode code : shortcodes.findByIsActiveTrue()) {
-            LocalDateTime expires = code.initiatorCredentialExpiresAt();
+            Instant expires = code.initiatorCredentialExpiresAt();
             if (expires == null || !scope.includes(code.getUuid())
                     || scope.environment() != null && scope.environment() != code.getEnvironment()
-                    || expires.isAfter(now.plusDays(WARN_DAYS))) {
+                    || expires.isAfter(now.plus(Duration.ofDays(WARN_DAYS)))) {
                 continue;
             }
             items.add(item(code, expires, now));
@@ -47,7 +49,7 @@ public class InitiatorPasswordAttentionSource implements AttentionSource {
         return items;
     }
 
-    private static AttentionItemDto item(MpesaShortCode code, LocalDateTime expires, LocalDateTime now) {
+    private static AttentionItemDto item(MpesaShortCode code, Instant expires, Instant now) {
         String href = "/paybills/" + code.getUuid() + "?tab=credentials";
         String name = code.getBusinessName() + " · " + code.getShortcode();
         String who = code.getInitiatorName() == null ? "the API initiator" : code.getInitiatorName();

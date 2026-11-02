@@ -23,11 +23,12 @@ import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -50,7 +51,8 @@ import org.springframework.util.StringUtils;
 public class BulkPayoutService {
 
     static final String DARAJA_CALL = "POST /mpesa/b2c/v3/paymentrequest · BusinessPayment";
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+            .withZone(DarajaTime.ZONE);
 
     private final MpesaShortCodeRepository shortcodes;
     private final PayoutBatchRepository batches;
@@ -199,12 +201,12 @@ public class BulkPayoutService {
 
     // The console's references at any time (a repeat would return that payout), anyone's this month.
     private Map<String, String> usedReferences(List<String> references) {
-        LocalDateTime monthStart = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        Instant monthStart = LocalDate.now(DarajaTime.ZONE).withDayOfMonth(1).atStartOfDay(DarajaTime.ZONE).toInstant();
         Map<String, String> used = new HashMap<>();
         for (List<String> chunk : chunks(references)) {
             for (Object[] hit : items.findUsedReferences(chunk, properties.consoleClientId(), monthStart)) {
-                LocalDateTime at = (LocalDateTime) hit[1];
-                used.putIfAbsent((String) hit[0], at == null ? "an earlier date" : at.format(DAY));
+                Instant at = (Instant) hit[1];
+                used.putIfAbsent((String) hit[0], at == null ? "an earlier date" : DAY.format(at));
             }
         }
         return used;

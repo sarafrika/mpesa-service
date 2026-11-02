@@ -19,6 +19,7 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalTypes;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReversalStatus;
@@ -44,7 +45,8 @@ public class ReversalService {
 
     static final String DARAJA_CALL = "POST /mpesa/reversal/v1/request · TransactionReversal";
     static final Set<ReversalStatus> CLOSED = Set.of(ReversalStatus.CANCELLED, ReversalStatus.FAILED);
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+            .withZone(DarajaTime.ZONE);
 
     private final MpesaIncomingPaymentRepository payments;
     private final MpesaOutgoingPaymentRepository payouts;
@@ -77,8 +79,8 @@ public class ReversalService {
         MpesaShortCode shortcode = shortcodes.findByUuid(payment.getShortcodeUuid()).orElseThrow();
 
         List<PreCheckDto> checks = new ArrayList<>();
-        String settled = payment.getTransactionDate() != null ? payment.getTransactionDate().format(DAY)
-                : payment.getCreatedAt() == null ? "" : payment.getCreatedAt().format(DAY);
+        String settled = payment.getTransactionDate() != null ? DAY.format(payment.getTransactionDate())
+                : payment.getCreatedAt() == null ? "" : DAY.format(payment.getCreatedAt());
         checks.add(PreCheckDto.ok("Original payment " + payment.getTransactionId() + " found and settled"
                 + (settled.isEmpty() ? "" : " on " + settled)));
         checks.add(PreCheckDto.ok("Not reversed before and no other reversal pending"));

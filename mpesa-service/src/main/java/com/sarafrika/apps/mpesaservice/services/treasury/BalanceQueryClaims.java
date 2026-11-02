@@ -1,6 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services.treasury;
 
-import java.time.LocalDateTime;
+import com.sarafrika.apps.mpesaservice.utils.Times;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +19,7 @@ public class BalanceQueryClaims {
     private final NamedParameterJdbcTemplate jdbc;
 
     @Transactional
-    public List<UUID> claimDue(LocalDateTime now, LocalDateTime next, int limit) {
+    public List<UUID> claimDue(Instant now, Instant next, int limit) {
         String sql = """
                 UPDATE mpesa_shortcodes SET next_balance_query_at = :next
                 WHERE id IN (
@@ -31,7 +32,7 @@ public class BalanceQueryClaims {
                     FOR UPDATE SKIP LOCKED)
                 RETURNING uuid""";
         MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("now", now).addValue("next", next).addValue("limit", limit);
+                .addValue("now", Times.offset(now)).addValue("next", Times.offset(next)).addValue("limit", limit);
         return jdbc.queryForList(sql, params, UUID.class);
     }
 }

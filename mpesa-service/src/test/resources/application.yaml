@@ -13,6 +13,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+        # Instants are bound and read as UTC, whatever zone the JVM runs in.
+        jdbc:
+          time_zone: UTC
         format_sql: false
   flyway:
     enabled: false

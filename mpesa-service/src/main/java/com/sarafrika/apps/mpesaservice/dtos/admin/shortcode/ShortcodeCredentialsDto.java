@@ -2,7 +2,7 @@ package com.sarafrika.apps.mpesaservice.dtos.admin.shortcode;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /** Credentials as the console may see them: masked to the last four characters, or only whether set. */
 @Schema(name = "ShortcodeCredentials")
@@ -20,5 +20,5 @@ public record ShortcodeCredentialsDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("security_credential_set") boolean securityCredentialSet,
         @Schema(description = "When the stored credentials were last saved here")
-        @JsonProperty("updated_at") LocalDateTime updatedAt) {
+        @JsonProperty("updated_at") Instant updatedAt) {
 }

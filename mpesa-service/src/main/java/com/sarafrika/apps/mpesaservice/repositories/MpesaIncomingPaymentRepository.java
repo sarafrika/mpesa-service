@@ -13,7 +13,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -64,7 +64,7 @@ public interface MpesaIncomingPaymentRepository extends JpaRepository<MpesaIncom
     /**
      * Find payments created within a date range
      */
-    List<MpesaIncomingPayment> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
+    List<MpesaIncomingPayment> findByCreatedAtBetween(Instant startDate, Instant endDate);
 
     /**
      * Find payments whose amount falls within a range
@@ -115,13 +115,13 @@ public interface MpesaIncomingPaymentRepository extends JpaRepository<MpesaIncom
             LIMIT :limit
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
-    List<MpesaIncomingPayment> claimStkChecks(@Param("before") LocalDateTime before,
-                                              @Param("notBefore") LocalDateTime notBefore,
-                                              @Param("now") LocalDateTime now, @Param("limit") int limit);
+    List<MpesaIncomingPayment> claimStkChecks(@Param("before") Instant before,
+                                              @Param("notBefore") Instant notBefore,
+                                              @Param("now") Instant now, @Param("limit") int limit);
 
     /** Oldest first, for the job that asks Safaricom about STK requests still pending. */
     List<MpesaIncomingPayment> findByPaymentTypeAndStatusAndCreatedAtBefore(
-            IncomingPaymentType paymentType, IncomingPaymentStatus status, LocalDateTime before, Pageable pageable);
+            IncomingPaymentType paymentType, IncomingPaymentStatus status, Instant before, Pageable pageable);
 
     /** Successful payments that carried the shortcode's utility balance (C2B OrgAccountBalance), newest first. */
     @Query("""

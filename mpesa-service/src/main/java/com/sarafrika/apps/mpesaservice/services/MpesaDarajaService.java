@@ -189,6 +189,6 @@ public interface MpesaDarajaService {
     /** C2B transactions between start and end (East Africa Time, within the last 48 hours), from row offset;
      * ResponseCode 1000 has rows in Response, 1001 none. */
     MpesaApiResponse<java.util.Map<String, Object>> queryPullTransactions(MpesaShortCode shortcode,
-                                                                       java.time.LocalDateTime start,
-                                                                       java.time.LocalDateTime end, int offset);
+                                                                       java.time.Instant start,
+                                                                       java.time.Instant end, int offset);
 }

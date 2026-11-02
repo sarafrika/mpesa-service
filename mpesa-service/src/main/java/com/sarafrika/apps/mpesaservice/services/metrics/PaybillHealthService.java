@@ -41,7 +41,7 @@ public class PaybillHealthService {
                                 ObjectProvider<CallbackFailureCounts> callbackFailures) {
         this.queries = queries;
         this.alerts = alerts;
-        this.clock = clock.getIfUnique(Clock::systemDefaultZone);
+        this.clock = clock.getIfUnique(Clock::systemUTC);
         this.callbackFailures = callbackFailures;
     }
 

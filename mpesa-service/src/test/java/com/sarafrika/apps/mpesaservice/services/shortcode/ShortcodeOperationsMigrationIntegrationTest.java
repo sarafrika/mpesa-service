@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -41,10 +43,11 @@ class ShortcodeOperationsMigrationIntegrationTest {
         assertThat(operations(jdbc, b2c)).isEqualTo("TRANSACTION_STATUS,ACCOUNT_BALANCE,B2C_PAYOUT,POCHI");
         assertThat(operations(jdbc, both))
                 .isEqualTo("C2B,STK_PUSH,REVERSAL,TRANSACTION_STATUS,ACCOUNT_BALANCE,B2C_PAYOUT,POCHI");
+        // Read after every later migration too, when the column holds an instant (the old value was UTC).
         assertThat(jdbc.queryForObject("SELECT initiator_credential_set_at FROM mpesa_shortcodes WHERE uuid = ?",
-                LocalDateTime.class, b2c)).isEqualTo(updated);
+                OffsetDateTime.class, b2c)).isEqualTo(updated.atOffset(ZoneOffset.UTC));
         assertThat(jdbc.queryForObject("SELECT initiator_credential_set_at FROM mpesa_shortcodes WHERE uuid = ?",
-                LocalDateTime.class, paybill)).isNull();
+                OffsetDateTime.class, paybill)).isNull();
         assertThatThrownBy(() -> jdbc.update("UPDATE mpesa_shortcodes SET operations = 'C2B,QR' WHERE uuid = ?",
                 paybill)).hasMessageContaining("chk_mpesa_shortcodes_operations");
         jdbc.update("UPDATE mpesa_shortcodes SET operations = '' WHERE uuid = ?", paybill);

@@ -1,7 +1,7 @@
 package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 
@@ -10,7 +10,7 @@ import java.util.Map;
 public record StatementLine(
         int lineNumber,
         String receipt,
-        LocalDateTime completedAt,
+        Instant completedAt,
         String details,
         String status,
         BigDecimal paidIn,

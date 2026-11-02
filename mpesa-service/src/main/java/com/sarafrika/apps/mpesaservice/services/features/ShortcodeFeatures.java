@@ -3,7 +3,7 @@ package com.sarafrika.apps.mpesaservice.services.features;
 import com.sarafrika.apps.mpesaservice.models.ShortcodeFeature;
 import com.sarafrika.apps.mpesaservice.repositories.ShortcodeFeatureRepository;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
@@ -45,7 +45,7 @@ public class ShortcodeFeatures {
         });
         row.setEnabled(enabled);
         row.setUpdatedBy(actor);
-        row.setUpdatedAt(LocalDateTime.now());
+        row.setUpdatedAt(Instant.now());
         repository.save(row);
     }
 }

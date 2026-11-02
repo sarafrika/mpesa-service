@@ -10,8 +10,8 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +23,7 @@ class InitiatorPasswordAttentionSourceTest {
 
     private static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-31T09:00:00Z"), NAIROBI);
-    private static final LocalDateTime NOW = LocalDateTime.now(CLOCK);
+    private static final Instant NOW = Instant.now(CLOCK);
 
     private final MpesaShortCodeRepository repository = mock(MpesaShortCodeRepository.class);
     private final InitiatorPasswordAttentionSource source =
@@ -31,10 +31,10 @@ class InitiatorPasswordAttentionSourceTest {
 
     @Test
     void expiringIsAWarningExpiredIsCriticalAndFreshOrMissingIsQuiet() {
-        MpesaShortCode expiring = shortcode("600101", NOW.minusDays(80), "pw", null);
-        MpesaShortCode expired = shortcode("600102", NOW.minusDays(91), null, "CRED==");
-        MpesaShortCode fresh = shortcode("600103", NOW.minusDays(10), "pw", null);
-        MpesaShortCode none = shortcode("600104", NOW.minusDays(200), null, null);
+        MpesaShortCode expiring = shortcode("600101", NOW.minus(Duration.ofDays(80)), "pw", null);
+        MpesaShortCode expired = shortcode("600102", NOW.minus(Duration.ofDays(91)), null, "CRED==");
+        MpesaShortCode fresh = shortcode("600103", NOW.minus(Duration.ofDays(10)), "pw", null);
+        MpesaShortCode none = shortcode("600104", NOW.minus(Duration.ofDays(200)), null, null);
         when(repository.findByIsActiveTrue()).thenReturn(List.of(expiring, expired, fresh, none));
 
         List<AttentionItemDto> items = source.currentItems(AttentionScope.ALL);
@@ -50,7 +50,7 @@ class InitiatorPasswordAttentionSourceTest {
         assertThat(source.currentItems(new AttentionScope(expired.getUuid(), null))).hasSize(1);
     }
 
-    private static MpesaShortCode shortcode(String number, LocalDateTime setAt, String password, String credential) {
+    private static MpesaShortCode shortcode(String number, Instant setAt, String password, String credential) {
         MpesaShortCode code = new MpesaShortCode();
         code.setUuid(UUID.randomUUID());
         code.setShortcode(number);

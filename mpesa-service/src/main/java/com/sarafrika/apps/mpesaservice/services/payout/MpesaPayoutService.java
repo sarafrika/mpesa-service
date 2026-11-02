@@ -18,13 +18,14 @@ import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.daraja.NotSent;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentType;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -104,12 +105,12 @@ public class MpesaPayoutService {
                 saved.setStatus(OutgoingPaymentStatus.FAILED);
                 String why = NotSent.outcome(NotSent.describe(response, "payout"));
                 saved.setResultDesc(why.length() <= 500 ? why : why.substring(0, 500));
-                saved.setProcessedAt(LocalDateTime.now());
+                saved.setProcessedAt(Instant.now());
             } else {
                 saved.setStatus(OutgoingPaymentStatus.FAILED);
                 saved.setResultDesc(response.error() != null ? response.error().errorMessage()
                         : response.data() != null ? response.data().responseDescription() : "Safaricom refused the request");
-                saved.setProcessedAt(LocalDateTime.now());
+                saved.setProcessedAt(Instant.now());
             }
             return paymentRepository.save(saved);
         });
@@ -188,7 +189,7 @@ public class MpesaPayoutService {
                 payment.setTransactionId(receipt);
             }
             payment.setResultDesc("Transaction Status: " + status);
-            payment.setProcessedAt(LocalDateTime.now());
+            payment.setProcessedAt(Instant.now());
             MpesaOutgoingPayment saved = paymentRepository.save(payment);
             if (refusedAtSubmit) {
                 auditService.record(AUDIT_LATE_SUCCESS, "PAYOUT", saved.getUuid().toString(), before,
@@ -205,7 +206,7 @@ public class MpesaPayoutService {
         payment.setResultDesc(result.resultDesc());
         payment.setConversationId(result.conversationId());
         payment.setRawCallbackData(raw);
-        payment.setProcessedAt(LocalDateTime.now());
+        payment.setProcessedAt(Instant.now());
         if (result.isSuccessful()) {
             B2CResultParameters params = result.resultParameters();
             payment.setStatus(OutgoingPaymentStatus.SUCCESS);
@@ -249,7 +250,7 @@ public class MpesaPayoutService {
     public Optional<MpesaOutgoingPayment> applyTimeout(B2CTimeoutCallback timeout) {
         return lock(timeout.originatorConversationId(), timeout.conversationId()).map(payment -> {
             if (payment.getStatus() == OutgoingPaymentStatus.PENDING && payment.getTimedOutAt() == null) {
-                payment.setTimedOutAt(LocalDateTime.now());
+                payment.setTimedOutAt(Instant.now());
                 payment.setOutcomeUnknown(true);
                 payment.setResultDesc(timeout.resultDesc());
                 return paymentRepository.save(payment);
@@ -335,11 +336,7 @@ public class MpesaPayoutService {
         }
     }
 
-    private static LocalDateTime time(String value) {
-        try {
-            return value == null || value.isBlank() ? null : LocalDateTime.parse(value.trim(), SAFARICOM_TIME);
-        } catch (DateTimeParseException ex) {
-            return null;
-        }
+    private static Instant time(String value) {
+        return DarajaTime.parse(value, SAFARICOM_TIME);
     }
 }

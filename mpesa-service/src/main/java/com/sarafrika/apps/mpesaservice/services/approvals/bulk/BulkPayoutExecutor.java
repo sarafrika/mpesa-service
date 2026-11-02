@@ -18,7 +18,6 @@ import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.PayoutBatchItemStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.PayoutBatchStatus;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -106,7 +105,7 @@ public class BulkPayoutExecutor implements ResumableExecutor, ApprovalLifecycle 
         try {
             MpesaOutgoingPayment sent = payouts.initiate(properties.consoleClientId(), payout);
             boolean older = sent.getCreatedAt() != null && batch.getCreatedAt() != null && sent.getCreatedAt()
-                    .isBefore(batch.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDateTime());
+                    .isBefore(batch.getCreatedAt());
             if (older) {
                 // The reference was used before this batch existed: that payout is not this row's.
                 status = PayoutBatchItemStatus.REFUSED;

@@ -21,9 +21,10 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Set;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "mpesa_shortcodes")
@@ -48,7 +49,7 @@ public class MpesaShortCode extends BaseEntity {
 
     /** When someone last confirmed the store number; null on tills migrated with store number = till number. */
     @Column(name = "store_number_confirmed_at")
-    private LocalDateTime storeNumberConfirmedAt;
+    private Instant storeNumberConfirmedAt;
 
     /** What this shortcode is set up to do; null on an unsaved entity means everything its type allows. */
     @Convert(converter = ShortcodeOperationsConverter.class)
@@ -114,7 +115,7 @@ public class MpesaShortCode extends BaseEntity {
 
     /** When the initiator password or security credential was last saved; Safaricom expires it after 90 days. */
     @Column(name = "initiator_credential_set_at")
-    private LocalDateTime initiatorCredentialSetAt;
+    private Instant initiatorCredentialSetAt;
 
     /** Where Safaricom posts B2C results and timeouts; defaults to this service's callback base URL. */
     @Column(name = "b2c_result_url")
@@ -125,20 +126,20 @@ public class MpesaShortCode extends BaseEntity {
 
     /** First activation; a shortcode never activated is still a draft. */
     @Column(name = "activated_at")
-    private LocalDateTime activatedAt;
+    private Instant activatedAt;
 
     @Column(name = "suspended_at")
-    private LocalDateTime suspendedAt;
+    private Instant suspendedAt;
 
     @Column(name = "credentials_updated_at")
-    private LocalDateTime credentialsUpdatedAt;
+    private Instant credentialsUpdatedAt;
 
     /** Outcome of the last Daraja OAuth token check run from the console. */
     @Column(name = "last_connection_ok")
     private Boolean lastConnectionOk;
 
     @Column(name = "last_connection_checked_at")
-    private LocalDateTime lastConnectionCheckedAt;
+    private Instant lastConnectionCheckedAt;
 
     @Column(name = "last_connection_latency_ms")
     private Integer lastConnectionLatencyMs;
@@ -160,10 +161,10 @@ public class MpesaShortCode extends BaseEntity {
     public static final int INITIATOR_CREDENTIAL_DAYS = 90;
 
     /** When the stored initiator password or security credential lapses; null when neither is stored. */
-    public LocalDateTime initiatorCredentialExpiresAt() {
+    public Instant initiatorCredentialExpiresAt() {
         boolean stored = initiatorPassword != null && !initiatorPassword.isBlank()
                 || securityCredential != null && !securityCredential.isBlank();
-        return stored && initiatorCredentialSetAt != null ? initiatorCredentialSetAt.plusDays(INITIATOR_CREDENTIAL_DAYS)
+        return stored && initiatorCredentialSetAt != null ? initiatorCredentialSetAt.plus(Duration.ofDays(INITIATOR_CREDENTIAL_DAYS))
                 : null;
     }
 

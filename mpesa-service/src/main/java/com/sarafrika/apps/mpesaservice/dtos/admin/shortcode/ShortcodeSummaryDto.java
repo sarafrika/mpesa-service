@@ -7,7 +7,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,8 +29,8 @@ public record ShortcodeSummaryDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("is_active") boolean active,
         @Schema(description = "When the stored credentials were last saved here")
-        @JsonProperty("credentials_updated_at") LocalDateTime credentialsUpdatedAt,
-        @JsonProperty("created_at") LocalDateTime createdAt,
+        @JsonProperty("credentials_updated_at") Instant credentialsUpdatedAt,
+        @JsonProperty("created_at") Instant createdAt,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("health") ShortcodeHealthDto health,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
@@ -46,7 +46,7 @@ public record ShortcodeSummaryDto(
 
     public ShortcodeSummaryDto(UUID uuid, String shortcode, String businessName, ShortcodeType shortcodeType,
                                Environment environment, ShortcodeStatus status, boolean active,
-                               LocalDateTime credentialsUpdatedAt, LocalDateTime createdAt, ShortcodeHealthDto health,
+                               Instant credentialsUpdatedAt, Instant createdAt, ShortcodeHealthDto health,
                                List<ProductRef> products) {
         this(uuid, shortcode, businessName, shortcodeType, environment, status, active, credentialsUpdatedAt,
                 createdAt, health, products, null, ShortcodeCapabilities.list(shortcodeType),

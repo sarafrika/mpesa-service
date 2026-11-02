@@ -21,7 +21,6 @@ import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackKind;
 import com.sarafrika.apps.mpesaservice.utils.enums.CallbackStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.DarajaFeature;
-import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -81,8 +80,7 @@ public class CallbackAttachService {
                 .map(r -> new AttachCandidateDto(r.getUuid(), "REVERSAL", "Reversal of " + r.getTransactionId(),
                         r.getAmount(), r.getStatus().name(), r.getConversationId() == null,
                         ReversalCallbackService.fits(r, result),
-                        r.getCreatedAt() == null ? null : r.getCreatedAt().atZone(ZoneId.systemDefault())
-                                .toOffsetDateTime()))
+                        Times.offset(r.getCreatedAt())))
                 .sorted(Comparator.comparing(AttachCandidateDto::fits).reversed())
                 .toList();
     }

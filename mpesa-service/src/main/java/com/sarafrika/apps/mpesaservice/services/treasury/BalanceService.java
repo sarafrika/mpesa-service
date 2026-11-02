@@ -36,7 +36,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -128,7 +128,7 @@ public class BalanceService {
         BalanceSnapshot pending = new BalanceSnapshot();
         pending.setShortcodeUuid(shortcode.getUuid());
         pending.setSource(source);
-        pending.setRequestedAt(LocalDateTime.now());
+        pending.setRequestedAt(Instant.now());
         String actor = CurrentActor.name();
         pending.setCreatedBy(actor);
         BalanceSnapshot saved = newTransaction.execute(status -> snapshots.saveAndFlush(pending));
@@ -146,7 +146,7 @@ public class BalanceService {
                 row.setResultDesc(truncate(response.error() != null ? response.error().errorMessage()
                         : response.data() != null ? response.data().responseDescription()
                         : "Safaricom refused the balance query"));
-                row.setReceivedAt(LocalDateTime.now());
+                row.setReceivedAt(Instant.now());
             }
             return snapshots.save(row);
         });
@@ -185,7 +185,7 @@ public class BalanceService {
         snapshot.setResultCode(result.resultCode());
         snapshot.setResultDesc(truncate(result.resultDesc()));
         snapshot.setRaw(raw);
-        snapshot.setReceivedAt(LocalDateTime.now());
+        snapshot.setReceivedAt(Instant.now());
         String balance = result.resultParameters() == null || result.resultParameters().resultParameters() == null
                 ? null : result.resultParameters().getAccountBalance();
         if (result.isSuccessful() && balance != null) {
@@ -209,7 +209,7 @@ public class BalanceService {
             if (snapshot.getStatus() == BalanceSnapshotStatus.PENDING) {
                 snapshot.setStatus(BalanceSnapshotStatus.TIMED_OUT);
                 snapshot.setResultDesc(truncate(description));
-                snapshot.setReceivedAt(LocalDateTime.now());
+                snapshot.setReceivedAt(Instant.now());
                 return snapshots.save(snapshot);
             }
             return snapshot;
@@ -278,7 +278,7 @@ public class BalanceService {
         return reports.size() > limit ? List.copyOf(reports.subList(0, limit)) : reports;
     }
 
-    private static LocalDateTime reportedAt(MpesaIncomingPayment payment) {
+    private static Instant reportedAt(MpesaIncomingPayment payment) {
         return payment.getTransactionDate() != null ? payment.getTransactionDate() : payment.getCreatedAt();
     }
 
@@ -286,8 +286,8 @@ public class BalanceService {
     @Transactional(readOnly = true)
     public List<BalanceSnapshotDto> history(UUID shortcodeUuid, OffsetDateTime from, OffsetDateTime to) {
         shortcode(shortcodeUuid);
-        LocalDateTime end = to == null ? LocalDateTime.now().plusSeconds(1) : Times.local(to);
-        LocalDateTime start = from == null ? end.minusDays(7) : Times.local(from);
+        Instant end = to == null ? Instant.now().plusSeconds(1) : Times.instant(to);
+        Instant start = from == null ? end.minus(Duration.ofDays(7)) : Times.instant(from);
         if (!start.isBefore(end)) {
             throw new InvalidRequestException("from", "must be before to");
         }

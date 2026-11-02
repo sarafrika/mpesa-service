@@ -22,6 +22,7 @@ import com.sarafrika.apps.mpesaservice.services.reconciliation.StatementParseExc
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionKind;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationExceptionStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.ReconciliationTrigger;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -183,7 +184,7 @@ class ReconciliationAdminControllerTest {
                                 + "\"to\":\"2026-10-26T00:00:00+03:00\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Pull Transactions is not enabled for this paybill"));
-        verify(service).reconcilePull(SHORTCODE, LocalDate.of(2026, 10, 25).atStartOfDay(),
-                LocalDate.of(2026, 10, 26).atStartOfDay(), ReconciliationTrigger.MANUAL);
+        verify(service).reconcilePull(SHORTCODE, Instant.parse("2026-10-24T21:00:00Z"),
+                Instant.parse("2026-10-25T21:00:00Z"), ReconciliationTrigger.MANUAL);
     }
 }

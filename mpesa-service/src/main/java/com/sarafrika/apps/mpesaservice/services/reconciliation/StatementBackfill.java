@@ -1,8 +1,8 @@
 package com.sarafrika.apps.mpesaservice.services.reconciliation;
 
 import com.sarafrika.apps.mpesaservice.dtos.C2BConfirmationCallback;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -15,7 +15,6 @@ public final class StatementBackfill {
     // Details read like "Pay Bill Online from 254790***760 - Alex *** Acc. 4GPWHB" (presta-ui c2b-import-template.csv).
     private static final Pattern ACCOUNT = Pattern.compile("\\bAcc\\.\\s*(\\S+)");
     private static final Pattern PARTY_SPLIT = Pattern.compile("\\s+[-\u2013]\\s+");
-    private static final DateTimeFormatter TRANS_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private StatementBackfill() {
     }
@@ -27,7 +26,7 @@ public final class StatementBackfill {
         return new C2BConfirmationCallback(
                 line.reasonType() != null ? line.reasonType() : "Pay Bill",
                 line.receipt(),
-                line.completedAt() == null ? null : line.completedAt().format(TRANS_TIME),
+                line.completedAt() == null ? null : DarajaTime.compact(line.completedAt()),
                 amount,
                 businessShortCode,
                 accountReference(line),

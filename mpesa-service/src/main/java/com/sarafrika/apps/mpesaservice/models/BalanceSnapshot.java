@@ -8,7 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -70,8 +70,8 @@ public class BalanceSnapshot extends BaseEntity {
     private String raw;
 
     @Column(name = "requested_at", nullable = false)
-    private LocalDateTime requestedAt;
+    private Instant requestedAt;
 
     @Column(name = "received_at")
-    private LocalDateTime receivedAt;
+    private Instant receivedAt;
 }

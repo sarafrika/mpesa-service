@@ -15,7 +15,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -76,7 +76,7 @@ public class MpesaIncomingPayment extends BaseEntity {
     private String lastName;
 
     @Column(name = "transaction_date")
-    private LocalDateTime transactionDate;
+    private Instant transactionDate;
 
     @Convert(converter = IncomingPaymentStatusConverter.class)
     @Column(name = "status")
@@ -87,7 +87,7 @@ public class MpesaIncomingPayment extends BaseEntity {
     private Map<String, Object> rawCallbackData;
 
     @Column(name = "processed_at")
-    private LocalDateTime processedAt;
+    private Instant processedAt;
 
     /** BusinessShortCode exactly as Safaricom sent it; kept when no configured shortcode matches. */
     @Column(name = "business_short_code")
@@ -110,7 +110,7 @@ public class MpesaIncomingPayment extends BaseEntity {
 
     /** When the STK status job may next ask Safaricom about this request; it backs off after each try. */
     @Column(name = "next_check_at")
-    private LocalDateTime nextCheckAt;
+    private Instant nextCheckAt;
 
     @Column(name = "status_checks", nullable = false)
     private int statusChecks;

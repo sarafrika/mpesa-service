@@ -39,6 +39,7 @@ import com.sarafrika.apps.mpesaservice.services.reconciliation.ReconciliationLed
 import com.sarafrika.apps.mpesaservice.services.reconciliation.StkCandidates;
 import com.sarafrika.apps.mpesaservice.services.impl.MpesaIncomingPaymentServiceImpl;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.PageRequests;
 import com.sarafrika.apps.mpesaservice.utils.enums.C2BChannel;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
@@ -49,8 +50,10 @@ import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentType;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -223,7 +226,7 @@ class CollectionsIntegrationTest {
         assertThat(stored.getFirstName()).isEqualTo("JANE");
         assertThat(stored.getLastName()).isEqualTo("KAMAU");
         assertThat(stored.getAmount()).isEqualByComparingTo("4500.00");
-        assertThat(stored.getTransactionDate()).isEqualTo(LocalDateTime.of(2026, 10, 26, 14, 32, 8));
+        assertThat(stored.getTransactionDate()).isEqualTo(Instant.parse("2026-10-26T11:32:08Z"));
         assertThat(stored.getStatus()).isEqualTo(IncomingPaymentStatus.SUCCESS);
         assertThat(jdbc.queryForObject("select raw_callback_data ->> 'Extra' from mpesa_incoming_payments "
                 + "where transaction_id = ?", String.class, transId)).isEqualTo("kept");
@@ -257,13 +260,13 @@ class CollectionsIntegrationTest {
 
     @Test
     void theFeedPagesAcrossBothTablesNewestFirst() {
-        LocalDateTime base = LocalDateTime.of(2026, 1, 10, 9, 0);
-        UUID in1 = c2b("100", base.plusMinutes(1));
-        UUID out1 = payout("200", base.plusMinutes(2), OutgoingPaymentStatus.SUCCESS);
-        UUID in2 = c2b("300", base.plusMinutes(3));
-        UUID out2 = payout("400", base.plusMinutes(4), OutgoingPaymentStatus.PENDING);
-        UUID in3 = stk("500", base.plusMinutes(5));
-        UUID out3 = payout("600", base.plusMinutes(6), OutgoingPaymentStatus.FAILED);
+        Instant base = Instant.parse("2026-01-10T09:00:00Z");
+        UUID in1 = c2b("100", base.plus(Duration.ofMinutes(1)));
+        UUID out1 = payout("200", base.plus(Duration.ofMinutes(2)), OutgoingPaymentStatus.SUCCESS);
+        UUID in2 = c2b("300", base.plus(Duration.ofMinutes(3)));
+        UUID out2 = payout("400", base.plus(Duration.ofMinutes(4)), OutgoingPaymentStatus.PENDING);
+        UUID in3 = stk("500", base.plus(Duration.ofMinutes(5)));
+        UUID out3 = payout("600", base.plus(Duration.ofMinutes(6)), OutgoingPaymentStatus.FAILED);
         TransactionFeedService.Filter mine = filter(null, null, null, null, null);
 
         Page<TransactionDto> first = feedService.list(mine, page(0, 4, null));
@@ -279,7 +282,7 @@ class CollectionsIntegrationTest {
         assertThat(first.getContent().get(0).direction()).isEqualTo("out");
         assertThat(first.getContent().get(1).type()).isEqualTo("STK_PUSH");
         assertThat(first.getContent().get(1).receipt()).isNull();
-        assertThat(first.getContent().get(1).createdAt().toLocalDateTime()).isEqualTo(base.plusMinutes(5));
+        assertThat(first.getContent().get(1).createdAt().toInstant()).isEqualTo(base.plus(Duration.ofMinutes(5)));
 
         Page<TransactionDto> byAmount = feedService.list(mine, page(0, 3, List.of("amount,asc")));
         assertThat(byAmount.getContent()).extracting(TransactionDto::uuid).containsExactly(in1, out1, in2);
@@ -287,10 +290,10 @@ class CollectionsIntegrationTest {
 
     @Test
     void anExportStreamsTheFilteredFeedInOrderUpToTheCap() throws Exception {
-        LocalDateTime base = LocalDateTime.of(2026, 1, 12, 9, 0);
-        UUID in1 = c2b("100", base.plusMinutes(1));
-        UUID out1 = payout("200", base.plusMinutes(2), OutgoingPaymentStatus.SUCCESS);
-        UUID in2 = c2b("300", base.plusMinutes(3));
+        Instant base = Instant.parse("2026-01-12T09:00:00Z");
+        UUID in1 = c2b("100", base.plus(Duration.ofMinutes(1)));
+        UUID out1 = payout("200", base.plus(Duration.ofMinutes(2)), OutgoingPaymentStatus.SUCCESS);
+        UUID in2 = c2b("300", base.plus(Duration.ofMinutes(3)));
         TransactionFeedService.Filter mine = filter(null, null, null, null, null);
         List<UUID> written = new java.util.ArrayList<>();
 
@@ -309,10 +312,10 @@ class CollectionsIntegrationTest {
 
     @Test
     void theFeedFiltersByDirectionTypeStatusPhoneQueryAndDates() {
-        LocalDateTime base = LocalDateTime.of(2026, 2, 10, 9, 0);
+        Instant base = Instant.parse("2026-02-10T09:00:00Z");
         UUID deposit = c2b("100", base);
-        UUID payout = payout("200", base.plusHours(1), OutgoingPaymentStatus.PENDING);
-        UUID stk = stk("300", base.plusHours(2));
+        UUID payout = payout("200", base.plus(Duration.ofHours(1)), OutgoingPaymentStatus.PENDING);
+        UUID stk = stk("300", base.plus(Duration.ofHours(2)));
         String receipt = incomingRepository.findByUuid(deposit).orElseThrow().getTransactionId();
         String checkout = incomingRepository.findByUuid(stk).orElseThrow().getCheckoutRequestId();
 
@@ -328,10 +331,9 @@ class CollectionsIntegrationTest {
         assertThat(ids(filter(null, null, null, null, "WD-"))).containsExactly(payout);
         assertThat(ids(filter(null, null, null, null, "%"))).isEmpty();
 
-        ZoneId zone = ZoneId.systemDefault();
         TransactionFeedService.Filter window = new TransactionFeedService.Filter(null, null, null, shortcode.getUuid(),
-                null, null, base.plusMinutes(30).atZone(zone).toOffsetDateTime(),
-                base.plusHours(2).atZone(zone).toOffsetDateTime());
+                null, null, base.plus(Duration.ofMinutes(30)).atOffset(ZoneOffset.UTC),
+                base.plus(Duration.ofHours(2)).atOffset(ZoneOffset.UTC));
         assertThat(ids(window)).containsExactly(payout);
 
         assertThatThrownBy(() -> feedService.list(filter("sideways", null, null, null, null), page(0, 10, null)))
@@ -351,7 +353,7 @@ class CollectionsIntegrationTest {
         payment.setTransactionDesc("B2B Express Checkout from till 000001");
         payment.setStatus(IncomingPaymentStatus.SUCCESS);
         UUID checkout = incomingRepository.saveAndFlush(payment).getUuid();
-        c2b("100", LocalDateTime.of(2026, 3, 1, 9, 0));
+        c2b("100", Instant.parse("2026-03-01T09:00:00Z"));
 
         assertThat(ids(filter(null, "b2b_express_checkout", null, null, null))).containsExactly(checkout);
         TransactionDetailDto detail = feedService.detail(checkout);
@@ -361,9 +363,9 @@ class CollectionsIntegrationTest {
 
     @Test
     void aPayoutsDetailHasItsProductTimelineAndRawCallback() {
-        UUID uuid = payout("1500", LocalDateTime.of(2026, 3, 1, 8, 0), OutgoingPaymentStatus.SUCCESS);
+        UUID uuid = payout("1500", Instant.parse("2026-03-01T08:00:00Z"), OutgoingPaymentStatus.SUCCESS);
         jdbc.update("update mpesa_outgoing_payments set raw_callback_data = '{\"Result\":{\"ResultCode\":0}}'::jsonb, "
-                + "processed_at = ? where uuid = ?", LocalDateTime.of(2026, 3, 1, 8, 1), uuid);
+                + "processed_at = ? where uuid = ?", OffsetDateTime.parse("2026-03-01T08:01:00Z"), uuid);
 
         TransactionDetailDto detail = feedService.detail(uuid);
 
@@ -378,7 +380,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void aTransactionStatusResultSettlesAPendingPayoutOnce() {
-        UUID uuid = payout("1500", LocalDateTime.now().minusMinutes(30), OutgoingPaymentStatus.PENDING);
+        UUID uuid = payout("1500", Instant.now().minus(Duration.ofMinutes(30)), OutgoingPaymentStatus.PENDING);
         when(darajaService.queryTransactionStatus(any(MpesaShortCode.class), any(), any(), any()))
                 .thenReturn(MpesaApiResponse.success(new TransactionStatusResponse("AG_TS_" + uuid, "TS-" + uuid,
                         "Accept the service request successfully."), 200));
@@ -407,7 +409,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void safaricomFailuresBecomeUpstreamErrors() {
-        UUID uuid = payout("1500", LocalDateTime.now(), OutgoingPaymentStatus.PENDING);
+        UUID uuid = payout("1500", Instant.now(), OutgoingPaymentStatus.PENDING);
         when(darajaService.queryTransactionStatus(any(MpesaShortCode.class), any(), any(), any()))
                 .thenReturn(MpesaApiResponse.error("INTERNAL_ERROR", "I/O error on POST", 500));
         assertThatThrownBy(() -> statusService.request(uuid)).isInstanceOfSatisfying(UpstreamException.class,
@@ -421,8 +423,8 @@ class CollectionsIntegrationTest {
 
     @Test
     void theStkJobSettlesOldPendingRequestsAndLeavesFreshOnes() {
-        UUID old = stk("250", LocalDateTime.now().minusMinutes(30));
-        UUID fresh = stk("250", LocalDateTime.now().minusMinutes(1));
+        UUID old = stk("250", Instant.now().minus(Duration.ofMinutes(30)));
+        UUID fresh = stk("250", Instant.now().minus(Duration.ofMinutes(1)));
         String oldCheckout = incomingRepository.findByUuid(old).orElseThrow().getCheckoutRequestId();
         when(darajaService.queryStkPushStatus(eq(shortcode.getUuid()), eq(oldCheckout)))
                 .thenReturn(MpesaApiResponse.success(new StkStatusResponse("m-1", oldCheckout, 1032,
@@ -438,7 +440,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void twoAnswersForOneStkRequestArrivingTogetherSettleItOnce() throws Exception {
-        UUID uuid = stk("250", LocalDateTime.now().minusMinutes(30));
+        UUID uuid = stk("250", Instant.now().minus(Duration.ofMinutes(30)));
         String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
         Map<String, Object> paid = stkSuccess(checkout, unique("TK"));
         java.util.concurrent.CyclicBarrier start = new java.util.concurrent.CyclicBarrier(2);
@@ -466,7 +468,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void stillProcessingIsNoAnswerAndTheJobBacksOff() {
-        UUID uuid = stk("250", LocalDateTime.now().minusMinutes(30));
+        UUID uuid = stk("250", Instant.now().minus(Duration.ofMinutes(30)));
         String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
         when(darajaService.queryStkPushStatus(eq(shortcode.getUuid()), eq(checkout)))
                 .thenReturn(MpesaApiResponse.success(new StkStatusResponse("m-1", checkout, 4999,
@@ -478,13 +480,13 @@ class CollectionsIntegrationTest {
         MpesaIncomingPayment after = incomingRepository.findByUuid(uuid).orElseThrow();
         assertThat(after.getStatus()).isEqualTo(IncomingPaymentStatus.PENDING);
         assertThat(after.getStatusChecks()).isEqualTo(1);
-        assertThat(after.getNextCheckAt()).isAfter(LocalDateTime.now());
+        assertThat(after.getNextCheckAt()).isAfter(Instant.now());
         assertThatThrownBy(() -> statusService.request(uuid)).isInstanceOf(UpstreamException.class);
     }
 
     @Test
     void aC2bConfirmationThatBeatTheStkCallbackIsMergedIntoTheStkPayment() {
-        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = stk("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
         String receipt = unique("TM");
         UUID c2b = confirmationService.confirm(confirmation(receipt, shortcode.getShortcode(), "Pay Bill"), null)
@@ -512,7 +514,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void aC2bConfirmationAfterTheStkCallbackOnlyAddsItsDetails() {
-        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = stk("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
         String receipt = unique("TN");
         incomingService.processStkPushCallback(checkout, stkSuccess(checkout, receipt));
@@ -530,7 +532,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void aC2bConfirmationOfAnStkPaymentSettledWithoutAReceiptBecomesItsReceipt() {
-        UUID uuid = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = settledByQuery("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String receipt = unique("TQ");
         allEvents.seen.clear();
 
@@ -559,7 +561,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void twoDeliveriesOfThatConfirmationTogetherStillLeaveOnePayment() throws Exception {
-        UUID uuid = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = settledByQuery("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String receipt = unique("TQ");
         allEvents.seen.clear();
         java.util.concurrent.CyclicBarrier start = new java.util.concurrent.CyclicBarrier(2);
@@ -591,8 +593,8 @@ class CollectionsIntegrationTest {
 
     @Test
     void aConfirmationSeveralReceiptlessStkPaymentsMayBeIsStoredButFlagged() {
-        UUID first = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(3));
-        UUID second = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(1));
+        UUID first = settledByQuery("4500.00", Instant.now().minus(Duration.ofMinutes(3)));
+        UUID second = settledByQuery("4500.00", Instant.now().minus(Duration.ofMinutes(1)));
         String receipt = unique("TA");
 
         C2BConfirmationService.Confirmation result = confirmationService.confirm(
@@ -612,9 +614,9 @@ class CollectionsIntegrationTest {
 
     @Test
     void aConfirmationNoReceiptlessStkPaymentFitsIsStoredAsBefore() {
-        UUID otherAmount = settledByQuery("4400.00", LocalDateTime.now().minusMinutes(2));
-        UUID otherPhone = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(2));
-        UUID tooEarly = settledByQuery("4500.00", LocalDateTime.now().minusMinutes(40));
+        UUID otherAmount = settledByQuery("4400.00", Instant.now().minus(Duration.ofMinutes(2)));
+        UUID otherPhone = settledByQuery("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
+        UUID tooEarly = settledByQuery("4500.00", Instant.now().minus(Duration.ofMinutes(40)));
         String receipt = unique("TB");
 
         C2BConfirmationService.Confirmation result = confirmationService.confirm(
@@ -634,7 +636,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void anStkPaymentSettledByTheQueryAbsorbsTheOneC2bConfirmationThatCameFirst() {
-        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = stk("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String receipt = unique("TC");
         UUID c2b = confirmationService.confirm(liveConfirmation(receipt, "4500.00", "2547 ***** 333"),
                 Map.of("TransID", receipt, "FirstName", "JANE")).payment().getUuid();
@@ -673,7 +675,7 @@ class CollectionsIntegrationTest {
     @Test
     @SuppressWarnings("unchecked")
     void anStkPaymentSeveralEarlierC2bConfirmationsFitIsSettledWithoutAReceiptAndFlagged() {
-        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = stk("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String first = unique("TD");
         String second = unique("TE");
         confirmationService.confirm(liveConfirmation(first, "4500.00", "254722000333"), Map.of("TransID", first));
@@ -696,8 +698,8 @@ class CollectionsIntegrationTest {
 
     @Test
     void aC2bConfirmationAnotherReceiptlessStkPaymentAlsoFitsIsNotMerged() {
-        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
-        UUID other = stk("4500.00", LocalDateTime.now().minusMinutes(3));
+        UUID uuid = stk("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
+        UUID other = stk("4500.00", Instant.now().minus(Duration.ofMinutes(3)));
         String receipt = unique("TF");
         confirmationService.confirm(liveConfirmation(receipt, "4500.00", "2547 ***** 333"), Map.of("TransID", receipt));
         jdbc.update("UPDATE mpesa_incoming_payments SET status = 'SUCCESS', result_code = 0 WHERE uuid = ?", other);
@@ -714,7 +716,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void anStkPaymentSettledByTheQueryWithNoC2bTwinIsSettledAsBefore() {
-        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = stk("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String otherAmount = unique("TG");
         String otherPhone = unique("TH");
         confirmationService.confirm(liveConfirmation(otherAmount, "4400.00", "254722000333"), null);
@@ -737,7 +739,7 @@ class CollectionsIntegrationTest {
 
     @Test
     void stkCompletedCarriesTheReceiptAnStkCallbackBrings() {
-        UUID uuid = stk("4500.00", LocalDateTime.now().minusMinutes(2));
+        UUID uuid = stk("4500.00", Instant.now().minus(Duration.ofMinutes(2)));
         String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
         String receipt = unique("TK");
 
@@ -759,7 +761,7 @@ class CollectionsIntegrationTest {
     }
 
     /** An STK payment whose callback was lost, settled by the STK query (whose reply has no receipt). */
-    private UUID settledByQuery(String amount, LocalDateTime requestedAt) {
+    private UUID settledByQuery(String amount, Instant requestedAt) {
         UUID uuid = stk(amount, requestedAt);
         String checkout = incomingRepository.findByUuid(uuid).orElseThrow().getCheckoutRequestId();
         settleByQuery(uuid);
@@ -771,7 +773,7 @@ class CollectionsIntegrationTest {
 
     private C2BConfirmationCallback liveConfirmation(String transId, String amount, String msisdn) {
         return new C2BConfirmationCallback("Pay Bill", transId,
-                LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")),
+                DarajaTime.compact(Instant.now()),
                 new BigDecimal(amount), shortcode.getShortcode(), "ORDER-7731", "", null, null, msisdn, "JANE", null,
                 "KAMAU");
     }
@@ -819,7 +821,7 @@ class CollectionsIntegrationTest {
                 Sort.by(Sort.Order.desc("createdAt")));
     }
 
-    private UUID c2b(String amount, LocalDateTime createdAt) {
+    private UUID c2b(String amount, Instant createdAt) {
         String transId = unique("TJC");
         C2BConfirmationCallback callback = new C2BConfirmationCallback("Pay Bill", transId, "20261026143208",
                 new BigDecimal(amount), shortcode.getShortcode(), "ELM-004512", null, null, null, "254712345612",
@@ -829,7 +831,7 @@ class CollectionsIntegrationTest {
         return uuid;
     }
 
-    private UUID stk(String amount, LocalDateTime createdAt) {
+    private UUID stk(String amount, Instant createdAt) {
         MpesaIncomingPayment payment = new MpesaIncomingPayment();
         String checkout = unique("ws_CO_");
         payment.setShortcodeUuid(shortcode.getUuid());
@@ -845,7 +847,7 @@ class CollectionsIntegrationTest {
         return uuid;
     }
 
-    private UUID payout(String amount, LocalDateTime createdAt, OutgoingPaymentStatus status) {
+    private UUID payout(String amount, Instant createdAt, OutgoingPaymentStatus status) {
         MpesaOutgoingPayment payout = new MpesaOutgoingPayment();
         payout.setShortcodeUuid(shortcode.getUuid());
         payout.setPaymentType(OutgoingPaymentType.B2C);
@@ -863,8 +865,8 @@ class CollectionsIntegrationTest {
         return uuid;
     }
 
-    private void backdate(String table, UUID uuid, LocalDateTime createdAt) {
-        jdbc.update("update " + table + " set created_at = ? where uuid = ?", createdAt, uuid);
+    private void backdate(String table, UUID uuid, Instant createdAt) {
+        jdbc.update("update " + table + " set created_at = ? where uuid = ?", createdAt.atOffset(ZoneOffset.UTC), uuid);
     }
 
     private static C2BConfirmationCallback confirmation(String transId, String shortcode, String transType) {

@@ -7,7 +7,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -44,7 +44,7 @@ public class WebhookSubscription extends BaseEntity {
     private boolean active = true;
 
     @Column(name = "secret_rotated_at")
-    private LocalDateTime secretRotatedAt;
+    private Instant secretRotatedAt;
 
     public Set<String> eventTypeSet() {
         Set<String> types = new LinkedHashSet<>();

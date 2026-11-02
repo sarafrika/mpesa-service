@@ -2,11 +2,12 @@ package com.sarafrika.apps.mpesaservice.dtos.admin.reconciliation;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sarafrika.apps.mpesaservice.models.ReconciliationRun;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.Times;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
@@ -65,10 +66,10 @@ public record ReconciliationRunDto(
                 Times.offset(run.getCompletedAt()));
     }
 
-    /** Periods are East Africa Time, like statement lines and Daraja's TransTime. */
-    public static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
+    /** Periods and statement times are shown at East Africa Time's offset. */
+    public static final ZoneId NAIROBI = DarajaTime.ZONE;
 
-    public static OffsetDateTime nairobi(LocalDateTime value) {
+    public static OffsetDateTime nairobi(Instant value) {
         return value == null ? null : value.atZone(NAIROBI).toOffsetDateTime();
     }
 }

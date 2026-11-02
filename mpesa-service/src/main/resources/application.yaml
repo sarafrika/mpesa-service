@@ -16,6 +16,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Instants are bound and read as UTC, whatever zone the JVM runs in.
+        jdbc:
+          time_zone: UTC
         format_sql: false
     show-sql: false
 

@@ -18,7 +18,6 @@ import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -34,7 +33,7 @@ class StkStatusReconcilerTest {
     private final MpesaShortCodeRepository shortcodes = mock(MpesaShortCodeRepository.class);
     private final TransactionStatusService statusService = mock(TransactionStatusService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-26T12:00:00Z"), ZoneId.of("UTC"));
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 26, 12, 0);
+    private static final Instant NOW = Instant.parse("2026-10-26T12:00:00Z");
 
     private StkStatusReconciler reconciler(boolean enabled) {
         TransactionTemplate transactions = new TransactionTemplate() {
@@ -60,7 +59,7 @@ class StkStatusReconcilerTest {
         MpesaIncomingPayment first = pending(shortcode.getUuid(), "ws_CO_1");
         MpesaIncomingPayment second = pending(shortcode.getUuid(), "ws_CO_2");
         second.setStatusChecks(3);
-        when(payments.claimStkChecks(eq(NOW.minusMinutes(10)), eq(NOW.minusDays(2)), eq(NOW), anyInt()))
+        when(payments.claimStkChecks(eq(NOW.minus(Duration.ofMinutes(10))), eq(NOW.minus(Duration.ofDays(2))), eq(NOW), anyInt()))
                 .thenReturn(List.of(first, second));
         when(payments.saveAll(anyList())).thenAnswer(call -> call.getArgument(0));
         when(shortcodes.findByUuid(shortcode.getUuid())).thenReturn(Optional.of(shortcode));
@@ -70,8 +69,8 @@ class StkStatusReconcilerTest {
         assertThat(reconciler(true).reconcile()).isEqualTo(1);
         verify(statusService).stkQuery(second, shortcode, false);
         assertThat(first.getStatusChecks()).isEqualTo(1);
-        assertThat(first.getNextCheckAt()).isEqualTo(NOW.plusMinutes(1));
-        assertThat(second.getNextCheckAt()).isEqualTo(NOW.plusMinutes(8));
+        assertThat(first.getNextCheckAt()).isEqualTo(NOW.plus(Duration.ofMinutes(1)));
+        assertThat(second.getNextCheckAt()).isEqualTo(NOW.plus(Duration.ofMinutes(8)));
     }
 
     @Test

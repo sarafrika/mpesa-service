@@ -3,7 +3,7 @@ package com.sarafrika.apps.mpesaservice.services.treasury;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.utils.enums.BalanceQuerySource;
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,7 +30,7 @@ public class BalanceQueryScheduler {
         this.claims = claims;
         this.shortcodes = shortcodes;
         this.balances = balances;
-        this.clock = clock.orElse(Clock.systemDefaultZone());
+        this.clock = clock.orElse(Clock.systemUTC());
     }
 
     @Scheduled(fixedDelayString = "${mpesa.treasury.balance-query-poll:1m}", initialDelayString = "30s")
@@ -47,7 +47,7 @@ public class BalanceQueryScheduler {
         if (!properties.scheduledQueriesOn()) {
             return 0;
         }
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = clock.instant();
         List<UUID> due = claims.claimDue(now, now.plus(properties.balanceQueryInterval()),
                 Math.max(1, properties.balanceQueryBatch()));
         int sent = 0;

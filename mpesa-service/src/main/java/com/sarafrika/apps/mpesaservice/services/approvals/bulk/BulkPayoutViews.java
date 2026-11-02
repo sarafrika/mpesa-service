@@ -12,11 +12,11 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.repositories.PayoutBatchItemRepository;
 import com.sarafrika.apps.mpesaservice.repositories.PayoutBatchRepository;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
+import com.sarafrika.apps.mpesaservice.utils.Times;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -129,6 +129,6 @@ public class BulkPayoutViews {
     }
 
     private static OffsetDateTime offset(Instant instant) {
-        return instant == null ? null : instant.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        return Times.offset(instant);
     }
 }

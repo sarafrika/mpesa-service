@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /** An M-Pesa shortcode's configuration; credentials are write-only, never serialised in responses. */
@@ -186,7 +186,7 @@ public record MpesaShortCodeDto(
                 accessMode = Schema.AccessMode.READ_ONLY
         )
         @JsonProperty("created_at")
-        LocalDateTime createdAt,
+        Instant createdAt,
 
         @Schema(
                 description = "Timestamp when the record was last updated",
@@ -194,7 +194,7 @@ public record MpesaShortCodeDto(
                 accessMode = Schema.AccessMode.READ_ONLY
         )
         @JsonProperty("updated_at")
-        LocalDateTime updatedAt,
+        Instant updatedAt,
 
         @Schema(
                 description = "User who created the record",

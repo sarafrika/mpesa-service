@@ -15,7 +15,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -81,7 +81,7 @@ public class MpesaOutgoingPayment extends BaseEntity {
     private BigDecimal workingAccountAvailableFunds;
 
     @Column(name = "transaction_date")
-    private LocalDateTime transactionDate;
+    private Instant transactionDate;
 
     @Convert(converter = OutgoingPaymentStatusConverter.class)
     @Column(name = "status")
@@ -93,7 +93,7 @@ public class MpesaOutgoingPayment extends BaseEntity {
     private String rawCallbackData;
 
     @Column(name = "processed_at")
-    private LocalDateTime processedAt;
+    private Instant processedAt;
 
     /** The Keycloak client that asked for this payout. */
     @Column(name = "client_id")
@@ -108,7 +108,7 @@ public class MpesaOutgoingPayment extends BaseEntity {
 
     /** Set when Safaricom reported a queue timeout; the outcome is then still unknown. */
     @Column(name = "timed_out_at")
-    private LocalDateTime timedOutAt;
+    private Instant timedOutAt;
 
     /** Safaricom never answered the request (or reported a queue timeout): the money may still move. */
     @Column(name = "outcome_unknown", nullable = false)

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * Global exception handler for M-Pesa callback endpoints
@@ -39,7 +39,7 @@ public class CallbackExceptionHandler {
         return ResponseEntity.ok(new CallbackErrorResponse(
                 "00000001",
                 "JSON parsing error",
-                LocalDateTime.now()
+                Instant.now()
         ));
     }
 
@@ -55,7 +55,7 @@ public class CallbackExceptionHandler {
         return ResponseEntity.ok(new CallbackErrorResponse(
                 "00000001",
                 "Invalid parameter type",
-                LocalDateTime.now()
+                Instant.now()
         ));
     }
 
@@ -71,7 +71,7 @@ public class CallbackExceptionHandler {
         return ResponseEntity.ok(new CallbackErrorResponse(
                 "00000001",
                 "Invalid argument provided",
-                LocalDateTime.now()
+                Instant.now()
         ));
     }
 
@@ -87,7 +87,7 @@ public class CallbackExceptionHandler {
         return ResponseEntity.ok(new CallbackErrorResponse(
                 "00000001",
                 "Internal processing error",
-                LocalDateTime.now()
+                Instant.now()
         ));
     }
 
@@ -103,7 +103,7 @@ public class CallbackExceptionHandler {
         return ResponseEntity.ok(new CallbackErrorResponse(
                 "00000001",
                 "Runtime processing error",
-                LocalDateTime.now()
+                Instant.now()
         ));
     }
 
@@ -119,7 +119,7 @@ public class CallbackExceptionHandler {
         return ResponseEntity.ok(new CallbackErrorResponse(
                 "00000001",
                 "Unexpected server error",
-                LocalDateTime.now()
+                Instant.now()
         ));
     }
 
@@ -135,6 +135,6 @@ public class CallbackExceptionHandler {
             String resultDesc,
 
             @JsonProperty("Timestamp")
-            LocalDateTime timestamp
+            Instant timestamp
     ) {}
 }

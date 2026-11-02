@@ -25,7 +25,6 @@ import com.sarafrika.apps.mpesaservice.utils.enums.WebhookDeliveryStatus;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -131,7 +130,7 @@ public class WebhookAdminService {
         WebhookSubscription subscription = find(uuid);
         String secret = WebhookSigner.newSecret();
         subscription.setSecret(secret);
-        subscription.setSecretRotatedAt(LocalDateTime.now());
+        subscription.setSecretRotatedAt(Instant.now());
         subscription.setUpdatedBy(CurrentActor.name());
         WebhookSubscription saved = subscriptions.save(subscription);
         WebhookSubscriptionDto dto = toDto(saved, health(List.of(saved)));

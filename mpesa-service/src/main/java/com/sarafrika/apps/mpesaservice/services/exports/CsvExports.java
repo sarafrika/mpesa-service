@@ -7,13 +7,14 @@ import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.collections.TransactionFeedService;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeAdminService;
 import com.sarafrika.apps.mpesaservice.utils.Csv;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,7 +85,7 @@ public class CsvExports {
     private Writer start(HttpServletResponse response, String name, long total) throws IOException {
         response.setContentType("text/csv;charset=UTF-8");
         response.setHeader("Content-Disposition", "attachment; filename=\"" + name + "-"
-                + LocalDateTime.now().format(FILE_STAMP) + ".csv\"");
+                + DarajaTime.format(Instant.now(), FILE_STAMP) + ".csv\"");
         response.setHeader("X-Export-Total", Long.toString(total));
         response.setHeader("X-Export-Truncated", Boolean.toString(total > maxRows));
         response.setHeader("Cache-Control", "no-store");

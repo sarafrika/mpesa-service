@@ -74,14 +74,15 @@ export function dayDelta(rows: readonly DailyUtility[], index: number): number |
 
 const ZONED = /(?:Z|[+-]\d{2}(?::?\d{2})?)$/i;
 
-/** Epoch ms of an ISO time with its offset honoured; one without a zone is read as Nairobi time. */
+/** Epoch ms of an ISO time with its offset honoured. The API always sends one; a time without a zone is
+ * read as UTC, the service's clock, never as the viewer's. */
 export function parseInstant(value: string | number | null | undefined): number | null {
   if (value == null || value === "") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   // Java may send micro- or nanoseconds, which not every browser parses.
   const trimmed = value.trim().replace(/(\.\d{3})\d+/, "$1");
   const local = /T\d{2}:\d{2}/.test(trimmed) && !ZONED.test(trimmed);
-  const ms = Date.parse(local ? `${trimmed}+03:00` : trimmed);
+  const ms = Date.parse(local ? `${trimmed}Z` : trimmed);
   return Number.isNaN(ms) ? null : ms;
 }
 

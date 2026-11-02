@@ -7,7 +7,7 @@ import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -58,13 +58,13 @@ public record MpesaIncomingPaymentDto(
         IncomingPaymentStatus status,
 
         @JsonProperty("transaction_date")
-        LocalDateTime transactionDate,
+        Instant transactionDate,
 
         @JsonProperty("processed_at")
-        LocalDateTime processedAt,
+        Instant processedAt,
 
         @JsonProperty("created_at")
-        LocalDateTime createdAt
+        Instant createdAt
 ) {
 
     public static MpesaIncomingPaymentDto from(MpesaIncomingPayment payment) {
