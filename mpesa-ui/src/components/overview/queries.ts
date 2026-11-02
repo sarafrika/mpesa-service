@@ -16,7 +16,7 @@ import type {
   PaybillHealthDto,
 } from "@/api/generated/model";
 import type { ResolvedPeriod } from "./period";
-import type { OverviewFilters } from "./use-overview-filters";
+import type { OverviewEnvironment, OverviewFilters } from "./use-overview-filters";
 
 // The fetcher throws on every non-2xx, so a resolved response is always the 200 body.
 function body<T>(response: { status: number; data: unknown }): T {
@@ -28,7 +28,21 @@ const REFRESH_MS = 60_000;
 const live = { placeholderData: keepPreviousData, refetchInterval: REFRESH_MS } as const;
 
 export function useOverviewQueries(filters: OverviewFilters, period: ResolvedPeriod | null) {
-  const scope = { shortcode_uuid: filters.paybill, environment: filters.environment };
+  const scoped = useScopedQueries(
+    { shortcode_uuid: filters.paybill, environment: filters.environment },
+    period,
+  );
+  const health = useListPaybillHealth(
+    { environment: filters.environment },
+    { query: { ...live, select: body<PaybillHealthDto[]> } },
+  );
+  return { ...scoped, health };
+}
+
+type Scope = { shortcode_uuid: string | undefined; environment: OverviewEnvironment };
+
+/** The Overview's figures, chart, attention items and latest transactions for one scope and period. */
+export function useScopedQueries(scope: Scope, period: ResolvedPeriod | null) {
   const ranged = period !== null;
 
   const summary = useGetMetricsSummary(
@@ -56,10 +70,6 @@ export function useOverviewQueries(filters: OverviewFilters, period: ResolvedPer
       },
     },
   );
-  const health = useListPaybillHealth(
-    { environment: filters.environment },
-    { query: { ...live, select: body<PaybillHealthDto[]> } },
-  );
   const attention = useListAttentionItems(scope, {
     query: { ...live, select: body<AttentionItemDto[]> },
   });
@@ -68,5 +78,5 @@ export function useOverviewQueries(filters: OverviewFilters, period: ResolvedPer
     { query: { ...live, select: body<LatestTransactionDto[]> } },
   );
 
-  return { summary, timeseries, health, attention, latest };
+  return { summary, timeseries, attention, latest };
 }

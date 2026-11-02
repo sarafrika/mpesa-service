@@ -8,7 +8,6 @@ import {
   type CheckState,
   displayStatus,
   ENVIRONMENT_LABELS,
-  type HealthCheck,
   healthChecks,
 } from "./paybill-health";
 import { typeLabel } from "./shortcode-types";
@@ -77,26 +76,5 @@ export function InlineHealthChecks({ row, now }: { row: HealthRow; now: number }
         );
       })}
     </span>
-  );
-}
-
-const CHECK_TONE = {
-  ok: "success",
-  fail: "danger",
-  warn: "warning",
-  na: "neutral",
-  unknown: "neutral",
-} as const;
-
-/** One check as a small card: name, state badge, detail line. */
-export function HealthCheckCard({ check, state }: { check: HealthCheck; state?: string }) {
-  return (
-    <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-sm">{check.label}</span>
-        <StatusBadge status={state ?? CHECK_WORD[check.state]} tone={CHECK_TONE[check.state]} />
-      </div>
-      <span className="text-muted-foreground text-sm">{check.detail}</span>
-    </div>
   );
 }

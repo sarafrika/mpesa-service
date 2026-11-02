@@ -15,6 +15,37 @@ import type { OverviewFilters as Filters, OverviewEnvironment } from "./use-over
 
 const ALL = "all";
 
+/** The Overview's period picker; the paybill page uses it too. */
+export function PeriodSelect({
+  value,
+  onChange,
+  id = "overview-period",
+}: {
+  value: PeriodKey;
+  onChange: (period: PeriodKey) => void;
+  id?: string;
+}) {
+  return (
+    <div className="flex min-w-36 flex-col gap-1.5">
+      <Label htmlFor={id} className="text-muted-foreground text-xs">
+        Period
+      </Label>
+      <Select value={value} onValueChange={(next) => onChange(next as PeriodKey)}>
+        <SelectTrigger id={id} className="w-full sm:w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PERIODS.map((period) => (
+            <SelectItem key={period.value} value={period.value}>
+              {period.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 type OverviewFiltersProps = {
   filters: Filters;
   /** Shortcodes in the chosen environment, from the shortcode list; undefined while loading. */
@@ -60,26 +91,7 @@ export function OverviewFilters({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex min-w-36 flex-col gap-1.5">
-        <Label htmlFor="overview-period" className="text-muted-foreground text-xs">
-          Period
-        </Label>
-        <Select
-          value={filters.period}
-          onValueChange={(value) => onPeriodChange(value as PeriodKey)}
-        >
-          <SelectTrigger id="overview-period" className="w-full sm:w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PERIODS.map((period) => (
-              <SelectItem key={period.value} value={period.value}>
-                {period.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <PeriodSelect value={filters.period} onChange={onPeriodChange} />
       <div className="flex flex-col gap-1.5">
         <span id="overview-environment" className="font-medium text-muted-foreground text-xs">
           Environment

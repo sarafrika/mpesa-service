@@ -1,6 +1,7 @@
 "use client";
 
 import type { UseQueryResult } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import type { ApiError, MetricsSummaryDto } from "@/api/generated/model";
 import { ErrorState } from "@/components/error-state";
 import { StatCardSkeleton } from "@/components/skeletons";
@@ -22,9 +23,11 @@ function note(delta: Delta | null, compareLabel: string, extra?: string) {
 type KpiRowProps = {
   query: UseQueryResult<MetricsSummaryDto, ApiError>;
   period: ResolvedPeriod | null;
+  /** Takes the place of the last tile, "Float available", e.g. one paybill's Utility balance. */
+  floatTile?: ReactNode;
 };
 
-export function KpiRow({ query, period }: KpiRowProps) {
+export function KpiRow({ query, period, floatTile }: KpiRowProps) {
   const summary = query.data;
   if (!summary || !period) {
     if (query.isError) {
@@ -105,15 +108,19 @@ export function KpiRow({ query, period }: KpiRowProps) {
           }
           noteTone={rate?.tone}
         />
-        <StatCard
-          label="Float available"
-          value={float.total_amount == null ? "—" : formatKes(float.total_amount, { whole: true })}
-          note={
-            float.lowest
-              ? `Lowest: ${float.lowest.business_name} · ${formatKes(float.lowest.amount, { whole: true })}`
-              : "Reported with each B2C payout result"
-          }
-        />
+        {floatTile ?? (
+          <StatCard
+            label="Float available"
+            value={
+              float.total_amount == null ? "—" : formatKes(float.total_amount, { whole: true })
+            }
+            note={
+              float.lowest
+                ? `Lowest: ${float.lowest.business_name} · ${formatKes(float.lowest.amount, { whole: true })}`
+                : "Reported with each B2C payout result"
+            }
+          />
+        )}
       </div>
     </section>
   );

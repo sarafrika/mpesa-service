@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { SectionBoundary } from "@/components/error-boundary";
 import { ErrorState } from "@/components/error-state";
 import { Money } from "@/components/money";
-import { collects, floatIsUtility, paysOut } from "@/components/paybills/capabilities";
+import { floatIsUtility } from "@/components/paybills/capabilities";
 import { RoleGate } from "@/components/role-gate";
 import { SectionCard } from "@/components/section-card";
 import { FormSkeleton } from "@/components/skeletons";
@@ -18,30 +18,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useNow } from "@/hooks/use-now";
 import { formatDateTime, formatKes } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { shownAccounts } from "./accounts";
 import { BalanceHistory } from "./balance-history";
+import { roleOf } from "./balance-summary";
 import { useBalanceWatch } from "./balance-watch";
-import {
-  type AccountKind,
-  type AccountRow,
-  accountRows,
-  availableTotal,
-  nextScheduledAt,
-  shareLabel,
-  sourceLine,
-} from "./float";
-import { LatestReports } from "./latest-reports";
+import { type AccountRow, accountRows, nextScheduledAt, sourceLine } from "./float";
 import { LowFloatCard } from "./low-float-card";
 import { QueryBalanceButton } from "./query-balance-button";
 import { SweepDialog } from "./sweep-dialog";
 
-const SWATCH: Record<AccountKind, string> = {
-  utility: "bg-chart-1",
-  working: "bg-chart-2",
-  charges: "bg-chart-4",
-  other: "bg-chart-5",
-};
-
-/** The Float tab's cards: balances and their history on the left, the line, reports and sweeps on the right. */
+/** The Float tab's cards: accounts beside the low-float line and sweeps, the daily Utility chart below. */
 export function FloatBalances({ shortcode }: { shortcode: ShortcodeDetail }) {
   const { status, data, waiting, watch } = useBalanceWatch();
 
@@ -58,17 +44,17 @@ export function FloatBalances({ shortcode }: { shortcode: ShortcodeDetail }) {
   const unreported = data?.utility_available == null && !data?.latest;
 
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <div className="flex min-w-0 flex-col gap-4">
-        <SectionBoundary title="Balances">
+    <div className="grid gap-4">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <SectionBoundary title="Accounts">
           {data ? (
-            <BalancesCard shortcode={shortcode} status={data} action={nextStep}>
+            <AccountsCard shortcode={shortcode} status={data} action={nextStep}>
               <StaleNotice query={status} />
-            </BalancesCard>
+            </AccountsCard>
           ) : (
-            <SectionCard title="Balances">
+            <SectionCard title="Accounts">
               {status.isPending ? (
-                <BalancesSkeleton />
+                <AccountsSkeleton />
               ) : (
                 <ErrorState
                   error={status.error}
@@ -80,40 +66,37 @@ export function FloatBalances({ shortcode }: { shortcode: ShortcodeDetail }) {
             </SectionCard>
           )}
         </SectionBoundary>
-        <SectionBoundary title="Utility balance by day">
-          <BalanceHistory
-            shortcodeUuid={shortcode.uuid}
-            threshold={data?.low_float_threshold}
-            action={data && !unreported ? nextStep : undefined}
-          />
-        </SectionBoundary>
-      </div>
-      <div className="flex min-w-0 flex-col gap-4">
-        <SectionBoundary title="Low-float alert">
-          {data ? (
-            <LowFloatCard shortcodeUuid={shortcode.uuid} status={data} />
-          ) : (
-            status.isPending && (
-              <SectionCard title="Low-float alert">
-                <FormSkeleton fields={1} />
-              </SectionCard>
-            )
-          )}
-        </SectionBoundary>
-        <SectionBoundary title="Latest reports">
-          <LatestReports shortcodeUuid={shortcode.uuid} />
-        </SectionBoundary>
-        {data && (
-          <SectionBoundary title="Move money">
-            <MoveMoneyCard shortcode={shortcode} status={data} />
+        <div className="flex min-w-0 flex-col gap-4">
+          <SectionBoundary title="Low-float alert">
+            {data ? (
+              <LowFloatCard shortcodeUuid={shortcode.uuid} status={data} />
+            ) : (
+              status.isPending && (
+                <SectionCard title="Low-float alert">
+                  <FormSkeleton fields={1} />
+                </SectionCard>
+              )
+            )}
           </SectionBoundary>
-        )}
+          {data && (
+            <SectionBoundary title="Move money">
+              <MoveMoneyCard shortcode={shortcode} status={data} />
+            </SectionBoundary>
+          )}
+        </div>
       </div>
+      <SectionBoundary title="Utility balance by day">
+        <BalanceHistory
+          shortcodeUuid={shortcode.uuid}
+          threshold={data?.low_float_threshold}
+          action={data && !unreported ? nextStep : undefined}
+        />
+      </SectionBoundary>
     </div>
   );
 }
 
-function BalancesCard({
+function AccountsCard({
   shortcode,
   status,
   action,
@@ -128,8 +111,10 @@ function BalancesCard({
 }) {
   const now = useNow();
   const [open, setOpen] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
   const rows = accountRows(status);
-  const total = availableTotal(rows);
+  const shown = shownAccounts(rows, all);
+  const hidden = rows.length - shownAccounts(rows, false).length;
   const interval = status.auto_query_interval_minutes;
   const lastScheduled =
     status.last_query?.source === "SCHEDULED"
@@ -143,15 +128,13 @@ function BalancesCard({
 
   return (
     <SectionCard
-      title="Balances"
-      description={sourceLine(status, now)}
-      actions={
-        <span className="text-muted-foreground text-xs">
-          {interval != null
-            ? `Every ${interval} min${next ? ` · next at about ${next}` : ""}`
-            : "Scheduled balance query is off"}
-        </span>
-      }
+      title="Accounts"
+      actions={rows.length > 0 && status.initiator_configured && action}
+      description={`${sourceLine(status, now)} · ${
+        interval != null
+          ? `every ${interval} min${next ? `, next at about ${next}` : ""}`
+          : "scheduled query off"
+      }`}
     >
       {children}
       {!status.initiator_configured && (
@@ -172,29 +155,8 @@ function BalancesCard({
         />
       ) : (
         <>
-          <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-sm">Available across accounts</span>
-            <span className="font-semibold text-3xl tabular-nums tracking-tight">
-              {formatKes(total)}
-            </span>
-          </div>
-          <div aria-hidden className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-muted">
-            {rows.map((row) =>
-              row.share ? (
-                <div
-                  key={row.name}
-                  className={cn(
-                    SWATCH[row.kind],
-                    "transition-opacity",
-                    open && open !== row.name && "opacity-45",
-                  )}
-                  style={{ width: `${row.share}%` }}
-                />
-              ) : null,
-            )}
-          </div>
           <ul className="m-0 flex list-none flex-col border-t p-0">
-            {rows.map((row) => (
+            {shown.map((row) => (
               <AccountItem
                 key={row.name}
                 row={row}
@@ -205,6 +167,17 @@ function BalancesCard({
               />
             ))}
           </ul>
+          {hidden > 0 && (
+            <Button
+              variant="link"
+              size="sm"
+              className="self-start px-0"
+              aria-expanded={all}
+              onClick={() => setAll((value) => !value)}
+            >
+              {all ? "Hide empty accounts" : `Show all ${rows.length} accounts`}
+            </Button>
+          )}
           {utilityNewer && (
             <p className="text-muted-foreground text-xs">
               Utility is from a newer{" "}
@@ -222,22 +195,6 @@ function BalancesCard({
       )}
     </SectionCard>
   );
-}
-
-function roleOf(kind: AccountKind, shortcode: ShortcodeDetail): string {
-  switch (kind) {
-    case "utility":
-      if (!collects(shortcode)) return "B2C payouts are paid from it";
-      return paysOut(shortcode)
-        ? "Collections land here; B2C payouts are paid from it"
-        : "C2B and STK collections land here";
-    case "working":
-      return "Move money into Utility from here on the M-PESA org portal";
-    case "charges":
-      return "Safaricom's charges on this shortcode";
-    default:
-      return "As Safaricom listed it";
-  }
 }
 
 function AccountItem({
@@ -266,15 +223,14 @@ function AccountItem({
           open && "bg-muted/50",
         )}
       >
-        <span aria-hidden className={cn("size-2.5 shrink-0 rounded-[3px]", SWATCH[row.kind])} />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="font-medium">{row.name}</span>
           <span className="text-muted-foreground text-xs">{role}</span>
         </span>
-        <Money amount={row.available} className={cn("font-semibold", low && "text-warning")} />
-        <span className="w-10 text-right text-muted-foreground text-xs tabular-nums">
-          {shareLabel(row.share)}
-        </span>
+        <Money
+          amount={row.available}
+          className={cn("whitespace-nowrap font-semibold", low && "text-warning")}
+        />
         <ChevronDown
           aria-hidden
           className={cn(
@@ -286,7 +242,7 @@ function AccountItem({
       {open && (
         <dl
           id={detailsId}
-          className="m-0 grid grid-cols-3 gap-3 bg-muted/50 px-7 pt-1 pb-3 text-sm"
+          className="m-0 grid grid-cols-3 gap-3 bg-muted/50 px-3 pt-1 pb-3 text-sm"
         >
           {(
             [
@@ -306,27 +262,19 @@ function AccountItem({
   );
 }
 
-function BalancesSkeleton() {
+function AccountsSkeleton() {
   return (
-    <div aria-busy="true" aria-live="polite" className="flex flex-col gap-4">
+    <div aria-busy="true" aria-live="polite" className="flex flex-col">
       <span className="sr-only">Loading balances…</span>
-      <div aria-hidden className="flex flex-col gap-2">
-        <Skeleton className="h-3 w-36" />
-        <Skeleton className="h-8 w-48" />
-      </div>
-      <Skeleton aria-hidden className="h-3 w-full rounded-full" />
-      <div aria-hidden className="flex flex-col">
-        {[0, 1, 2].map((index) => (
-          <div key={index} className="flex items-center gap-3 border-b py-3">
-            <Skeleton className="size-2.5 rounded-[3px]" />
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-3 w-48" />
-            </div>
+      {[0, 1, 2].map((index) => (
+        <div key={index} aria-hidden className="flex items-center gap-3 border-b py-3">
+          <div className="flex flex-1 flex-col gap-1.5">
             <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-3 w-48 max-w-full" />
           </div>
-        ))}
-      </div>
+          <Skeleton className="h-4 w-24" />
+        </div>
+      ))}
     </div>
   );
 }

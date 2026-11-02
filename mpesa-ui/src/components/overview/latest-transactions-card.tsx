@@ -44,6 +44,9 @@ const day = new Intl.DateTimeFormat("en-KE", {
   timeZone: "Africa/Nairobi",
 });
 
+const ROW_CONTROL =
+  "rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50";
+
 function when(iso: string, now: number) {
   const date = new Date(iso);
   const sameDay = day.format(date) === day.format(new Date(now));
@@ -53,19 +56,29 @@ function when(iso: string, now: number) {
 type LatestTransactionsCardProps = {
   query: UseQueryResult<LatestTransactionDto[], ApiError>;
   now: number | null;
+  /** Scopes the card to one paybill: no Paybill column, rows open `onOpen`, the link goes to `allHref`. */
+  paybill?: { allHref: string; onOpen: (uuid: string) => void };
 };
 
-export function LatestTransactionsCard({ query, now }: LatestTransactionsCardProps) {
+export function LatestTransactionsCard({ query, now, paybill }: LatestTransactionsCardProps) {
   const rows = query.data;
   const router = useRouter();
+  const open = (uuid: string) =>
+    paybill ? paybill.onOpen(uuid) : router.push(`/transactions?tx=${uuid}`);
   return (
     <SectionCard
       title="Latest transactions"
-      description="Nairobi time"
+      description={paybill ? "This paybill · Nairobi time" : "Nairobi time"}
       className="min-w-0"
       actions={
         <Button asChild variant="link" size="sm" className="px-0">
-          <Link href="/transactions">Open explorer →</Link>
+          {paybill ? (
+            <Link href={paybill.allHref} scroll={false}>
+              All transactions →
+            </Link>
+          ) : (
+            <Link href="/transactions">Open explorer →</Link>
+          )}
         </Button>
       }
     >
@@ -74,7 +87,7 @@ export function LatestTransactionsCard({ query, now }: LatestTransactionsCardPro
         query.isError ? (
           <ErrorState error={query.error} onRetry={() => query.refetch()} />
         ) : (
-          <TableSkeleton rows={6} columns={6} />
+          <TableSkeleton rows={6} columns={paybill ? 5 : 6} />
         )
       ) : rows.length === 0 ? (
         <EmptyState
@@ -94,7 +107,7 @@ export function LatestTransactionsCard({ query, now }: LatestTransactionsCardPro
               <TableRow>
                 <TableHead scope="col">Time</TableHead>
                 <TableHead scope="col">Type</TableHead>
-                <TableHead scope="col">Paybill</TableHead>
+                {!paybill && <TableHead scope="col">Paybill</TableHead>}
                 <TableHead scope="col">Reference</TableHead>
                 <TableHead scope="col" className="text-right">
                   Amount (KES)
@@ -107,20 +120,33 @@ export function LatestTransactionsCard({ query, now }: LatestTransactionsCardPro
                 <TableRow
                   key={`${row.direction}-${row.uuid}`}
                   className="cursor-pointer"
-                  onClick={() => router.push(`/transactions?tx=${row.uuid}`)}
+                  onClick={() => open(row.uuid)}
                 >
                   <TableCell className="text-muted-foreground tabular-nums">
-                    {/* The row is clickable; this link is its keyboard and screen reader control. */}
-                    <Link
-                      href={`/transactions?tx=${row.uuid}`}
-                      className="rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {when(row.created_at, now ?? Date.parse(row.created_at))}
-                    </Link>
+                    {/* The row is clickable; this control is its keyboard and screen reader handle. */}
+                    {paybill ? (
+                      <button
+                        type="button"
+                        className={ROW_CONTROL}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          open(row.uuid);
+                        }}
+                      >
+                        {when(row.created_at, now ?? Date.parse(row.created_at))}
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/transactions?tx=${row.uuid}`}
+                        className={ROW_CONTROL}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {when(row.created_at, now ?? Date.parse(row.created_at))}
+                      </Link>
+                    )}
                   </TableCell>
                   <TableCell>{TYPE_LABEL[row.payment_type] ?? row.payment_type}</TableCell>
-                  <TableCell title={row.business_name}>{row.shortcode}</TableCell>
+                  {!paybill && <TableCell title={row.business_name}>{row.shortcode}</TableCell>}
                   <TableCell className="max-w-40 truncate font-mono text-xs" title={row.reference}>
                     {row.reference ?? "—"}
                   </TableCell>

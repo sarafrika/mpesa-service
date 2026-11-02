@@ -69,3 +69,27 @@ export function useOverviewFilters() {
       update({ env: environment === "SANDBOX" ? "sandbox" : undefined, paybill: undefined }),
   };
 }
+
+/** Only the period, in ?period=, for a page that shows the Overview's cards for one paybill. */
+export function usePeriodParam() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const now = useMinuteClock();
+  const raw = params.get("period");
+  const period: PeriodKey = isPeriodKey(raw) ? raw : DEFAULT_PERIOD;
+  const range = useMemo(() => (now === null ? null : resolvePeriod(period, now)), [period, now]);
+
+  const setPeriod = useCallback(
+    (next: PeriodKey) => {
+      const query = new URLSearchParams(params.toString());
+      if (next === DEFAULT_PERIOD) query.delete("period");
+      else query.set("period", next);
+      const search = query.toString();
+      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
+    },
+    [params, router, pathname],
+  );
+
+  return { period, range, now, setPeriod };
+}
