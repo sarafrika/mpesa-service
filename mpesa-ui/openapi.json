@@ -2936,10 +2936,10 @@
         "type" : "object"
       },
       "PayoutFloatDto" : {
-        "description" : "A shortcode's float as Safaricom last reported it on a payout result",
+        "description" : "A shortcode's float: the newest of its Account Balance results, payout reports and C2B OrgAccountBalance",
         "properties" : {
           "reported_at" : {
-            "description" : "When Safaricom reported it; null when no payout has completed yet",
+            "description" : "When Safaricom reported it; null when no balance is known yet",
             "format" : "date-time",
             "type" : "string"
           },
@@ -13518,7 +13518,7 @@
             "description" : "OK"
           }
         },
-        "summary" : "A shortcode's float as last reported on a payout result",
+        "summary" : "A shortcode's float: the newest balance result, payout report or C2B balance",
         "tags" : [ "M-Pesa Payouts" ]
       }
     },
