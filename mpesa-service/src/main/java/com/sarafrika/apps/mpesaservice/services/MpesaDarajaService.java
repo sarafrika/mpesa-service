@@ -111,7 +111,8 @@ public interface MpesaDarajaService {
 
     // ==================== 4. BUSINESS TO BUSINESS (B2B) ====================
 
-    /** B2B payment (BusinessPayBill or BusinessBuyGoods) from a shortcode; Safaricom posts the outcome to the
+    /** B2B payment (BusinessPayBill, BusinessBuyGoods or BusinessPayToBulk, the B2C Account Top Up) from a
+     * shortcode's Working account; Safaricom posts the outcome to the
      * B2B result URL, or the B2B timeout URL when it could not process the request in time. */
     MpesaApiResponse<B2BTransferResponse> sendB2BPayment(MpesaShortCode shortcode, B2BPaymentRequest request);
 

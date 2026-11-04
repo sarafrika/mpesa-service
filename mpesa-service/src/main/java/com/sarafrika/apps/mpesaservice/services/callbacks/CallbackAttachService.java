@@ -58,7 +58,8 @@ public class CallbackAttachService {
             B2BResult result = b2b(entry);
             return transfers.attachable().stream()
                     .map(t -> new AttachCandidateDto(t.getUuid(), "B2B_TRANSFER",
-                            "Sweep " + t.getReference() + " to " + t.getReceiverShortcode(), t.getAmount(),
+                            ("BusinessPayToBulk".equals(t.getCommandId()) ? "B2C top-up " : "Sweep ")
+                                    + t.getReference() + " to " + t.getReceiverShortcode(), t.getAmount(),
                             t.getStatus().name(), t.isOutcomeUnknown(), transfers.fits(t, result),
                             Times.offset(t.getCreatedAt())))
                     .sorted(Comparator.comparing(AttachCandidateDto::fits).reversed())

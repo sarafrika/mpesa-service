@@ -23,6 +23,8 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalExecutor.Appro
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalExecutor.Outcome;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.daraja.NotSent;
+import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
+import com.sarafrika.apps.mpesaservice.utils.enums.B2bReceiverType;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -44,7 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
-/** Sends an approved sweep once (one row per approval request, saved PENDING before Safaricom is called) and
+/** Sends an approved sweep or B2C top-up once (one row per approval request, saved PENDING before Safaricom is called) and
  * settles it from the B2B result. No answer, or a queue timeout, leaves it PENDING with the outcome unknown:
  * the money may still move, so it is never resent automatically. */
 @Slf4j
@@ -66,16 +68,18 @@ public class B2bTransferService {
     private final MpesaShortCodeRepository shortcodes;
     private final MpesaDarajaService daraja;
     private final AuditService audit;
+    private final TransferBalanceRefresh refresh;
     private final TransactionTemplate newTransaction;
 
     public B2bTransferService(B2bTransferRepository transfers, B2bDestinationRepository destinations,
                               MpesaShortCodeRepository shortcodes, MpesaDarajaService daraja, AuditService audit,
-                              PlatformTransactionManager transactions) {
+                              TransferBalanceRefresh refresh, PlatformTransactionManager transactions) {
         this.transfers = transfers;
         this.destinations = destinations;
         this.shortcodes = shortcodes;
         this.daraja = daraja;
         this.audit = audit;
+        this.refresh = refresh;
         // Our own transactions: the PENDING row must be committed before Safaricom is called, whatever the caller.
         this.newTransaction = new TransactionTemplate(transactions);
         this.newTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -112,6 +116,12 @@ public class B2bTransferService {
         if (changed(destination, payload)) {
             return new Outcome(false, "The destination changed after the sweep was requested; nothing was sent. "
                     + "Raise a new sweep.");
+        }
+        if (destination.getReceiverType().topUp() && B2bDestinationService.topUpReceiver(shortcodes,
+                shortcode.getUuid(), destination.getReceiverShortcode()).isEmpty()) {
+            return new Outcome(false, "B2C shortcode " + destination.getReceiverShortcode() + " "
+                    + B2bDestinationService.topUpRefusal(shortcodes, shortcode.getUuid(),
+                    destination.getReceiverShortcode()) + "; nothing was sent");
         }
 
         B2bTransfer saved;
@@ -273,6 +283,10 @@ public class B2bTransferService {
         transfer.setResultDesc(truncate(result.resultDesc()));
         if (result.isSuccessful()) {
             transfer.setTransactionId(result.transactionId());
+            ResultFacts facts = ResultFacts.of(result, raw);
+            transfer.setCharges(facts.charges());
+            transfer.setTransCompletedAt(facts.completedAt());
+            transfer.setWorkingBalanceAfter(facts.workingAfter());
         }
         if (transfer.getConversationId() == null) {
             transfer.setConversationId(result.conversationId());
@@ -282,7 +296,21 @@ public class B2bTransferService {
         }
         transfer.setRawResult(raw);
         transfer.setCompletedAt(Instant.now());
-        return transfers.save(transfer);
+        B2bTransfer saved = transfers.save(transfer);
+        if (result.isSuccessful()) {
+            refresh.afterCommit(refreshed(saved));
+        }
+        return saved;
+    }
+
+    // The source always; for a top-up also the B2C shortcode credited, when it is ours.
+    private List<UUID> refreshed(B2bTransfer transfer) {
+        if (!B2bReceiverType.B2C_SHORTCODE.commandId().equals(transfer.getCommandId())) {
+            return List.of(transfer.getShortcodeUuid());
+        }
+        UUID receiver = shortcodes.findByShortcode(transfer.getReceiverShortcode()).map(MpesaShortCode::getUuid)
+                .orElse(null);
+        return receiver == null ? List.of(transfer.getShortcodeUuid()) : List.of(transfer.getShortcodeUuid(), receiver);
     }
 
     // Only when exactly one open transfer without ids fits the receiver, amount and bill reference.
@@ -315,26 +343,41 @@ public class B2bTransferService {
         return StringUtils.hasText(ours) && StringUtils.hasText(theirs) && !ours.equals(theirs);
     }
 
-    /** What a B2B result says about its transfer: Amount and ReceiverPartyPublicName ("000000 - Name") in
-     * ResultParameters, BillReferenceNumber in ReferenceData (developer.safaricom.co.ke/apis/BusinessPayBill). */
-    record ResultFacts(BigDecimal amount, String receiver, String billReference) {
+    /** What a B2B result says about its transfer: Amount, ReceiverPartyPublicName ("000000 - Name"),
+     * DebitPartyCharges, TransCompletedTime (Nairobi) and DebitPartyAffectedAccountBalance in ResultParameters,
+     * BillReferenceNumber in ReferenceData (developer.safaricom.co.ke/apis/BusinessPayBill, /B2CAccountTopUp). */
+    record ResultFacts(BigDecimal amount, String receiver, String billReference, BigDecimal charges,
+                       Instant completedAt, BigDecimal workingAfter) {
         private static final Pattern LEADING_DIGITS = Pattern.compile("^\\s*(\\d{5,7})");
 
         static ResultFacts of(B2BResult result, String raw) {
             B2BResultParameters parameters = result.resultParameters();
             BigDecimal amount = null;
             String receiver = null;
+            BigDecimal charges = null;
+            Instant completedAt = null;
+            BigDecimal workingAfter = null;
             if (parameters != null) {
-                try {
-                    amount = parameters.getAmount() == null ? null : new BigDecimal(parameters.getAmount().trim());
-                } catch (NumberFormatException ignored) {
-                    amount = null;
-                }
+                amount = decimal(parameters.getAmount());
                 String party = parameters.getReceiverPartyPublicName();
                 Matcher digits = party == null ? null : LEADING_DIGITS.matcher(party);
                 receiver = digits != null && digits.find() ? digits.group(1) : null;
+                charges = decimal(parameters.getDebitPartyCharges());
+                completedAt = DarajaTime.parseCompact(parameters.getTransCompletedTime());
+                workingAfter = AccountBalanceParser.find(AccountBalanceParser.parse(
+                                parameters.getDebitPartyAffectedAccountBalance()), AccountBalanceParser.WORKING)
+                        .map(AccountBalanceParser.Account::available).orElse(null);
             }
-            return new ResultFacts(amount, receiver, billReference(result.referenceData()));
+            return new ResultFacts(amount, receiver, billReference(result.referenceData()), charges, completedAt,
+                    workingAfter);
+        }
+
+        private static BigDecimal decimal(String value) {
+            try {
+                return value == null || value.isBlank() ? null : new BigDecimal(value.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
         }
 
         private static String billReference(JsonNode referenceData) {
@@ -383,14 +426,17 @@ public class B2bTransferService {
         transfer.setShortcodeUuid(destination.getShortcodeUuid());
         transfer.setDestinationUuid(destination.getUuid());
         transfer.setApprovalRequestUuid(request.requestUuid());
-        transfer.setCommandId(destination.getReceiverType().commandId());
+        B2bReceiverType type = destination.getReceiverType();
+        transfer.setCommandId(type.commandId());
         transfer.setReceiverShortcode(destination.getReceiverShortcode());
-        transfer.setAccountReference(destination.getAccountReference());
         transfer.setAmount(request.amount());
         String reference = text(payload, "reference");
-        transfer.setReference(StringUtils.hasText(reference) ? reference : B2bSweepService.reference());
+        transfer.setReference(StringUtils.hasText(reference) ? reference : B2bSweepService.reference(type));
+        // A top-up has no account at the receiver; its own reference goes as AccountReference.
+        transfer.setAccountReference(type.topUp() ? transfer.getReference() : destination.getAccountReference());
         String remarks = text(payload, "remarks");
-        transfer.setRemarks(StringUtils.hasText(remarks) ? remarks : "Sweep " + transfer.getReference());
+        transfer.setRemarks(truncate(StringUtils.hasText(remarks) ? remarks
+                : B2bSweepService.remarks(type, transfer.getReference()), 100));
         transfer.setMaker(request.maker());
         transfer.setChecker(request.checker());
         transfer.setCreatedBy(request.checker());

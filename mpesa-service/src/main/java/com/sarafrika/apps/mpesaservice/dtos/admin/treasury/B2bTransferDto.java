@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-/** An approved sweep sent to Safaricom and where it stands. */
+/** An approved sweep or B2C top-up sent to Safaricom and where it stands. */
 @Schema(name = "B2bTransferDto")
 public record B2bTransferDto(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
@@ -22,7 +22,8 @@ public record B2bTransferDto(
         @JsonProperty("destination_name") String destinationName,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
         @JsonProperty("approval_request_uuid") UUID approvalRequestUuid,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"BusinessPayBill", "BusinessBuyGoods"})
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"BusinessPayBill", "BusinessBuyGoods",
+                "BusinessPayToBulk"}, description = "BusinessPayToBulk is a B2C Account Top Up")
         @JsonProperty("command_id") String commandId,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "522522")
         @JsonProperty("receiver_shortcode") String receiverShortcode,
@@ -39,6 +40,13 @@ public record B2bTransferDto(
         @JsonProperty("transaction_id") String transactionId,
         @JsonProperty("result_code") Integer resultCode,
         @JsonProperty("result_desc") String resultDesc,
+        @Schema(nullable = true, description = "DebitPartyCharges from the result")
+        @JsonProperty("charges") BigDecimal charges,
+        @Schema(nullable = true, description = "TransCompletedTime from the result")
+        @JsonProperty("trans_completed_at") OffsetDateTime transCompletedAt,
+        @Schema(nullable = true, example = "6186.83",
+                description = "The Working account's available balance after the debit, from the result")
+        @JsonProperty("working_balance_after") BigDecimal workingBalanceAfter,
         @JsonProperty("maker") String maker,
         @JsonProperty("checker") String checker,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
@@ -50,7 +58,8 @@ public record B2bTransferDto(
         return new B2bTransferDto(t.getUuid(), t.getShortcodeUuid(), t.getDestinationUuid(), destinationName,
                 t.getApprovalRequestUuid(), t.getCommandId(), t.getReceiverShortcode(), t.getAccountReference(),
                 t.getAmount(), t.getReference(), t.getStatus(), t.isOutcomeUnknown(), t.getTransactionId(),
-                t.getResultCode(), t.getResultDesc(), t.getMaker(), t.getChecker(), Times.offset(t.getCreatedAt()),
+                t.getResultCode(), t.getResultDesc(), t.getCharges(), Times.offset(t.getTransCompletedAt()),
+                t.getWorkingBalanceAfter(), t.getMaker(), t.getChecker(), Times.offset(t.getCreatedAt()),
                 Times.offset(t.getTimedOutAt()), Times.offset(t.getCompletedAt()));
     }
 }

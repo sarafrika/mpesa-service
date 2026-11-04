@@ -67,6 +67,16 @@ public record B2BResultParameters(
         return getParameterValue("ReceiverPartyPublicName");
     }
 
+    /** "Working Account|KES|current|available|reserved|uncleared": the debited account after the payment. */
+    public String getDebitPartyAffectedAccountBalance() {
+        return getParameterValue("DebitPartyAffectedAccountBalance");
+    }
+
+    /** yyyyMMddHHmmss, Nairobi wall clock. */
+    public String getTransCompletedTime() {
+        return getParameterValue("TransCompletedTime");
+    }
+
     /**
      * Get currency
      */

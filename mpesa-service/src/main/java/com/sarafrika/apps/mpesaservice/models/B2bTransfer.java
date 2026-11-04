@@ -16,7 +16,7 @@ import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
-/** An approved B2B sweep sent to Safaricom; its result callback settles it once. */
+/** An approved B2B sweep or B2C top-up sent to Safaricom; its result callback settles it once. */
 @Entity
 @Table(name = "b2b_transfers")
 @SQLDelete(sql = "UPDATE b2b_transfers SET deleted_at = NOW() WHERE id = ?")
@@ -75,6 +75,18 @@ public class B2bTransfer extends BaseEntity {
 
     @Column(name = "result_desc")
     private String resultDesc;
+
+    /** DebitPartyCharges from the result; null when Safaricom left it empty. */
+    @Column(name = "charges")
+    private BigDecimal charges;
+
+    /** TransCompletedTime from the result (Nairobi wall clock, stored as an instant). */
+    @Column(name = "trans_completed_at")
+    private Instant transCompletedAt;
+
+    /** The Working account's available balance after the debit (DebitPartyAffectedAccountBalance). */
+    @Column(name = "working_balance_after")
+    private BigDecimal workingBalanceAfter;
 
     @ColumnTransformer(write = "?::jsonb")
     @Column(name = "raw_result", columnDefinition = "jsonb")

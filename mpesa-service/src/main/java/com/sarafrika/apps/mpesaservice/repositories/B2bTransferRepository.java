@@ -49,6 +49,13 @@ public interface B2bTransferRepository extends JpaRepository<B2bTransfer, Long> 
 
     Optional<B2bTransfer> findByUuidAndShortcodeUuid(UUID uuid, UUID shortcodeUuid);
 
+    /** Successful transfers whose result reported the Working balance after, newest completion first. */
+    @Query("""
+            SELECT t FROM B2bTransfer t WHERE t.shortcodeUuid = :shortcode AND t.workingBalanceAfter IS NOT NULL
+              AND t.status = com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus.SUCCESS
+            ORDER BY COALESCE(t.transCompletedAt, t.completedAt) DESC, t.id DESC""")
+    List<B2bTransfer> newestWithWorkingBalance(@Param("shortcode") UUID shortcodeUuid, Pageable pageable);
+
     @Query("""
             SELECT t FROM B2bTransfer t WHERE t.shortcodeUuid = :shortcode
               AND (:status IS NULL OR t.status = :status)""")

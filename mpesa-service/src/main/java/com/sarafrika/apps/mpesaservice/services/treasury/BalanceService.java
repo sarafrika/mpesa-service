@@ -16,9 +16,11 @@ import com.sarafrika.apps.mpesaservice.dtos.admin.treasury.ShortcodeFloatStatusD
 import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
+import com.sarafrika.apps.mpesaservice.models.B2bTransfer;
 import com.sarafrika.apps.mpesaservice.models.BalanceSnapshot;
 import com.sarafrika.apps.mpesaservice.models.MpesaIncomingPayment;
 import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
+import com.sarafrika.apps.mpesaservice.repositories.B2bTransferRepository;
 import com.sarafrika.apps.mpesaservice.repositories.BalanceSnapshotRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaIncomingPaymentRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaOutgoingPaymentRepository;
@@ -75,6 +77,7 @@ public class BalanceService {
     private final MpesaPayoutService payouts;
     private final MpesaIncomingPaymentRepository incoming;
     private final MpesaOutgoingPaymentRepository outgoing;
+    private final B2bTransferRepository transfers;
     private final AuditService audit;
     private final AlertProperties alerts;
     private final TreasuryProperties treasury;
@@ -84,7 +87,7 @@ public class BalanceService {
     public BalanceService(BalanceSnapshotRepository snapshots, MpesaShortCodeRepository shortcodes,
                           MpesaDarajaService daraja, MpesaPayoutService payouts,
                           MpesaIncomingPaymentRepository incoming, MpesaOutgoingPaymentRepository outgoing,
-                          AuditService audit, AlertProperties alerts, TreasuryProperties treasury, ObjectMapper objectMapper,
+                          B2bTransferRepository transfers, AuditService audit, AlertProperties alerts, TreasuryProperties treasury, ObjectMapper objectMapper,
                           PlatformTransactionManager transactions) {
         this.snapshots = snapshots;
         this.shortcodes = shortcodes;
@@ -92,6 +95,7 @@ public class BalanceService {
         this.payouts = payouts;
         this.incoming = incoming;
         this.outgoing = outgoing;
+        this.transfers = transfers;
         this.audit = audit;
         this.alerts = alerts;
         this.treasury = treasury;
@@ -224,10 +228,11 @@ public class BalanceService {
         Optional<BalanceSnapshot> lastQuery = snapshots.findFirstByShortcodeUuidOrderByRequestedAtDescIdDesc(
                 shortcodeUuid);
         KnownFloat known = knownFloat(shortcodeUuid, latest);
+        KnownWorking working = knownWorking(shortcodeUuid, latest);
         BigDecimal threshold = thresholdOf(shortcode);
         return new ShortcodeFloatStatusDto(shortcodeUuid, latest.map(this::toDto).orElse(null),
                 lastQuery.map(this::toDto).orElse(null), known.utility(), Times.offset(known.reportedAt()),
-                known.source(), threshold, shortcode.getLowFloatThreshold(), alerts.lowFloat(),
+                known.source(), working.available(), Times.offset(working.reportedAt()), working.source(), threshold, shortcode.getLowFloatThreshold(), alerts.lowFloat(),
                 known.known() && known.utility().compareTo(threshold) < 0,
                 treasury.scheduledQueriesOn() ? treasury.balanceQueryInterval().toMinutes() : null,
                 StringUtils.hasText(shortcode.getInitiatorName()));
@@ -239,6 +244,24 @@ public class BalanceService {
     public KnownFloat knownFloat(UUID shortcodeUuid) {
         return knownFloat(shortcodeUuid, snapshots.findFirstByShortcodeUuidAndStatusOrderByReceivedAtDescIdDesc(
                 shortcodeUuid, BalanceSnapshotStatus.COMPLETED));
+    }
+
+    /** The newest Working balance known for a shortcode: the newest completed balance result's Working
+     * account, or the Working balance a newer successful B2B or top-up result reported after its debit. */
+    @Transactional(readOnly = true)
+    public KnownWorking knownWorking(UUID shortcodeUuid) {
+        return knownWorking(shortcodeUuid, snapshots.findFirstByShortcodeUuidAndStatusOrderByReceivedAtDescIdDesc(
+                shortcodeUuid, BalanceSnapshotStatus.COMPLETED));
+    }
+
+    private KnownWorking knownWorking(UUID shortcodeUuid, Optional<BalanceSnapshot> latest) {
+        Optional<B2bTransfer> transfer = transfers.newestWithWorkingBalance(shortcodeUuid, PageRequest.of(0, 1))
+                .stream().findFirst();
+        return KnownWorking.newest(latest.map(BalanceSnapshot::getWorkingAvailable).orElse(null),
+                latest.map(BalanceSnapshot::getReceivedAt).orElse(null),
+                transfer.map(B2bTransfer::getWorkingBalanceAfter).orElse(null),
+                transfer.map(t -> t.getTransCompletedAt() != null ? t.getTransCompletedAt() : t.getCompletedAt())
+                        .orElse(null));
     }
 
     /** What products and bulk pre-checks see: the newest known utility balance, with the working balance

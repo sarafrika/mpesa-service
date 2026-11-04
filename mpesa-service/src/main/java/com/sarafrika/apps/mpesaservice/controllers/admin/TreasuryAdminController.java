@@ -168,7 +168,9 @@ public class TreasuryAdminController {
     @PostMapping("/b2b-destinations")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('mpesa-admin')")
-    @Operation(operationId = "createB2bDestination", summary = "Add a paybill or till this shortcode may sweep to")
+    @Operation(operationId = "createB2bDestination", summary = "Add a paybill, till or own B2C shortcode this shortcode may move money to",
+            description = "A B2C_SHORTCODE destination (B2C Account Top Up, BusinessPayToBulk) names one of our own "
+                    + "active B2C shortcodes by number, never the source itself, and takes no account reference.")
     @ApiResponse(responseCode = "201", description = "The new destination")
     @ApiResponse(responseCode = "409", description = "A destination with this name exists",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -206,8 +208,9 @@ public class TreasuryAdminController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     @PreAuthorize("hasRole('mpesa-operator')")
     @Operation(operationId = "requestB2bSweep", summary = "Ask for a B2B sweep; it waits in Approvals",
-            description = "Nothing is sent until a checker (finance or admin, not the maker) approves it. The amount "
-                    + "may not exceed the utility balance last reported, when one is known.")
+            description = "Nothing is sent until a checker (finance or admin, not the maker) approves it. B2B "
+                    + "payments and B2C top-ups are paid from the Working account; the pre-checks compare the "
+                    + "amount with its last known balance but do not block, since Safaricom refuses an overdraw.")
     @ApiResponse(responseCode = "202", description = "Submitted for approval")
     @ApiResponse(responseCode = "409", description = "The shortcode is not active or has no initiator",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
@@ -220,7 +223,7 @@ public class TreasuryAdminController {
 
     @GetMapping("/b2b-transfers")
     @PreAuthorize("hasRole('mpesa-viewer')")
-    @Operation(operationId = "listB2bTransfers", summary = "Approved sweeps sent to Safaricom, newest first")
+    @Operation(operationId = "listB2bTransfers", summary = "Approved sweeps and B2C top-ups sent to Safaricom, newest first")
     @ApiResponse(responseCode = "200", description = "A page of transfers")
     public PageResponse<B2bTransferDto> listB2bTransfers(
             @Parameter(description = "Shortcode uuid") @PathVariable("uuid") UUID uuid,

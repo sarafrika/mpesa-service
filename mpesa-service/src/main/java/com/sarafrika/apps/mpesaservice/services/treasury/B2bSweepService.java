@@ -18,6 +18,7 @@ import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalGateway;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.utils.Times;
+import com.sarafrika.apps.mpesaservice.utils.enums.B2bReceiverType;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bTransferStatus;
 import com.sarafrika.apps.mpesaservice.dtos.admin.approvals.PreCheckDto;
 import java.math.BigDecimal;
@@ -36,8 +37,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-/** Sweeps to a B2B destination: checked here, then submitted to Approvals; nothing moves until a checker
- * approves and {@link B2bSweepExecutor} sends it. */
+/** Sweeps to a B2B destination, or B2C top-ups of our own B2C shortcodes: checked here, then submitted to
+ * Approvals; nothing moves until a checker approves and {@link B2bSweepExecutor} sends it. Both are paid from
+ * the source's Working account (developer.safaricom.co.ke/apis/BusinessPayBill, /apis/B2CAccountTopUp). */
 @Service
 public class B2bSweepService {
 
@@ -80,22 +82,25 @@ public class B2bSweepService {
         if (!destination.isActive()) {
             throw new InvalidRequestException("destination_uuid", "is inactive; activate it first");
         }
+        MpesaShortCode receiver = null;
+        if (destination.getReceiverType().topUp()) {
+            receiver = B2bDestinationService.topUpReceiver(shortcodes, shortcodeUuid,
+                    destination.getReceiverShortcode()).orElseThrow(() -> new InvalidRequestException(
+                    "destination_uuid", "tops up " + destination.getReceiverShortcode() + ", which "
+                    + B2bDestinationService.topUpRefusal(shortcodes, shortcodeUuid, destination.getReceiverShortcode())));
+        }
         BigDecimal amount = request.amount();
         if (amount.stripTrailingZeros().scale() > 0) {
             throw new InvalidRequestException("amount", "must be whole shillings");
-        }
-        KnownFloat known = balances.knownFloat(shortcodeUuid);
-        if (known.known() && amount.compareTo(known.utility()) > 0) {
-            throw new InvalidRequestException("amount", "is more than the utility balance last reported ("
-                    + known.utility().toPlainString() + ")");
         }
         ApprovalGateway approvals = gateway.getIfAvailable();
         if (approvals == null) {
             throw UpstreamException.unavailable("Approvals are not available, so the sweep was not submitted");
         }
-        String reference = reference();
-        ObjectNode payload = payload(shortcode, destination, amount, reference, known);
-        describe(payload, shortcode, destination, amount, known);
+        KnownWorking working = balances.knownWorking(shortcodeUuid);
+        String reference = reference(destination.getReceiverType());
+        ObjectNode payload = payload(shortcode, destination, amount, reference, working);
+        describe(payload, destination, receiver, amount, working);
         UUID requestUuid = approvals.submit(new ApprovalSubmission(TYPE, shortcodeUuid, amount,
                 request.reason().trim(), payload));
         return new B2bSweepSubmittedDto(requestUuid, reference, amount);
@@ -123,48 +128,61 @@ public class B2bSweepService {
 
     /** What the checker sees and the executor sends: the destination as it was when the sweep was asked for. */
     ObjectNode payload(MpesaShortCode shortcode, B2bDestination destination, BigDecimal amount, String reference,
-                       KnownFloat known) {
+                       KnownWorking working) {
+        B2bReceiverType type = destination.getReceiverType();
         ObjectNode node = objectMapper.createObjectNode();
         node.put("shortcode", shortcode.getShortcode());
         node.put("business_name", shortcode.getBusinessName());
         node.put("destination_uuid", destination.getUuid().toString());
         node.put("destination_name", destination.getName());
         node.put("receiver_shortcode", destination.getReceiverShortcode());
-        node.put("receiver_type", destination.getReceiverType().name());
-        node.put("command_id", destination.getReceiverType().commandId());
+        node.put("receiver_type", type.name());
+        node.put("command_id", type.commandId());
         node.put("account_reference", destination.getAccountReference());
         node.put("amount", amount.toPlainString());
         node.put("reference", reference);
-        node.put("remarks", "Sweep " + reference);
-        node.put("utility_balance", known.known() ? known.utility().toPlainString() : null);
-        node.put("utility_reported_at", known.reportedAt() == null ? null
-                : Times.offset(known.reportedAt()).toString());
-        node.put("balance_after", known.known() ? known.utility().subtract(amount).toPlainString() : null);
-        node.put("low_float_threshold", balances.thresholdOf(shortcode).toPlainString());
+        node.put("remarks", remarks(type, reference));
+        node.put("working_balance", working.known() ? working.available().toPlainString() : null);
+        node.put("working_reported_at", working.reportedAt() == null ? null
+                : Times.offset(working.reportedAt()).toString());
+        node.put("balance_after", working.known() ? working.available().subtract(amount).toPlainString() : null);
         return node;
     }
 
     /** The optional keys Approvals shows the checker: a title, the Daraja call and the pre-checks. */
-    void describe(ObjectNode payload, MpesaShortCode shortcode, B2bDestination destination, BigDecimal amount,
-                  KnownFloat known) {
-        String command = destination.getReceiverType().commandId();
-        payload.put("title", "Sweep KES " + money(amount) + " to " + destination.getName());
+    void describe(ObjectNode payload, B2bDestination destination, MpesaShortCode receiver, BigDecimal amount,
+                  KnownWorking working) {
+        B2bReceiverType type = destination.getReceiverType();
+        String command = type.commandId();
+        payload.put("title", (type.topUp() ? "Top up " + destination.getReceiverShortcode() + " with KES "
+                : "Sweep KES ") + money(amount) + (type.topUp() ? " (" + destination.getName() + ")"
+                : " to " + destination.getName()));
         payload.put("daraja_call", DARAJA_CALL + " · " + command);
+        if (receiver != null) {
+            payload.put("receiver_business_name", receiver.getBusinessName());
+        }
         List<PreCheckDto> checks = new ArrayList<>();
         checks.add(PreCheckDto.ok("Destination " + destination.getName() + " (" + destination.getReceiverShortcode()
                 + ", " + command + ") is active"));
-        BigDecimal threshold = balances.thresholdOf(shortcode);
-        if (!known.known()) {
-            checks.add(PreCheckDto.warn("No utility balance reported yet; query the balance before approving"));
-        } else {
-            BigDecimal after = known.utility().subtract(amount);
-            checks.add(PreCheckDto.ok("Utility balance KES " + money(known.utility()) + " covers the sweep"));
-            checks.add(after.compareTo(threshold) < 0
-                    ? PreCheckDto.warn("Leaves KES " + money(after) + ", below the low-float line of KES "
-                            + money(threshold))
-                    : PreCheckDto.ok("Leaves KES " + money(after) + ", above the low-float line"));
+        if (receiver != null) {
+            checks.add(PreCheckDto.ok("Receiver " + receiver.getShortcode() + " is our active B2C shortcode"
+                    + (StringUtils.hasText(receiver.getBusinessName()) ? " " + receiver.getBusinessName() : "")));
         }
+        checks.add(workingCheck(amount, working));
         payload.set("pre_checks", objectMapper.valueToTree(checks));
+    }
+
+    /** B2B payments and top-ups debit the Working account; a short balance warns but does not block, since
+     * Safaricom refuses an overdraw itself. */
+    static PreCheckDto workingCheck(BigDecimal amount, KnownWorking working) {
+        if (!working.known()) {
+            return PreCheckDto.warn("No Working balance reading yet");
+        }
+        if (working.available().compareTo(amount) < 0) {
+            return PreCheckDto.warn("Working KES " + money(working.available()) + " is below the amount; move "
+                    + "funds from Utility to Working on the M-PESA org portal first");
+        }
+        return PreCheckDto.ok("Working KES " + money(working.available()) + " covers the amount");
     }
 
     static String money(BigDecimal amount) {
@@ -174,11 +192,20 @@ public class B2bSweepService {
         return format.format(amount);
     }
 
-    static String reference() {
-        StringBuilder value = new StringBuilder("SWP-");
+    /** SWP- for a sweep, TOP- for a top-up, then 8 characters: 12 in all, within AccountReference's 13. */
+    static String reference(B2bReceiverType type) {
+        StringBuilder value = new StringBuilder(type != null && type.topUp() ? "TOP-" : "SWP-");
         for (int i = 0; i < 8; i++) {
             value.append(ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length())));
         }
         return value.toString();
+    }
+
+    static String reference() {
+        return reference(null);
+    }
+
+    static String remarks(B2bReceiverType type, String reference) {
+        return (type != null && type.topUp() ? "B2C top-up " : "Sweep ") + reference;
     }
 }

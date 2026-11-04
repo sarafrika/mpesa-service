@@ -13,7 +13,8 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
-/** A paybill or till a shortcode may sweep money to with B2B; only active ones can be chosen. */
+/** A paybill, till or one of our own B2C shortcodes a shortcode may move money to with B2B; only active ones
+ * can be chosen. */
 @Entity
 @Table(name = "b2b_destinations")
 @SQLDelete(sql = "UPDATE b2b_destinations SET deleted_at = NOW() WHERE id = ?")
@@ -36,7 +37,7 @@ public class B2bDestination extends BaseEntity {
     @Column(name = "receiver_type", nullable = false)
     private B2bReceiverType receiverType;
 
-    /** The account number at the receiving paybill; tills take none. */
+    /** The account number at the receiving paybill; tills and B2C shortcodes take none. */
     @Column(name = "account_reference")
     private String accountReference;
 

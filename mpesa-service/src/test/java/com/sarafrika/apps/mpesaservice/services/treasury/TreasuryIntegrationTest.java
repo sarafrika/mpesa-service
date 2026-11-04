@@ -3,7 +3,10 @@ package com.sarafrika.apps.mpesaservice.services.treasury;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,6 +79,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -95,7 +99,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({BalanceService.class, BalanceQueryClaims.class, BalanceQueryScheduler.class, B2bDestinationService.class,
-        B2bSweepService.class, B2bTransferService.class, B2bSweepExecutor.class, TreasuryConfig.class,
+        B2bSweepService.class, B2bTransferService.class, B2bSweepExecutor.class, TransferBalanceRefresh.class,
+        TreasuryConfig.class,
         MetricsConfig.class, AuditService.class, SecretCipher.class, TreasuryIntegrationTest.Beans.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class TreasuryIntegrationTest {
@@ -146,6 +151,9 @@ class TreasuryIntegrationTest {
     private MpesaPayoutService payouts;
     @MockitoBean
     private ApprovalGateway gateway;
+    // Runs the balance refresh on the test's thread, so no query lands while setUp clears the tables.
+    @MockitoBean(name = TreasuryConfig.REFRESH_EXECUTOR)
+    private TaskExecutor refreshPool;
 
     private MpesaShortCode shortcode;
     private int sequence;
@@ -160,6 +168,10 @@ class TreasuryIntegrationTest {
         jdbc.update("DELETE FROM mpesa_shortcodes");
         shortcode = shortcode(true, "elimika-api");
         when(payouts.latestFloat(any())).thenAnswer(call -> new PayoutFloatDto(call.getArgument(0), null, null, null));
+        doAnswer(call -> {
+            ((Runnable) call.getArgument(0)).run();
+            return null;
+        }).when(refreshPool).execute(any());
     }
 
     // ---- Account Balance
@@ -395,13 +407,10 @@ class TreasuryIntegrationTest {
         B2bDestinationDto bank = bank(shortcode);
         MpesaShortCode other = shortcode(true, "api-x");
         B2bDestinationDto foreign = bank(other);
-        when(payouts.latestFloat(shortcode.getUuid())).thenReturn(new PayoutFloatDto(shortcode.getUuid(),
-                new BigDecimal("600000.00"), null, Instant.now()));
+        snapshot("50.00", "600000.00", Instant.now(), "jane");
         UUID approval = UUID.randomUUID();
         when(gateway.submit(any())).thenReturn(approval);
 
-        assertThatThrownBy(() -> sweeps.request(shortcode.getUuid(), sweep(bank.uuid(), "600001")))
-                .isInstanceOfSatisfying(InvalidRequestException.class, ex -> assertThat(ex.getField()).isEqualTo("amount"));
         assertThatThrownBy(() -> sweeps.request(shortcode.getUuid(), sweep(bank.uuid(), "100.50")))
                 .isInstanceOfSatisfying(InvalidRequestException.class, ex -> assertThat(ex.getField()).isEqualTo("amount"));
         assertThatThrownBy(() -> sweeps.request(shortcode.getUuid(), sweep(foreign.uuid(), "100")))
@@ -428,7 +437,9 @@ class TreasuryIntegrationTest {
         assertThat(payload.get("command_id").asText()).isEqualTo("BusinessPayBill");
         assertThat(payload.get("receiver_shortcode").asText()).isEqualTo("522522");
         assertThat(payload.get("account_reference").asText()).isEqualTo("SAR-001");
+        assertThat(payload.get("working_balance").asText()).isEqualTo("600000.00");
         assertThat(payload.get("balance_after").asText()).isEqualTo("100000.00");
+        assertThat(payload.has("utility_balance")).isFalse();
         assertThat(payload.get("reference").asText()).isEqualTo(submitted.reference()).startsWith("SWP-");
         verify(daraja, never()).sendB2BPayment(any(), any());
     }
@@ -576,21 +587,185 @@ class TreasuryIntegrationTest {
     }
 
     @Test
-    void aSweepSubmissionCarriesItsTitleDarajaCallAndPreChecks() {
+    void aSweepSubmissionCarriesItsTitleDarajaCallAndWorkingPreChecks() {
         B2bDestinationDto bank = bank(shortcode);
+        // A big Utility balance is not what B2B is paid from; only Working counts.
         when(payouts.latestFloat(shortcode.getUuid())).thenReturn(new PayoutFloatDto(shortcode.getUuid(),
-                new BigDecimal("600000.00"), null, Instant.now()));
+                new BigDecimal("900000.00"), null, Instant.now()));
         when(gateway.submit(any())).thenReturn(UUID.randomUUID());
 
         sweeps.request(shortcode.getUuid(), sweep(bank.uuid(), "590000"));
+        snapshot("900000.00", "600000.00", Instant.now().minus(Duration.ofHours(1)), "jane");
+        sweeps.request(shortcode.getUuid(), sweep(bank.uuid(), "590000"));
+        // Over the Working balance: warned, never blocked (Safaricom refuses an overdraw itself).
+        sweeps.request(shortcode.getUuid(), sweep(bank.uuid(), "600001"));
+
+        ArgumentCaptor<ApprovalSubmission> captor = ArgumentCaptor.forClass(ApprovalSubmission.class);
+        verify(gateway, times(3)).submit(captor.capture());
+        JsonNode unknown = captor.getAllValues().get(0).payload();
+        assertThat(unknown.get("title").asText()).isEqualTo("Sweep KES 590,000.00 to Sarafrika bank");
+        assertThat(unknown.get("daraja_call").asText()).isEqualTo("POST /mpesa/b2b/v1/paymentrequest · BusinessPayBill");
+        assertThat(unknown.get("pre_checks")).hasSize(2);
+        assertThat(unknown.get("pre_checks").get(1).get("state").asText()).isEqualTo("WARN");
+        assertThat(unknown.get("pre_checks").get(1).get("text").asText()).isEqualTo("No Working balance reading yet");
+        JsonNode covered = captor.getAllValues().get(1).payload().get("pre_checks").get(1);
+        assertThat(covered.get("state").asText()).isEqualTo("OK");
+        assertThat(covered.get("text").asText()).isEqualTo("Working KES 600,000.00 covers the amount");
+        JsonNode short_ = captor.getAllValues().get(2).payload().get("pre_checks").get(1);
+        assertThat(short_.get("state").asText()).isEqualTo("WARN");
+        assertThat(short_.get("text").asText()).isEqualTo("Working KES 600,000.00 is below the amount; move "
+                + "funds from Utility to Working on the M-PESA org portal first");
+    }
+
+    // ---- B2C Account Top Up (BusinessPayToBulk)
+
+    @Test
+    void aTopUpDestinationMustBeOneOfOurOwnActiveB2cShortcodesNotTheSource() {
+        MpesaShortCode b2c = shortcode(true, "api-b2c", ShortcodeType.B2C);
+        MpesaShortCode inactive = shortcode(false, "api-off", ShortcodeType.B2C);
+        MpesaShortCode paybill = shortcode(true, "api-pb");
+
+        for (String number : new String[] {"999999", shortcode.getShortcode(), paybill.getShortcode(),
+                inactive.getShortcode()}) {
+            assertThatThrownBy(() -> destinations.create(shortcode.getUuid(), new CreateB2bDestinationRequest(
+                    "Top up " + number, number, B2bReceiverType.B2C_SHORTCODE, null, null)))
+                    .isInstanceOfSatisfying(InvalidRequestException.class,
+                            ex -> assertThat(ex.getField()).isEqualTo("receiver_shortcode"));
+        }
+        B2bDestinationDto topUp = destinations.create(shortcode.getUuid(), new CreateB2bDestinationRequest(
+                "Disbursements", b2c.getShortcode(), B2bReceiverType.B2C_SHORTCODE, "IGNORED", null));
+
+        assertThat(topUp.commandId()).isEqualTo("BusinessPayToBulk");
+        assertThat(topUp.accountReference()).isNull();
+        assertThat(topUp.receiverBusinessName()).isEqualTo(b2c.getBusinessName());
+        assertThat(destinations.list(shortcode.getUuid(), true, PageRequest.of(0, 25)).getContent().getFirst()
+                .receiverBusinessName()).isEqualTo(b2c.getBusinessName());
+        assertThatThrownBy(() -> destinations.update(shortcode.getUuid(), topUp.uuid(), new UpdateB2bDestinationRequest(
+                null, shortcode.getShortcode(), null, null, null))).isInstanceOf(InvalidRequestException.class);
+        // A top-up whose receiver went inactive can still be switched off.
+        b2c.setIsActive(false);
+        shortCodeRepository.saveAndFlush(b2c);
+        assertThat(destinations.update(shortcode.getUuid(), topUp.uuid(), new UpdateB2bDestinationRequest(null, null,
+                null, null, false)).active()).isFalse();
+    }
+
+    @Test
+    void anApprovedTopUpSendsBusinessPayToBulkAndItsResultIsAWorkingReadingThatRefreshesBothBalances()
+            throws Exception {
+        MpesaShortCode b2c = shortcode(true, "api-b2c", ShortcodeType.B2C);
+        B2bDestinationDto topUp = destinations.create(shortcode.getUuid(), new CreateB2bDestinationRequest(
+                "Disbursements", b2c.getShortcode(), B2bReceiverType.B2C_SHORTCODE, null, true));
+        when(daraja.sendB2BPayment(any(), any())).thenReturn(MpesaApiResponse.success(
+                new B2BTransferResponse("AG_20230420_2010759fd5662ef6d054", "5118-111210482-1", "0",
+                        "Accept the service request successfully."), 200));
+        acceptBalanceQuery("AG_BAL", "OC-BAL");
+        ApprovalExecutor.Approved approved = approved(topUp, "190");
+
+        assertThat(executor.execute(approved).sent()).isTrue();
+
+        ArgumentCaptor<B2BPaymentRequest> sent = ArgumentCaptor.forClass(B2BPaymentRequest.class);
+        verify(daraja).sendB2BPayment(argThat(code -> code.getUuid().equals(shortcode.getUuid())), sent.capture());
+        assertThat(sent.getValue().commandId()).isEqualTo("BusinessPayToBulk");
+        assertThat(sent.getValue().receiverShortcode()).isEqualTo(b2c.getShortcode());
+        assertThat(sent.getValue().accountReference()).startsWith("TOP-").hasSize(12);
+        assertThat(sent.getValue().remarks()).isEqualTo("B2C top-up " + sent.getValue().accountReference());
+
+        // Daraja's B2CAccountTopUp success sample (ReceiverPartyPublicName quoted so it parses).
+        String body = """
+                {"Result":{"ResultType":"0","ResultCode":"0","ResultDesc":"The service request is processed successfully",
+                 "OriginatorConversationID":"5118-111210482-1","ConversationID":"AG_20230420_2010759fd5662ef6d054",
+                 "TransactionID":"QKA81LK5CY","ResultParameters":{"ResultParameter":[
+                  {"Key":"DebitAccountBalance","Value":"{Amount={CurrencyCode=KES, MinimumAmount=618683, BasicAmount=6186.83}}"},
+                  {"Key":"Amount","Value":"190.00"},
+                  {"Key":"DebitPartyAffectedAccountBalance","Value":"Working Account|KES|346568.83|6186.83|340382.00|0.00"},
+                  {"Key":"TransCompletedTime","Value":"20221110110717"},
+                  {"Key":"DebitPartyCharges","Value":""},
+                  {"Key":"ReceiverPartyPublicName","Value":"%s - Biller Companty"},
+                  {"Key":"Currency","Value":"KES"},
+                  {"Key":"InitiatorAccountCurrentBalance","Value":"{Amount={CurrencyCode=KES, MinimumAmount=618683, BasicAmount=6186.83}}"}]},
+                 "ReferenceData":{"ReferenceItem":[{"Key":"BillReferenceNumber","Value":"19008"},
+                  {"Key":"QueueTimeoutURL","Value":"https://mydomain.com/b2b/businessbuygoods/queue/"}]}}}"""
+                .formatted(b2c.getShortcode());
+        B2BResult result = objectMapper.readValue(body, com.sarafrika.apps.mpesaservice.dtos.B2BTransferResult.class)
+                .result();
+        transfers.applyResult(result, body);
+
+        B2bTransfer transfer = transferRepository.findByApprovalRequestUuid(approved.requestUuid()).orElseThrow();
+        assertThat(transfer.getStatus()).isEqualTo(B2bTransferStatus.SUCCESS);
+        assertThat(transfer.getTransactionId()).isEqualTo("QKA81LK5CY");
+        assertThat(transfer.getCharges()).isNull();
+        assertThat(transfer.getWorkingBalanceAfter()).isEqualByComparingTo("6186.83");
+        assertThat(transfer.getTransCompletedAt()).isEqualTo(Instant.parse("2022-11-10T08:07:17Z"));
+
+        KnownWorking working = balances.knownWorking(shortcode.getUuid());
+        assertThat(working.source()).isEqualTo(KnownWorking.B2B_RESULT);
+        assertThat(working.available()).isEqualByComparingTo("6186.83");
+        // An older balance result loses to the newer top-up result; a newer one wins.
+        snapshot("1.00", "9.00", Instant.parse("2022-11-10T08:00:00Z"), "jane");
+        assertThat(balances.status(shortcode.getUuid()).workingSource()).isEqualTo(KnownWorking.B2B_RESULT);
+        snapshot("1.00", "7000.00", Instant.parse("2022-11-10T09:00:00Z"), "jane");
+        assertThat(balances.status(shortcode.getUuid()).workingAvailable()).isEqualByComparingTo("7000.00");
+
+        verify(daraja, timeout(5000)).queryAccountBalance(argThat(code -> code.getUuid().equals(shortcode.getUuid())),
+                any());
+        verify(daraja, timeout(5000)).queryAccountBalance(argThat(code -> code.getUuid().equals(b2c.getUuid())), any());
+        assertThat(sweeps.list(shortcode.getUuid(), null, PageRequest.of(0, 25)).getContent().getFirst()
+                .workingBalanceAfter()).isEqualByComparingTo("6186.83");
+    }
+
+    @Test
+    void aBalanceRefreshThatFailsLeavesTheSettledSweepAlone() throws Exception {
+        B2bDestinationDto bank = bank(shortcode);
+        when(daraja.sendB2BPayment(any(), any())).thenReturn(MpesaApiResponse.success(
+                new B2BTransferResponse("AG_R1", "OC-R1", "0", "Accept"), 200));
+        when(daraja.queryAccountBalance(any(), any())).thenThrow(new IllegalStateException("Daraja is down"));
+        ApprovalExecutor.Approved approved = approved(bank, "1000");
+        executor.execute(approved);
+
+        assertThat(transfers.applyResult(b2bResult("OC-R1", "AG_R1", 0, "1000.00", "522522 - Sarafrika Bank",
+                "SAR-001"), "{}")).isPresent();
+
+        verify(daraja, timeout(5000)).queryAccountBalance(any(), any());
+        assertThat(transferRepository.findByApprovalRequestUuid(approved.requestUuid()).orElseThrow().getStatus())
+                .isEqualTo(B2bTransferStatus.SUCCESS);
+    }
+
+    @Test
+    void aTopUpIsRefusedAtSendTimeWhenItsB2cShortcodeWentInactive() {
+        MpesaShortCode b2c = shortcode(true, "api-b2c", ShortcodeType.B2C);
+        B2bDestinationDto topUp = destinations.create(shortcode.getUuid(), new CreateB2bDestinationRequest(
+                "Disbursements", b2c.getShortcode(), B2bReceiverType.B2C_SHORTCODE, null, true));
+        ApprovalExecutor.Approved approved = approved(topUp, "1000");
+        b2c.setIsActive(false);
+        shortCodeRepository.saveAndFlush(b2c);
+
+        ApprovalExecutor.Outcome outcome = executor.execute(approved);
+
+        assertThat(outcome.sent()).isFalse();
+        assertThat(outcome.message()).contains("not active").endsWith("nothing was sent");
+        verify(daraja, never()).sendB2BPayment(any(), any());
+    }
+
+    @Test
+    void aTopUpSubmissionNamesTheB2cShortcodeAndBusinessPayToBulk() {
+        MpesaShortCode b2c = shortcode(true, "api-b2c", ShortcodeType.B2C);
+        B2bDestinationDto topUp = destinations.create(shortcode.getUuid(), new CreateB2bDestinationRequest(
+                "Disbursements", b2c.getShortcode(), B2bReceiverType.B2C_SHORTCODE, null, true));
+        when(gateway.submit(any())).thenReturn(UUID.randomUUID());
+
+        B2bSweepSubmittedDto submitted = sweeps.request(shortcode.getUuid(), sweep(topUp.uuid(), "50000"));
 
         ArgumentCaptor<ApprovalSubmission> captor = ArgumentCaptor.forClass(ApprovalSubmission.class);
         verify(gateway).submit(captor.capture());
         JsonNode payload = captor.getValue().payload();
-        assertThat(payload.get("title").asText()).isEqualTo("Sweep KES 590,000.00 to Sarafrika bank");
-        assertThat(payload.get("daraja_call").asText()).isEqualTo("POST /mpesa/b2b/v1/paymentrequest · BusinessPayBill");
+        assertThat(submitted.reference()).startsWith("TOP-");
+        assertThat(payload.get("command_id").asText()).isEqualTo("BusinessPayToBulk");
+        assertThat(payload.get("title").asText()).isEqualTo("Top up " + b2c.getShortcode()
+                + " with KES 50,000.00 (Disbursements)");
+        assertThat(payload.get("receiver_business_name").asText()).isEqualTo(b2c.getBusinessName());
         assertThat(payload.get("pre_checks")).hasSize(3);
-        assertThat(payload.get("pre_checks").get(2).get("state").asText()).isEqualTo("WARN");
+        assertThat(payload.get("pre_checks").get(1).get("text").asText())
+                .startsWith("Receiver " + b2c.getShortcode() + " is our active B2C shortcode");
     }
 
     @Test
@@ -610,9 +785,13 @@ class TreasuryIntegrationTest {
     // ---- helpers
 
     private MpesaShortCode shortcode(boolean active, String initiator) {
+        return shortcode(active, initiator, ShortcodeType.PAYBILL);
+    }
+
+    private MpesaShortCode shortcode(boolean active, String initiator, ShortcodeType type) {
         MpesaShortCode code = new MpesaShortCode();
         code.setShortcode(String.valueOf(600000 + (++sequence)));
-        code.setShortcodeType(ShortcodeType.PAYBILL);
+        code.setShortcodeType(type);
         code.setBusinessName("Elimika Fees " + sequence);
         code.setConsumerKey("key");
         code.setConsumerSecret("secret");
@@ -662,8 +841,9 @@ class TreasuryIntegrationTest {
         entity.setReceiverShortcode(destination.receiverShortcode());
         entity.setReceiverType(destination.receiverType());
         entity.setAccountReference(destination.accountReference());
-        JsonNode payload = sweeps.payload(owner, entity, new BigDecimal(amount), B2bSweepService.reference(),
-                KnownFloat.UNKNOWN);
+        JsonNode payload = sweeps.payload(owner, entity, new BigDecimal(amount),
+                B2bSweepService.reference(destination.receiverType()),
+                KnownWorking.UNKNOWN);
         return new ApprovalExecutor.Approved(UUID.randomUUID(), "B2B_SWEEP", owner.getUuid(), new BigDecimal(amount),
                 payload, "maker", "checker");
     }

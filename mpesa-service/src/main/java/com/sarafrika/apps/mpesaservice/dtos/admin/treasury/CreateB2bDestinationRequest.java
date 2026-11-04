@@ -8,14 +8,16 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** A paybill needs the account reference to credit there; a till takes none. */
+/** A paybill needs the account reference to credit there; a till takes none, nor does a B2C_SHORTCODE, which
+ * names one of our own active B2C shortcodes. */
 @Schema(name = "CreateB2bDestinationRequest")
 public record CreateB2bDestinationRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "Sarafrika bank paybill")
         @NotBlank(message = "is required")
         @Size(max = 100, message = "must be at most 100 characters")
         @JsonProperty("name") String name,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "522522")
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "522522",
+                description = "The paybill or till number, or for B2C_SHORTCODE our own B2C shortcode's number")
         @NotBlank(message = "is required")
         @Pattern(regexp = "\\d{5,7}", message = "must be a 5 to 7 digit shortcode")
         @JsonProperty("receiver_shortcode") String receiverShortcode,

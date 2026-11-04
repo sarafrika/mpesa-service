@@ -7,12 +7,18 @@ import com.sarafrika.apps.mpesaservice.exceptions.ConflictException;
 import com.sarafrika.apps.mpesaservice.exceptions.InvalidRequestException;
 import com.sarafrika.apps.mpesaservice.exceptions.NotFoundException;
 import com.sarafrika.apps.mpesaservice.models.B2bDestination;
+import com.sarafrika.apps.mpesaservice.models.MpesaShortCode;
 import com.sarafrika.apps.mpesaservice.repositories.B2bDestinationRepository;
 import com.sarafrika.apps.mpesaservice.repositories.MpesaShortCodeRepository;
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
 import com.sarafrika.apps.mpesaservice.utils.enums.B2bReceiverType;
+import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeType;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,7 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-/** The paybills and tills a shortcode may sweep to; every change is audited. */
+/** The paybills, tills and own B2C shortcodes a shortcode may move money to; every change is audited. */
 @Service
 @RequiredArgsConstructor
 public class B2bDestinationService {
@@ -37,7 +43,14 @@ public class B2bDestinationService {
     @Transactional(readOnly = true)
     public Page<B2bDestinationDto> list(UUID shortcodeUuid, Boolean active, Pageable pageable) {
         requireShortcode(shortcodeUuid);
-        return destinations.findForShortcode(shortcodeUuid, active, pageable).map(B2bDestinationDto::from);
+        Page<B2bDestination> page = destinations.findForShortcode(shortcodeUuid, active, pageable);
+        List<String> numbers = page.getContent().stream().filter(d -> d.getReceiverType().topUp())
+                .map(B2bDestination::getReceiverShortcode).distinct().toList();
+        Map<String, String> names = numbers.isEmpty() ? Map.of() : shortcodes.findByShortcodeIn(numbers).stream()
+                .filter(c -> c.getBusinessName() != null)
+                .collect(Collectors.toMap(MpesaShortCode::getShortcode, MpesaShortCode::getBusinessName, (a, b) -> a));
+        return page.map(d -> B2bDestinationDto.from(d, d.getReceiverType().topUp()
+                ? names.get(d.getReceiverShortcode()) : null));
     }
 
     @Transactional
@@ -55,9 +68,9 @@ public class B2bDestinationService {
         destination.setAccountReference(blankToNull(request.accountReference()));
         destination.setActive(request.active() == null || request.active());
         destination.setCreatedBy(CurrentActor.name());
-        check(destination);
+        MpesaShortCode receiver = check(destination);
         B2bDestination saved = destinations.save(destination);
-        B2bDestinationDto dto = B2bDestinationDto.from(saved);
+        B2bDestinationDto dto = view(saved, receiver);
         audit.record(AUDIT_CREATED, ENTITY, saved.getUuid().toString(), null, dto);
         return dto;
     }
@@ -65,7 +78,7 @@ public class B2bDestinationService {
     @Transactional
     public B2bDestinationDto update(UUID shortcodeUuid, UUID destinationUuid, UpdateB2bDestinationRequest request) {
         B2bDestination destination = find(shortcodeUuid, destinationUuid);
-        B2bDestinationDto before = B2bDestinationDto.from(destination);
+        B2bDestinationDto before = view(destination, null);
         if (request.name() != null) {
             String name = request.name().trim();
             if (name.isEmpty()) {
@@ -89,8 +102,8 @@ public class B2bDestinationService {
             destination.setActive(request.active());
         }
         destination.setUpdatedBy(CurrentActor.name());
-        check(destination);
-        B2bDestinationDto after = B2bDestinationDto.from(destinations.save(destination));
+        MpesaShortCode receiver = check(destination);
+        B2bDestinationDto after = view(destinations.save(destination), receiver);
         audit.record(AUDIT_UPDATED, ENTITY, destinationUuid.toString(), before, after);
         return after;
     }
@@ -110,11 +123,56 @@ public class B2bDestinationService {
     }
 
     // BusinessPayBill credits an account at the receiving paybill; a till (BusinessBuyGoods) has none to give.
-    private static void check(B2bDestination destination) {
+    // A top-up (BusinessPayToBulk) must reach one of our own active B2C shortcodes, never the source itself.
+    private MpesaShortCode check(B2bDestination destination) {
         if (destination.getReceiverType() == B2bReceiverType.PAYBILL
                 && !StringUtils.hasText(destination.getAccountReference())) {
             throw new InvalidRequestException("account_reference", "is required for a paybill");
         }
+        if (!destination.getReceiverType().topUp()) {
+            return null;
+        }
+        destination.setAccountReference(null);
+        if (!destination.isActive() && destination.getId() != null) {
+            return null; // Deactivating a top-up whose receiver went away must still work; sends re-check it.
+        }
+        return topUpReceiver(shortcodes, destination.getShortcodeUuid(), destination.getReceiverShortcode())
+                .orElseThrow(() -> new InvalidRequestException("receiver_shortcode",
+                        topUpRefusal(shortcodes, destination.getShortcodeUuid(), destination.getReceiverShortcode())));
+    }
+
+    /** Our own active B2C shortcode with this number, unless it is the source itself. */
+    static Optional<MpesaShortCode> topUpReceiver(MpesaShortCodeRepository shortcodes, UUID sourceUuid,
+                                                  String number) {
+        return shortcodes.findByShortcode(number)
+                .filter(c -> c.getShortcodeType() == ShortcodeType.B2C)
+                .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                .filter(c -> !c.getUuid().equals(sourceUuid));
+    }
+
+    /** Why this number cannot be topped up from the source, as the field error says it. */
+    static String topUpRefusal(MpesaShortCodeRepository shortcodes, UUID sourceUuid, String number) {
+        Optional<MpesaShortCode> found = shortcodes.findByShortcode(number);
+        if (found.isEmpty()) {
+            return "is not one of our shortcodes; a B2C top-up goes to our own B2C shortcode";
+        }
+        MpesaShortCode code = found.get();
+        if (code.getUuid().equals(sourceUuid)) {
+            return "is this shortcode itself; a top-up must go to another shortcode";
+        }
+        if (code.getShortcodeType() != ShortcodeType.B2C) {
+            return "is not a B2C shortcode; only B2C shortcodes take a top-up";
+        }
+        return "is not active; activate the B2C shortcode first";
+    }
+
+    private B2bDestinationDto view(B2bDestination destination, MpesaShortCode receiver) {
+        if (!destination.getReceiverType().topUp()) {
+            return B2bDestinationDto.from(destination);
+        }
+        MpesaShortCode code = receiver != null ? receiver
+                : shortcodes.findByShortcode(destination.getReceiverShortcode()).orElse(null);
+        return B2bDestinationDto.from(destination, code == null ? null : code.getBusinessName());
     }
 
     private void requireShortcode(UUID shortcodeUuid) {

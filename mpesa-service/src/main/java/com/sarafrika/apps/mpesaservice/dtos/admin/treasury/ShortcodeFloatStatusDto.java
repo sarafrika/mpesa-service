@@ -24,6 +24,15 @@ public record ShortcodeFloatStatusDto(
         @Schema(nullable = true, allowableValues = {"BALANCE_QUERY", "PAYOUT", "C2B_PAYMENT"},
                 description = "Where utility_available came from")
         @JsonProperty("utility_source") String utilitySource,
+        @Schema(nullable = true, example = "6186.83",
+                description = "Working (MMF) account balance, which B2B sweeps and B2C top-ups are paid from: the "
+                        + "newest balance result's, or a newer B2B or top-up result's balance after its debit")
+        @JsonProperty("working_available") BigDecimal workingAvailable,
+        @Schema(nullable = true)
+        @JsonProperty("working_reported_at") OffsetDateTime workingReportedAt,
+        @Schema(nullable = true, allowableValues = {"BALANCE_QUERY", "B2B_RESULT"},
+                description = "Where working_available came from")
+        @JsonProperty("working_source") String workingSource,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "50000.00",
                 description = "The line this shortcode is held to: its own, else the service default")
         @JsonProperty("low_float_threshold") BigDecimal lowFloatThreshold,

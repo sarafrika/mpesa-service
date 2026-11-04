@@ -849,9 +849,10 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         return payload;
     }
 
-    // Fields per developer.safaricom.co.ke/apis/BusinessPayBill and /apis/BusinessBuyGoods: both identifier
-    // types "4" only; AccountReference up to 13 characters, Remarks up to 100; Requester is optional (unused).
-    private Map<String, Object> buildB2BPaymentPayload(MpesaShortCode shortcode, B2BPaymentRequest request) {
+    // Fields per developer.safaricom.co.ke/apis/BusinessPayBill, /BusinessBuyGoods and /B2CAccountTopUp
+    // (BusinessPayToBulk): identifier types "4" only; AccountReference up to 13, Remarks up to 100 characters;
+    // Requester is optional (unused). All three debit PartyA's Working account.
+    Map<String, Object> buildB2BPaymentPayload(MpesaShortCode shortcode, B2BPaymentRequest request) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("Initiator", shortcode.getInitiatorName());
         payload.put("SecurityCredential", securityCredentialService.credentialFor(shortcode));
@@ -864,7 +865,8 @@ public class MpesaDarajaServiceImpl implements MpesaDarajaService {
         if (request.accountReference() != null && !request.accountReference().isBlank()) {
             payload.put("AccountReference", request.accountReference());
         }
-        payload.put("Remarks", request.remarks() != null && !request.remarks().isBlank() ? request.remarks() : "Sweep");
+        String remarks = request.remarks() != null && !request.remarks().isBlank() ? request.remarks().trim() : "Sweep";
+        payload.put("Remarks", remarks.length() <= 100 ? remarks : remarks.substring(0, 100));
         payload.put("QueueTimeOutURL", callbackUrl(shortcode, "/b2b/timeout"));
         payload.put("ResultURL", callbackUrl(shortcode, "/b2b/result"));
         return payload;
