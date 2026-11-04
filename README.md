@@ -25,7 +25,7 @@ Staff ──▶ mpesa-ui (Next.js server) ─────┘           │
 ## Features
 
 - **Collections:** STK push, C2B with validation rules, dynamic QR codes and B2B Express Checkout.
-- **Payouts:** B2C (including bulk from CSV), B2B sweeps, Business to Pochi and Tax Remittance to KRA.
+- **Payouts:** B2C (including bulk from CSV), B2B sweeps, B2C Account Top Up of our own B2C shortcodes, Business to Pochi and Tax Remittance to KRA. Sweeps and top-ups are paid from the paybill's Working account.
 - **Approvals:** every outgoing payment and reversal needs a second person to approve it.
 - **Reconciliation:** matches payments against M-Pesa statements or Pull Transactions.
 - **Webhooks:** signed payment events for each product, with retries and replay.
