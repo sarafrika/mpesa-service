@@ -250,6 +250,20 @@ class TreasuryIntegrationTest {
     }
 
     @Test
+    void productsSeeABalanceResultAsTheFloatBeforeAnyPayout() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        when(payouts.latestFloat(any())).thenAnswer(call -> new PayoutFloatDto(call.getArgument(0), null, null, null));
+        assertThat(balances.productFloat(shortcode.getUuid()).utilityAccountAvailableFunds()).isNull();
+
+        snapshot("125000.00", "4000.00", now.minus(Duration.ofMinutes(5)), "system");
+
+        PayoutFloatDto seen = balances.productFloat(shortcode.getUuid());
+        assertThat(seen.utilityAccountAvailableFunds()).isEqualByComparingTo("125000.00");
+        assertThat(seen.workingAccountAvailableFunds()).isEqualByComparingTo("4000.00");
+        assertThat(seen.reportedAt()).isEqualTo(now.minus(Duration.ofMinutes(5)));
+    }
+
+    @Test
     void aNewerC2bPaymentsOrgAccountBalanceIsTheKnownFloat() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         snapshot("900000.00", "800000.00", now.minus(Duration.ofHours(3)), "jane.doe");

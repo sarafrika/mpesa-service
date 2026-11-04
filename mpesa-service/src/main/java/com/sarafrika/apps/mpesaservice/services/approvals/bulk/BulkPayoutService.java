@@ -20,9 +20,9 @@ import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalProperties;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalSubmission;
 import com.sarafrika.apps.mpesaservice.services.approvals.ApprovalTypes;
 import com.sarafrika.apps.mpesaservice.services.audit.CurrentActor;
-import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.services.security.PersonalData;
 import com.sarafrika.apps.mpesaservice.services.shortcode.ShortcodeCapabilities;
+import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
 import com.sarafrika.apps.mpesaservice.utils.DarajaTime;
 import com.sarafrika.apps.mpesaservice.utils.enums.ShortcodeCapability;
 import java.math.BigDecimal;
@@ -58,7 +58,7 @@ public class BulkPayoutService {
     private final PayoutBatchRepository batches;
     private final PayoutBatchItemRepository items;
     private final ApprovalGateway gateway;
-    private final MpesaPayoutService payouts;
+    private final BalanceService balances;
     private final ApprovalProperties properties;
     private final ObjectMapper mapper;
 
@@ -217,7 +217,7 @@ public class BulkPayoutService {
         checks.add(invalid == 0 ? PreCheckDto.ok(valid + " rows valid")
                 : PreCheckDto.warn(valid + " rows valid; " + invalid + " invalid " + (invalid == 1 ? "row" : "rows")
                         + " left out"));
-        PayoutFloatDto floatNow = payouts.latestFloat(shortcode.getUuid());
+        PayoutFloatDto floatNow = balances.productFloat(shortcode.getUuid());
         BigDecimal utility = floatNow.utilityAccountAvailableFunds();
         if (utility == null) {
             checks.add(PreCheckDto.warn("No float reading for this paybill yet; check its balance before approving"));

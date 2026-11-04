@@ -4,6 +4,7 @@ import com.sarafrika.apps.mpesaservice.dtos.B2CPayoutRequest;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaPayoutDto;
 import com.sarafrika.apps.mpesaservice.dtos.PayoutFloatDto;
+import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.services.products.CallerIdentity;
@@ -40,6 +41,7 @@ public class MpesaPayoutController {
 
     private final MpesaPayoutService payoutService;
     private final ProductGrantGuard grantGuard;
+    private final BalanceService balanceService;
 
     @PostMapping("/b2c")
     @Operation(operationId = "sendB2cPayout", summary = "Send a B2C payout",
@@ -84,11 +86,11 @@ public class MpesaPayoutController {
 
     @GetMapping("/shortcodes/{uuid}/float")
     @Operation(operationId = "getShortcodeFloat",
-            summary = "A shortcode's float as last reported on a payout result",
+            summary = "A shortcode's float: the newest balance result, payout report or C2B balance",
             description = "Products need B2C_PAYOUT or STATUS_LOOKUP on the shortcode.")
     public ResponseEntity<PayoutFloatDto> payoutFloat(@PathVariable UUID uuid, Authentication authentication) {
         grantGuard.requireRead(authentication, uuid, GrantOperation.B2C_PAYOUT, GrantOperation.STATUS_LOOKUP);
-        return ResponseEntity.ok(payoutService.latestFloat(uuid));
+        return ResponseEntity.ok(balanceService.productFloat(uuid));
     }
 
     /** The calling Keycloak client (its azp), so one system never sees another's payouts. */

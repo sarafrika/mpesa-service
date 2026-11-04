@@ -19,6 +19,7 @@ import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantReposito
 import com.sarafrika.apps.mpesaservice.services.MpesaDarajaService;
 import com.sarafrika.apps.mpesaservice.services.MpesaIncomingPaymentService;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
 import com.sarafrika.apps.mpesaservice.services.products.ProductGrantGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
 import java.math.BigDecimal;
@@ -47,6 +48,8 @@ class MachineApiGrantsDisabledTest {
     private MpesaIncomingPaymentService incomingPaymentService;
     @MockitoBean
     private MpesaPayoutService payoutService;
+    @MockitoBean
+    private BalanceService balanceService;
     @MockitoBean
     private ClientShortcodeGrantRepository grants;
 

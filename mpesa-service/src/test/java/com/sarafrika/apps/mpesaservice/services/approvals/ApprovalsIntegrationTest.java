@@ -16,6 +16,7 @@ import com.sarafrika.apps.mpesaservice.config.ClientIpResolver;
 import com.sarafrika.apps.mpesaservice.dtos.B2CPaymentResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaApiResponse;
 import com.sarafrika.apps.mpesaservice.dtos.MpesaErrorResponse;
+import com.sarafrika.apps.mpesaservice.dtos.PayoutFloatDto;
 import com.sarafrika.apps.mpesaservice.dtos.TransactionReversalResponse;
 import com.sarafrika.apps.mpesaservice.dtos.admin.approvals.ApprovalDto;
 import com.sarafrika.apps.mpesaservice.dtos.admin.approvals.BulkPayoutUploadDto;
@@ -40,6 +41,7 @@ import com.sarafrika.apps.mpesaservice.services.approvals.reversal.ReversalServi
 import com.sarafrika.apps.mpesaservice.services.audit.AuditService;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
 import com.sarafrika.apps.mpesaservice.services.security.SecretCipher;
+import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
 import com.sarafrika.apps.mpesaservice.utils.enums.Environment;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentStatus;
 import com.sarafrika.apps.mpesaservice.utils.enums.IncomingPaymentType;
@@ -143,11 +145,14 @@ class ApprovalsIntegrationTest {
 
     @MockitoBean
     private MpesaDarajaService daraja;
+    @MockitoBean
+    private BalanceService balances;
 
     private MpesaShortCode shortcode;
 
     @BeforeEach
     void setUp() {
+        when(balances.productFloat(any())).thenAnswer(call -> new PayoutFloatDto(call.getArgument(0), null, null, null));
         MpesaShortCode code = new MpesaShortCode();
         code.setShortcode(String.valueOf(600000 + (int) (Math.random() * 399999)));
         code.setShortcodeType(ShortcodeType.ONE_ACCOUNT);

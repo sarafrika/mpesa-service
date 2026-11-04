@@ -241,6 +241,20 @@ public class BalanceService {
                 shortcodeUuid, BalanceSnapshotStatus.COMPLETED));
     }
 
+    /** What products and bulk pre-checks see: the newest known utility balance, with the working balance
+     * from the same report when that report carries one. */
+    @Transactional(readOnly = true)
+    public PayoutFloatDto productFloat(UUID shortcodeUuid) {
+        Optional<BalanceSnapshot> latest = snapshots.findFirstByShortcodeUuidAndStatusOrderByReceivedAtDescIdDesc(
+                shortcodeUuid, BalanceSnapshotStatus.COMPLETED);
+        KnownFloat known = knownFloat(shortcodeUuid, latest);
+        BigDecimal working = KnownFloat.BALANCE_QUERY.equals(known.source())
+                ? latest.map(BalanceSnapshot::getWorkingAvailable).orElse(null)
+                : KnownFloat.PAYOUT.equals(known.source())
+                ? payouts.latestFloat(shortcodeUuid).workingAccountAvailableFunds() : null;
+        return new PayoutFloatDto(shortcodeUuid, known.utility(), working, known.reportedAt());
+    }
+
     private KnownFloat knownFloat(UUID shortcodeUuid, Optional<BalanceSnapshot> latest) {
         PayoutFloatDto payout = payouts.latestFloat(shortcodeUuid);
         Optional<MpesaIncomingPayment> payment = incoming.newestWithBalance(shortcodeUuid,

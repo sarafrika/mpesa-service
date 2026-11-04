@@ -20,6 +20,7 @@ import com.sarafrika.apps.mpesaservice.models.ClientShortcodeGrant;
 import com.sarafrika.apps.mpesaservice.models.MpesaOutgoingPayment;
 import com.sarafrika.apps.mpesaservice.repositories.ClientShortcodeGrantRepository;
 import com.sarafrika.apps.mpesaservice.services.payout.MpesaPayoutService;
+import com.sarafrika.apps.mpesaservice.services.treasury.BalanceService;
 import com.sarafrika.apps.mpesaservice.services.products.ProductGrantGuard;
 import com.sarafrika.apps.mpesaservice.utils.enums.GrantOperation;
 import com.sarafrika.apps.mpesaservice.utils.enums.OutgoingPaymentStatus;
@@ -53,6 +54,8 @@ class MpesaPayoutControllerTest {
     private MpesaPayoutService payoutService;
     @MockitoBean
     private ClientShortcodeGrantRepository grants;
+    @MockitoBean
+    private BalanceService balanceService;
 
     @BeforeEach
     void elimikaMayPayOutFromOnePaybill() {
@@ -105,7 +108,7 @@ class MpesaPayoutControllerTest {
 
     @Test
     void theFloatNeedsAPayoutOrLookupGrantUnlessTheCallerUsesTheConsole() throws Exception {
-        when(payoutService.latestFloat(any())).thenAnswer(call ->
+        when(balanceService.productFloat(any())).thenAnswer(call ->
                 new PayoutFloatDto(call.getArgument(0), new BigDecimal("98500.00"), null, null));
 
         mockMvc.perform(get("/api/v1/mpesa/shortcodes/{uuid}/float", PAYBILL).with(product("elimika-backend")))
