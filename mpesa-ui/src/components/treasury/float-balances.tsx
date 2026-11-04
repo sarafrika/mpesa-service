@@ -292,17 +292,44 @@ function MoveMoneyCard({
       : !status.initiator_configured
         ? "Sweeps need the shortcode's initiator, under Credentials."
         : null;
+  const working = status.working_available;
   return (
     <SectionCard
       title="Move money"
-      description="Ask for a B2B payment from the Utility account to a saved destination. It waits in Approvals for a finance or admin user who is not you."
+      description="Ask for a B2B sweep to a saved paybill or till, or a top-up of one of our B2C shortcodes. Both are paid from this shortcode's Working account and wait in Approvals for a finance or admin user who is not you."
     >
+      <div className="flex items-baseline justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+        <span className="flex flex-col gap-0.5">
+          <span className="font-medium">Working balance</span>
+          <span className="text-muted-foreground text-xs">
+            {working != null
+              ? `${status.working_source === "B2B_RESULT" ? "After the last transfer" : "Account Balance result"} · ${formatDateTime(status.working_reported_at)}`
+              : "No Working balance reading yet; query the balance."}
+          </span>
+        </span>
+        {working != null && <Money amount={working} className="whitespace-nowrap font-semibold" />}
+      </div>
       <RoleGate
         needs="mpesa-operator"
-        fallback={<p className="text-muted-foreground text-sm">Operators can ask for a sweep.</p>}
+        fallback={
+          <p className="text-muted-foreground text-sm">Operators can ask for a sweep or top-up.</p>
+        }
       >
         <div className="flex flex-col items-start gap-2">
-          <SweepDialog shortcodeUuid={shortcode.uuid} status={status} disabled={reason !== null} />
+          <div className="flex flex-wrap gap-2">
+            <SweepDialog
+              shortcodeUuid={shortcode.uuid}
+              status={status}
+              kind="sweep"
+              disabled={reason !== null}
+            />
+            <SweepDialog
+              shortcodeUuid={shortcode.uuid}
+              status={status}
+              kind="topUp"
+              disabled={reason !== null}
+            />
+          </div>
           {reason && <span className="text-muted-foreground text-xs">{reason}</span>}
         </div>
       </RoleGate>

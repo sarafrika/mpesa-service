@@ -144,7 +144,9 @@ export function sourceLine(status: SourceStatus, now: number): string {
       const who =
         latest.source === "SCHEDULED"
           ? "scheduled"
-          : `asked by ${latest.requested_by ?? "an operator"}`;
+          : latest.source === "AFTER_TRANSFER"
+            ? "after a transfer"
+            : `asked by ${latest.requested_by ?? "an operator"}`;
       return `Account Balance result · ${when} · ${who}`;
     }
   }
@@ -203,6 +205,7 @@ export function reportLabel(report: Report): string {
   switch (report.kind) {
     case "BALANCE_QUERY":
       if (report.query_source === "SCHEDULED") return "Scheduled balance query";
+      if (report.query_source === "AFTER_TRANSFER") return "Balance query after a transfer";
       return report.requested_by ? `Balance query by ${report.requested_by}` : "Balance query";
     case "PAYOUT":
       return report.reference ? `B2C payout ${report.reference}` : "B2C payout";
@@ -301,16 +304,44 @@ export function shareLabel(share: number | null): string {
 }
 
 /** Why a sweep amount is unacceptable, or undefined when it is fine. */
-export function sweepAmountError(
-  text: string,
-  utility: number | null | undefined,
-): string | undefined {
-  const value = text.trim();
-  if (!/^[1-9]\d{0,11}$/.test(value)) return "Whole shillings, at least 1";
-  if (utility != null && Number(value) > utility) {
-    return "More than the utility balance last reported";
-  }
+export function sweepAmountError(text: string): string | undefined {
+  if (!/^[1-9]\d{0,11}$/.test(text.trim())) return "Whole shillings, at least 1";
   return undefined;
+}
+
+/** A warning, never a block, when the amount is more than the Working balance B2B is paid from. */
+export function workingShortfall(
+  text: string,
+  working: number | null | undefined,
+): string | undefined {
+  if (working == null || sweepAmountError(text)) return undefined;
+  return Number(text.trim()) > working
+    ? "More than the Working balance last reported; Safaricom will refuse it unless funds are moved from Utility to Working on the M-PESA org portal first."
+    : undefined;
+}
+
+export const TOP_UP_COMMAND = "BusinessPayToBulk";
+
+/** How a transfer or approval names what it is: a B2C top-up, or a B2B sweep. */
+export function transferKind(commandId: string | null | undefined): string {
+  return commandId === TOP_UP_COMMAND ? "B2C top-up" : "B2B sweep";
+}
+
+type DestinationLike = {
+  receiver_type: string;
+  receiver_shortcode: string;
+  receiver_business_name?: string | null;
+};
+
+/** "B2C top-up → 4954124 · Sarafrika Disbursements", "522522 · Paybill", "123456 · Till". */
+export function receiverLabel(destination: DestinationLike): string {
+  if (destination.receiver_type === "B2C_SHORTCODE") {
+    const name = destination.receiver_business_name
+      ? ` · ${destination.receiver_business_name}`
+      : "";
+    return `B2C top-up → ${destination.receiver_shortcode}${name}`;
+  }
+  return `${destination.receiver_shortcode} · ${destination.receiver_type === "TILL" ? "Till" : "Paybill"}`;
 }
 
 /** A query the UI waits on has settled once the status shows it as the last query, no longer PENDING. */
@@ -333,10 +364,10 @@ export type B2bSweepPayload = {
   amount?: number;
   reference?: string;
   remarks?: string;
-  utilityBalance?: number;
-  utilityReportedAt?: string;
+  receiverBusinessName?: string;
+  workingBalance?: number;
+  workingReportedAt?: string;
   balanceAfter?: number;
-  lowFloatThreshold?: number;
 };
 
 function text(value: unknown): string | undefined {
@@ -367,9 +398,9 @@ export function parseSweepPayload(payload: unknown): B2bSweepPayload {
     amount: number(p.amount),
     reference: text(p.reference),
     remarks: text(p.remarks),
-    utilityBalance: number(p.utility_balance),
-    utilityReportedAt: text(p.utility_reported_at),
+    receiverBusinessName: text(p.receiver_business_name),
+    workingBalance: number(p.working_balance),
+    workingReportedAt: text(p.working_reported_at),
     balanceAfter: number(p.balance_after),
-    lowFloatThreshold: number(p.low_float_threshold),
   };
 }

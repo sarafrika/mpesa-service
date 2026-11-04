@@ -13,10 +13,13 @@ import {
   parseInstant,
   parseSweepPayload,
   querySettled,
+  receiverLabel,
   reportLabel,
   shareLabel,
   sourceLine,
   sweepAmountError,
+  transferKind,
+  workingShortfall,
 } from "./float.ts";
 
 // 12:00 in Nairobi on Monday 26 October 2026.
@@ -45,12 +48,46 @@ describe("dailyUtility", () => {
 });
 
 describe("sweepAmountError", () => {
-  it("wants whole shillings no higher than the known balance", () => {
-    assert.equal(sweepAmountError("500000", 600000), undefined);
-    assert.equal(sweepAmountError("600001", 600000), "More than the utility balance last reported");
-    assert.equal(sweepAmountError("100.50", 600000), "Whole shillings, at least 1");
-    assert.equal(sweepAmountError("0", undefined), "Whole shillings, at least 1");
-    assert.equal(sweepAmountError("999999", null), undefined);
+  it("wants whole shillings and never blocks on the balance", () => {
+    assert.equal(sweepAmountError("500000"), undefined);
+    assert.equal(sweepAmountError("100.50"), "Whole shillings, at least 1");
+    assert.equal(sweepAmountError("0"), "Whole shillings, at least 1");
+  });
+});
+
+describe("workingShortfall", () => {
+  it("warns when the amount is over the Working balance, and only then", () => {
+    assert.match(workingShortfall("600001", 600000) ?? "", /^More than the Working balance/);
+    assert.equal(workingShortfall("600000", 600000), undefined);
+    assert.equal(workingShortfall("999999", null), undefined);
+    assert.equal(workingShortfall("1.5", 1), undefined);
+  });
+});
+
+describe("receiverLabel and transferKind", () => {
+  it("names a top-up by our B2C shortcode and a sweep by its type", () => {
+    assert.equal(
+      receiverLabel({
+        receiver_type: "B2C_SHORTCODE",
+        receiver_shortcode: "4954124",
+        receiver_business_name: "Sarafrika Disbursements",
+      }),
+      "B2C top-up → 4954124 · Sarafrika Disbursements",
+    );
+    assert.equal(
+      receiverLabel({ receiver_type: "B2C_SHORTCODE", receiver_shortcode: "4954124" }),
+      "B2C top-up → 4954124",
+    );
+    assert.equal(
+      receiverLabel({ receiver_type: "TILL", receiver_shortcode: "123456" }),
+      "123456 · Till",
+    );
+    assert.equal(
+      receiverLabel({ receiver_type: "PAYBILL", receiver_shortcode: "522522" }),
+      "522522 · Paybill",
+    );
+    assert.equal(transferKind("BusinessPayToBulk"), "B2C top-up");
+    assert.equal(transferKind("BusinessPayBill"), "B2B sweep");
   });
 });
 
@@ -70,13 +107,13 @@ describe("parseSweepPayload", () => {
       command_id: "BusinessPayBill",
       amount: "500000",
       balance_after: 100000,
-      utility_balance: null,
+      working_balance: null,
       account_reference: "",
     });
     assert.equal(parsed.destinationName, "Sarafrika bank");
     assert.equal(parsed.amount, 500000);
     assert.equal(parsed.balanceAfter, 100000);
-    assert.equal(parsed.utilityBalance, undefined);
+    assert.equal(parsed.workingBalance, undefined);
     assert.equal(parsed.accountReference, undefined);
     assert.deepEqual(parseSweepPayload(null), {});
     assert.deepEqual(parseSweepPayload("x"), {});
@@ -179,6 +216,14 @@ describe("reportLabel", () => {
       "Balance query by jane",
     );
     assert.equal(reportLabel({ kind: "BALANCE_QUERY", query_source: "MANUAL" }), "Balance query");
+    assert.equal(
+      reportLabel({
+        kind: "BALANCE_QUERY",
+        query_source: "AFTER_TRANSFER",
+        requested_by: "system",
+      }),
+      "Balance query after a transfer",
+    );
     assert.equal(reportLabel({ kind: "PAYOUT", reference: "UJ7T4AB1CD" }), "B2C payout UJ7T4AB1CD");
     assert.equal(reportLabel({ kind: "C2B_PAYMENT", reference: "UK1" }), "C2B payment UK1");
     assert.equal(reportLabel({ kind: "C2B_PAYMENT" }), "C2B payment");

@@ -34,6 +34,7 @@ import { useHasRole } from "@/hooks/use-has-role";
 import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { transferKind } from "./float";
 
 /** Approved sweeps sent to Safaricom, newest first; page, size and sort live in the URL (transfers_*). */
 export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
@@ -50,7 +51,7 @@ export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
   return (
     <SectionCard
       title="B2B transfers"
-      description="Sweeps that were approved and sent to Safaricom."
+      description="Sweeps and B2C top-ups that were approved and sent to Safaricom."
     >
       {data && <StaleNotice query={list} />}
       {list.isPending ? (
@@ -117,6 +118,10 @@ export function B2bTransfers({ shortcodeUuid }: { shortcodeUuid: string }) {
                     <TableCell>
                       <div className="font-medium">
                         {transfer.destination_name ?? "Removed destination"}
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          · {transferKind(transfer.command_id)}
+                        </span>
                       </div>
                       <div className="font-mono text-muted-foreground text-xs">
                         {transfer.receiver_shortcode}

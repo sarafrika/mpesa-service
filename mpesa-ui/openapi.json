@@ -503,6 +503,9 @@
           "debitAccountCurrentBalance" : {
             "type" : "string"
           },
+          "debitPartyAffectedAccountBalance" : {
+            "type" : "string"
+          },
           "debitPartyCharges" : {
             "type" : "string"
           },
@@ -510,6 +513,9 @@
             "type" : "string"
           },
           "receiverPartyPublicName" : {
+            "type" : "string"
+          },
+          "transCompletedTime" : {
             "type" : "string"
           }
         },
@@ -783,7 +789,7 @@
             "type" : "boolean"
           },
           "command_id" : {
-            "enum" : [ "BusinessPayBill", "BusinessBuyGoods" ],
+            "enum" : [ "BusinessPayBill", "BusinessBuyGoods", "BusinessPayToBulk" ],
             "example" : "BusinessPayBill",
             "type" : "string"
           },
@@ -798,12 +804,17 @@
             "example" : "Sarafrika bank paybill",
             "type" : "string"
           },
+          "receiver_business_name" : {
+            "description" : "For a B2C_SHORTCODE destination, the business name of our shortcode it tops up",
+            "example" : "Sarafrika Disbursements",
+            "type" : "string"
+          },
           "receiver_shortcode" : {
             "example" : 522522,
             "type" : "string"
           },
           "receiver_type" : {
-            "enum" : [ "PAYBILL", "TILL" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C_SHORTCODE" ],
             "type" : "string"
           },
           "shortcode_uuid" : {
@@ -853,11 +864,16 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "charges" : {
+            "description" : "DebitPartyCharges from the result",
+            "type" : "number"
+          },
           "checker" : {
             "type" : "string"
           },
           "command_id" : {
-            "enum" : [ "BusinessPayBill", "BusinessBuyGoods" ],
+            "description" : "BusinessPayToBulk is a B2C Account Top Up",
+            "enum" : [ "BusinessPayBill", "BusinessBuyGoods", "BusinessPayToBulk" ],
             "type" : "string"
           },
           "completed_at" : {
@@ -910,12 +926,22 @@
             "format" : "date-time",
             "type" : "string"
           },
+          "trans_completed_at" : {
+            "description" : "TransCompletedTime from the result",
+            "format" : "date-time",
+            "type" : "string"
+          },
           "transaction_id" : {
             "type" : "string"
           },
           "uuid" : {
             "format" : "uuid",
             "type" : "string"
+          },
+          "working_balance_after" : {
+            "description" : "The Working account's available balance after the debit, from the result",
+            "example" : 6186.83,
+            "type" : "number"
           }
         },
         "required" : [ "amount", "approval_request_uuid", "command_id", "created_at", "destination_uuid", "outcome_unknown", "receiver_shortcode", "reference", "shortcode_uuid", "status", "uuid" ],
@@ -965,7 +991,7 @@
           },
           "query_source" : {
             "description" : "How the balance query was sent; null for other kinds",
-            "enum" : [ "MANUAL", "SCHEDULED" ],
+            "enum" : [ "MANUAL", "SCHEDULED", "AFTER_TRANSFER" ],
             "type" : "string"
           },
           "reference" : {
@@ -1035,7 +1061,7 @@
             "type" : "string"
           },
           "source" : {
-            "enum" : [ "MANUAL", "SCHEDULED" ],
+            "enum" : [ "MANUAL", "SCHEDULED", "AFTER_TRANSFER" ],
             "type" : "string"
           },
           "status" : {
@@ -1573,13 +1599,14 @@
             "type" : "string"
           },
           "receiver_shortcode" : {
+            "description" : "The paybill or till number, or for B2C_SHORTCODE our own B2C shortcode's number",
             "example" : 522522,
             "minLength" : 1,
             "pattern" : "\\d{5,7}",
             "type" : "string"
           },
           "receiver_type" : {
-            "enum" : [ "PAYBILL", "TILL" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C_SHORTCODE" ],
             "type" : "string"
           }
         },
@@ -4226,6 +4253,20 @@
             "description" : "Where utility_available came from",
             "enum" : [ "BALANCE_QUERY", "PAYOUT", "C2B_PAYMENT" ],
             "type" : "string"
+          },
+          "working_available" : {
+            "description" : "Working (MMF) account balance, which B2B sweeps and B2C top-ups are paid from: the newest balance result's, or a newer B2B or top-up result's balance after its debit",
+            "example" : 6186.83,
+            "type" : "number"
+          },
+          "working_reported_at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "working_source" : {
+            "description" : "Where working_available came from",
+            "enum" : [ "BALANCE_QUERY", "B2B_RESULT" ],
+            "type" : "string"
           }
         },
         "required" : [ "default_low_float_threshold", "initiator_configured", "low_float", "low_float_threshold", "shortcode_uuid" ],
@@ -5146,7 +5187,7 @@
             "type" : "string"
           },
           "receiver_type" : {
-            "enum" : [ "PAYBILL", "TILL" ],
+            "enum" : [ "PAYBILL", "TILL", "B2C_SHORTCODE" ],
             "type" : "string"
           }
         },
@@ -9423,6 +9464,7 @@
         "tags" : [ "Admin: Treasury" ]
       },
       "post" : {
+        "description" : "A B2C_SHORTCODE destination (B2C Account Top Up, BusinessPayToBulk) names one of our own active B2C shortcodes by number, never the source itself, and takes no account reference.",
         "operationId" : "createB2bDestination",
         "parameters" : [ {
           "description" : "Shortcode uuid",
@@ -9496,7 +9538,7 @@
             "description" : "A destination with this name exists"
           }
         },
-        "summary" : "Add a paybill or till this shortcode may sweep to",
+        "summary" : "Add a paybill, till or own B2C shortcode this shortcode may move money to",
         "tags" : [ "Admin: Treasury" ]
       }
     },
@@ -9650,7 +9692,7 @@
     },
     "/api/v1/admin/shortcodes/{uuid}/b2b-sweeps" : {
       "post" : {
-        "description" : "Nothing is sent until a checker (finance or admin, not the maker) approves it. The amount may not exceed the utility balance last reported, when one is known.",
+        "description" : "Nothing is sent until a checker (finance or admin, not the maker) approves it. B2B payments and B2C top-ups are paid from the Working account; the pre-checks compare the amount with its last known balance but do not block, since Safaricom refuses an overdraw.",
         "operationId" : "requestB2bSweep",
         "parameters" : [ {
           "description" : "Shortcode uuid",
@@ -9837,7 +9879,7 @@
             "description" : "No such shortcode (or destination)"
           }
         },
-        "summary" : "Approved sweeps sent to Safaricom, newest first",
+        "summary" : "Approved sweeps and B2C top-ups sent to Safaricom, newest first",
         "tags" : [ "Admin: Treasury" ]
       }
     },

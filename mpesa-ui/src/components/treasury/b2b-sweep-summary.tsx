@@ -2,7 +2,7 @@ import { KeyValueList } from "@/components/key-value-list";
 import { Money } from "@/components/money";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { parseSweepPayload } from "./float";
+import { parseSweepPayload, TOP_UP_COMMAND } from "./float";
 
 type B2bSweepSummaryProps = {
   /** The `payload` of a B2B_SWEEP approval request, as the service stored it (any shape is tolerated). */
@@ -10,19 +10,19 @@ type B2bSweepSummaryProps = {
   className?: string;
 };
 
-/** What a checker needs to judge a B2B sweep: where the money goes, how much, and the float it leaves. */
+const COMMANDS: Record<string, string> = {
+  BusinessBuyGoods: "Till (BusinessBuyGoods)",
+  BusinessPayBill: "Paybill (BusinessPayBill)",
+  [TOP_UP_COMMAND]: "B2C top-up (BusinessPayToBulk)",
+};
+
+/** What a checker needs to judge a sweep or B2C top-up: where the money goes, how much, and the Working
+ * balance it is paid from. */
 export function B2bSweepSummary({ payload, className }: B2bSweepSummaryProps) {
   const sweep = parseSweepPayload(payload);
-  const belowLine =
-    sweep.balanceAfter != null &&
-    sweep.lowFloatThreshold != null &&
-    sweep.balanceAfter < sweep.lowFloatThreshold;
-  const command =
-    sweep.commandId === "BusinessBuyGoods"
-      ? "Till (BusinessBuyGoods)"
-      : sweep.commandId === "BusinessPayBill"
-        ? "Paybill (BusinessPayBill)"
-        : sweep.commandId;
+  const topUp = sweep.commandId === TOP_UP_COMMAND;
+  const short = sweep.balanceAfter != null && sweep.balanceAfter < 0;
+  const command = sweep.commandId ? (COMMANDS[sweep.commandId] ?? sweep.commandId) : undefined;
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
@@ -38,49 +38,47 @@ export function B2bSweepSummary({ payload, className }: B2bSweepSummaryProps) {
           {
             label: "Receiver",
             value: sweep.receiverShortcode
-              ? `${sweep.receiverShortcode} · ${command ?? ""}`
+              ? `${sweep.receiverShortcode}${sweep.receiverBusinessName ? ` · ${sweep.receiverBusinessName}` : ""} · ${command ?? ""}`
               : command,
             mono: true,
           },
-          { label: "Account reference", value: sweep.accountReference, mono: true },
+          {
+            label: topUp ? "Reference sent" : "Account reference",
+            value: topUp ? sweep.reference : sweep.accountReference,
+            mono: true,
+          },
           { label: "Amount", value: <Money amount={sweep.amount} /> },
           { label: "Reference", value: sweep.reference, mono: true },
           {
-            label: "Utility balance",
+            label: "Working balance",
             value:
-              sweep.utilityBalance != null ? (
+              sweep.workingBalance != null ? (
                 <span>
-                  <Money amount={sweep.utilityBalance} />
-                  {sweep.utilityReportedAt && (
+                  <Money amount={sweep.workingBalance} />
+                  {sweep.workingReportedAt && (
                     <span className="text-muted-foreground">
                       {" "}
-                      as of {formatDateTime(sweep.utilityReportedAt)}
+                      as of {formatDateTime(sweep.workingReportedAt)}
                     </span>
                   )}
                 </span>
               ) : (
-                "Not known when the sweep was requested"
+                "No Working balance reading when this was requested"
               ),
           },
           {
-            label: "Left after the sweep",
+            label: "Working left after",
             value: sweep.balanceAfter != null ? <Money amount={sweep.balanceAfter} /> : undefined,
-          },
-          {
-            label: "Low-float line",
-            value:
-              sweep.lowFloatThreshold != null ? (
-                <Money amount={sweep.lowFloatThreshold} />
-              ) : undefined,
           },
         ]}
       />
-      {belowLine && (
+      {short && (
         <p
           role="status"
           className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-warning text-sm"
         >
-          This sweep leaves the utility account below the shortcode's low-float line.
+          The amount is more than the Working balance last reported. Safaricom refuses it unless
+          funds are moved from Utility to Working on the M-PESA org portal first.
         </p>
       )}
     </div>

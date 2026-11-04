@@ -29,8 +29,9 @@ import {
 import { pagedQueryOptions, useClampPage, usePaging } from "@/hooks/use-paging";
 import { cn } from "@/lib/utils";
 import { DestinationDialog } from "./destination-dialog";
+import { receiverLabel } from "./float";
 
-/** The paybills and tills this shortcode may sweep to; admins add, edit and remove them. */
+/** The paybills, tills and own B2C shortcodes this shortcode may move money to; admins manage them. */
 export function B2bDestinations({ shortcodeUuid }: { shortcodeUuid: string }) {
   const paging = usePaging({ prefix: "destinations", size: 10 });
   const list = useListB2bDestinations(
@@ -48,7 +49,7 @@ export function B2bDestinations({ shortcodeUuid }: { shortcodeUuid: string }) {
   return (
     <SectionCard
       title="B2B destinations"
-      description="Where sweeps from this shortcode may go. Only active ones can be picked."
+      description="Where sweeps and B2C top-ups from this shortcode may go. Only active ones can be picked."
       actions={
         <RoleGate needs="mpesa-admin">
           <DestinationDialog
@@ -71,7 +72,7 @@ export function B2bDestinations({ shortcodeUuid }: { shortcodeUuid: string }) {
         <EmptyState
           icon={Landmark}
           title="No destinations yet"
-          description="An admin adds the bank paybill or till that sweeps should go to."
+          description="An admin adds the bank paybill or till that sweeps should go to, or one of our B2C shortcodes to top up."
           action={
             <RoleGate needs="mpesa-admin">
               <DestinationDialog
@@ -116,15 +117,7 @@ export function B2bDestinations({ shortcodeUuid }: { shortcodeUuid: string }) {
                 {data.items.map((destination) => (
                   <TableRow key={destination.uuid}>
                     <TableCell className="font-medium">{destination.name}</TableCell>
-                    <TableCell>
-                      <span className="font-mono tabular-nums">
-                        {destination.receiver_shortcode}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {destination.receiver_type === "TILL" ? "Till" : "Paybill"}
-                      </span>
-                    </TableCell>
+                    <TableCell className="tabular-nums">{receiverLabel(destination)}</TableCell>
                     <TableCell className="font-mono">
                       {destination.account_reference ?? "—"}
                     </TableCell>

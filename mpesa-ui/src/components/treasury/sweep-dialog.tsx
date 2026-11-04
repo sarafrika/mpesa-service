@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
@@ -39,25 +39,46 @@ import { Textarea } from "@/components/ui/textarea";
 import { applyFieldErrors } from "@/lib/api-errors";
 import { formatDateTime, formatKes } from "@/lib/format";
 import { acceptedData } from "./api";
-import { sweepAmountError } from "./float";
+import { receiverLabel, sweepAmountError, workingShortfall } from "./float";
 
 type SweepDialogProps = {
   shortcodeUuid: string;
   status: ShortcodeFloatStatusDto;
+  /** A sweep to a paybill or till, or a B2C Account Top Up of one of our own B2C shortcodes. */
+  kind: "sweep" | "topUp";
   disabled?: boolean;
 };
 
-/** Asks for a B2B sweep. Nothing moves here: the request waits in Approvals for a second person. */
-export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProps) {
+const COPY = {
+  sweep: {
+    trigger: "Sweep to bank (B2B)",
+    noun: "Sweep",
+    placeholder: "Pick a paybill or till",
+    empty: "No active paybill or till destinations",
+    add: "An admin adds the bank paybill or till under B2B destinations on this tab.",
+  },
+  topUp: {
+    trigger: "Top up a B2C shortcode",
+    noun: "Top-up",
+    placeholder: "Pick one of our B2C shortcodes",
+    empty: "No active B2C top-up destinations",
+    add: "An admin adds our B2C shortcode under B2B destinations on this tab (type B2C shortcode).",
+  },
+} as const;
+
+/** Asks for a B2B sweep or a B2C top-up. Nothing moves here: the request waits in Approvals for a second
+ * person. Both are paid from this shortcode's Working account. */
+export function SweepDialog({ shortcodeUuid, status, kind, disabled }: SweepDialogProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const destinationId = useId();
   const reasonId = useId();
-  const utility = status.utility_available ?? null;
+  const copy = COPY[kind];
+  const working = status.working_available ?? null;
   const schema = z.object({
     destination_uuid: z.string().min(1, "Pick a destination"),
     amount: z.string().superRefine((value, ctx) => {
-      const message = sweepAmountError(value, utility);
+      const message = sweepAmountError(value);
       if (message) ctx.addIssue({ code: "custom", message });
     }),
     reason: z.string().trim().min(1, "Say why, for the checker").max(500, "At most 500 characters"),
@@ -73,7 +94,10 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
     { query: { enabled: open } },
   );
   const destinationPage = okData(destinations.data);
-  const loaded = destinationPage?.items ?? [];
+  // The list API has no type filter: top-ups are the B2C_SHORTCODE destinations, sweeps the rest.
+  const loaded = (destinationPage?.items ?? []).filter(
+    (d) => (d.receiver_type === "B2C_SHORTCODE") === (kind === "topUp"),
+  );
   const [search, setSearch] = useState("");
   // The list API has no search, so the first 100 active destinations are filtered here.
   const needle = search.trim().toLowerCase();
@@ -84,6 +108,7 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
     : loaded;
   const sweep = useRequestB2bSweep({ mutation: { meta: { errorToast: false } } });
   const { errors } = form.formState;
+  const shortfall = workingShortfall(form.watch("amount") ?? "", working);
 
   async function submit(values: Values) {
     try {
@@ -96,7 +121,7 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
         },
       });
       const submitted = acceptedData(response);
-      toast.success("Sweep sent to Approvals", {
+      toast.success(`${copy.noun} sent to Approvals`, {
         description: `${formatKes(values.amount)} moves once a finance or admin user who is not you approves ${submitted?.reference ?? "it"}.`,
         action: { label: "Open Approvals", onClick: () => router.push("/approvals") },
       });
@@ -110,15 +135,18 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" disabled={disabled}>
-          <ArrowRightLeft /> Sweep to bank (B2B)
+        <Button size="sm" variant={kind === "topUp" ? "outline" : "default"} disabled={disabled}>
+          {kind === "topUp" ? <Send /> : <ArrowRightLeft />} {copy.trigger}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Sweep to bank (B2B)</DialogTitle>
+          <DialogTitle>{copy.trigger}</DialogTitle>
           <DialogDescription>
-            This asks for a B2B payment from the utility account. It goes to{" "}
+            {kind === "topUp"
+              ? "This asks for a B2C Account Top Up (BusinessPayToBulk) from this shortcode's Working account to the Utility account of one of our B2C shortcodes."
+              : "This asks for a B2B payment from this shortcode's Working account."}{" "}
+            It goes to{" "}
             <Link href="/approvals" className="underline underline-offset-2">
               Approvals
             </Link>{" "}
@@ -152,15 +180,15 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
                         destinations.isPending
                           ? "Loading destinations…"
                           : loaded.length === 0
-                            ? "No active destinations"
-                            : "Pick a paybill or till"
+                            ? copy.empty
+                            : copy.placeholder
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
                     {options.map((destination) => (
                       <SelectItem key={destination.uuid} value={destination.uuid}>
-                        {destination.name} · {destination.receiver_shortcode}
+                        {destination.name} · {receiverLabel(destination)}
                         {destination.account_reference ? ` · ${destination.account_reference}` : ""}
                       </SelectItem>
                     ))}
@@ -168,18 +196,17 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
                 </Select>
               )}
             />
-            {destinationPage && destinationPage.total_items > loaded.length && (
+            {destinationPage && destinationPage.total_items > destinationPage.items.length && (
               <FieldDescription>
-                Showing the first {loaded.length} of {destinationPage.total_items} destinations.
+                Showing the first {destinationPage.items.length} of {destinationPage.total_items}{" "}
+                destinations.
               </FieldDescription>
             )}
             {destinations.isError && (
               <FieldDescription>Destinations could not be loaded; try again.</FieldDescription>
             )}
             {!destinations.isPending && !destinations.isError && loaded.length === 0 && (
-              <FieldDescription>
-                An admin adds destinations under B2B destinations on this tab.
-              </FieldDescription>
+              <FieldDescription>{copy.add}</FieldDescription>
             )}
             <FieldError errors={[errors.destination_uuid]} />
           </Field>
@@ -188,19 +215,29 @@ export function SweepDialog({ shortcodeUuid, status, disabled }: SweepDialogProp
             inputMode="numeric"
             error={errors.amount}
             description={
-              utility != null
-                ? `Utility balance ${formatKes(utility)} as of ${formatDateTime(status.utility_reported_at)}`
-                : "No balance is known yet; query it first to check the sweep fits."
+              working != null
+                ? `Working balance ${formatKes(working)} as of ${formatDateTime(status.working_reported_at)}`
+                : "No Working balance reading yet; query the balance to check it fits."
             }
             {...form.register("amount")}
           />
+          {shortfall && (
+            <p
+              role="status"
+              className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-warning text-sm"
+            >
+              {shortfall}
+            </p>
+          )}
           <Field data-invalid={errors.reason ? true : undefined}>
             <FieldLabel htmlFor={reasonId}>Reason</FieldLabel>
             <Textarea
               id={reasonId}
               rows={3}
               aria-invalid={errors.reason ? true : undefined}
-              placeholder="Weekly treasury sweep"
+              placeholder={
+                kind === "topUp" ? "Float for this week's payouts" : "Weekly treasury sweep"
+              }
               {...form.register("reason")}
             />
             <FieldError errors={[errors.reason]} />
