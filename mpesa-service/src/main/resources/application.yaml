@@ -163,21 +163,9 @@ mpesa:
       lease: 2m
 
   callback:
-    # Safaricom's known IP addresses for callback requests
-    # These are the ONLY IPs that should be allowed to send callbacks
-    allowed-ips:
-      - "196.201.214.200"
-      - "196.201.214.206"
-      - "196.201.213.114"
-      - "196.201.214.207"
-      - "196.201.214.208"
-      - "196.201.213.44"
-      - "196.201.212.127"
-      - "196.201.212.138"
-      - "196.201.212.129"
-      - "196.201.212.136"
-      - "196.201.212.74"
-      - "196.201.212.69"
+    # Safaricom's callback IPs, the ONLY ones allowed to send callbacks. Kept as one comma-separated
+    # value: @Value cannot read a YAML list, so a list here was ignored in favour of an older default.
+    allowed-ips: ${MPESA_CALLBACK_ALLOWED_IPS:196.201.214.200,196.201.214.206,196.201.213.114,196.201.214.207,196.201.214.208,196.201.213.44,196.201.212.127,196.201.212.138,196.201.212.129,196.201.212.136,196.201.212.74,196.201.212.69}
 
     # Proxies (IPs or CIDRs, comma-separated) in front of this service. Only when the direct peer is one of
     # them is X-Forwarded-For used, taking its right-most entry that is not a trusted proxy.

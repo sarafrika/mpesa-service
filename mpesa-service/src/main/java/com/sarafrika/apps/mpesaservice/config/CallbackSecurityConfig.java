@@ -42,7 +42,7 @@ import java.util.List;
 @Slf4j
 public class CallbackSecurityConfig {
 
-    @Value("${mpesa.callback.allowed-ips:196.201.214.200,196.201.214.206,196.201.213.114,196.201.214.207,196.201.214.208,196.201.213.44,196.201.212.127,196.201.212.138}")
+    @Value("${mpesa.callback.allowed-ips:196.201.214.200,196.201.214.206,196.201.213.114,196.201.214.207,196.201.214.208,196.201.213.44,196.201.212.127,196.201.212.138,196.201.212.129,196.201.212.136,196.201.212.74,196.201.212.69}")
     private List<String> allowedIps;
 
     @Value("${mpesa.callback.ip-whitelist.enabled:true}")
