@@ -38,7 +38,7 @@ public class StkStatusReconciler {
                                TransactionStatusService statusService,
                                TransactionTemplate transactions,
                                @Value("${mpesa.stk.status-query-enabled:true}") boolean enabled,
-                               @Value("${mpesa.stk.status-query-after:10m}") Duration after,
+                               @Value("${mpesa.stk.status-query-after:90s}") Duration after,
                                @Value("${mpesa.stk.status-query-batch:50}") int batchSize,
                                @Value("${mpesa.stk.status-query-max-delay:1h}") Duration maxDelay,
                                @Value("${mpesa.stk.status-query-give-up-after:2d}") Duration giveUpAfter,

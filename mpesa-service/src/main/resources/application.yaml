@@ -220,7 +220,7 @@ mpesa:
   # these are retry settings of this service, not Safaricom limits.
   stk:
     status-query-enabled: ${MPESA_STK_STATUS_QUERY_ENABLED:true}
-    status-query-after: ${MPESA_STK_STATUS_QUERY_AFTER:10m}
+    status-query-after: ${MPESA_STK_STATUS_QUERY_AFTER:90s}
     status-query-interval-ms: ${MPESA_STK_STATUS_QUERY_INTERVAL_MS:60000}
     status-query-batch: 50
     status-query-max-delay: ${MPESA_STK_STATUS_QUERY_MAX_DELAY:1h}
